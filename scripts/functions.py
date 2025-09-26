@@ -1,6 +1,12 @@
 import pandas as pd
 import xarray as xr
 import numpy as np
+import matplotlib.pyplot as plt
+import os
+
+# Figures directory - relative path from scripts/ to figures/
+figures_dir = "figures"
+
 
 def load_netcdf_data(file_path):
     """Load and explore NetCDF data using xarray"""
@@ -60,38 +66,6 @@ def explore_variable_detail(ds, var_name):
     else:
         print("Variable has more than 2 dimensions; skipping DataFrame conversion.")
 
-def count_spatial_points(ds):
-    """Count the total number of spatial points in the dataset"""
-    if ds is None:
-        return
-    
-    print("\n=== Spatial Points Analysis ===")
-    
-    # Get spatial dimensions (usually south_north and west_east for WRF data)
-    spatial_dims = []
-    total_points = 1
-    
-    # Common spatial dimension names
-    possible_spatial_dims = ['south_north', 'west_east', 'x', 'y', 'lat', 'lon', 'latitude', 'longitude']
-    
-    for dim_name, dim_size in ds.dims.items():
-        if dim_name in possible_spatial_dims:
-            spatial_dims.append((dim_name, dim_size))
-            total_points *= dim_size
-            print(f"  {dim_name}: {dim_size} points")
-    
-    if spatial_dims:
-        print(f"\nTotal spatial points: {total_points:,}")
-        print(f"Spatial dimensions found: {[dim[0] for dim in spatial_dims]}")
-        
-        # Print coordinate pairs if latitude and longitude data are available
-        print_coordinate_pairs(ds, total_points)
-    else:
-        print("No clear spatial dimensions found. All dimensions:")
-        for dim_name, dim_size in ds.dims.items():
-            print(f"  {dim_name}: {dim_size}")
-    
-    return total_points if spatial_dims else None
 
 def ice_load(accre,ablat,method):
     if method == 1:
@@ -167,7 +141,65 @@ def ice_load(accre,ablat,method):
     #
     return load
 
-def calculate_ice_load_for_dataset(ds, accre_var='ACCRE_CYL', ablat_var='ABLAT_CYL', method=3, max_load=5.0):
+
+def accreation_per_winter(ds, start_date, end_date):
+    # Check if dataset is None
+    if ds is None:
+        print("Dataset is None")
+        return None
+
+    # Subset dataset to the specified date range
+    ds1 = ds.sel(time=slice(start_date,end_date))
+
+    # Define Winters
+    dates = pd.date_range(start_date, end_date,freq='YS-JUL')
+
+    # Add winter number to dataset
+    df = ds1['time'].to_pandas()
+    winter_numbers = np.full(len(df), np.nan)  # Initialize with NaN
+    
+    for iwinter,winterstartdate in enumerate(dates[:-1]):
+        winterenddate = dates[iwinter+1]-pd.to_timedelta('30min')
+        print(iwinter,winterstartdate,winterenddate)
+        
+        # Find indices for this winter period
+        mask = (df >= winterstartdate) & (df <= winterenddate)
+        winter_numbers[mask] = iwinter
+    
+    ds1 = ds1.assign_coords(winterno=('time', winter_numbers))
+
+    # Plot accretion sum - one plot per winter
+
+    # Only group by valid (non-NaN) winter numbers
+    valid_winters = ds1.where(~np.isnan(ds1.winterno), drop=True)
+    
+    if len(valid_winters.time) > 0:
+        plot_data = valid_winters.ACCRE_CYL.isel(height=0).groupby('winterno').sum(dim='time')
+                
+        # Create one plot for each winter
+        for i, winter_idx in enumerate(plot_data.winterno.values):
+            plt.figure(figsize=(10, 6))
+            plot_data.isel(winterno=i).plot()
+            
+            winter_start = dates[int(winter_idx)] if int(winter_idx) < len(dates)-1 else "N/A"
+            winter_end = dates[int(winter_idx)+1] - pd.to_timedelta('30min') if int(winter_idx)+1 < len(dates) else "N/A"
+            plt.title(f'Ice Accretion Sum for Winter starting on: {winter_start} and ending on {winter_end}')
+            plt.xlabel('West-East')
+            plt.ylabel('South-North')
+            plt.tight_layout()
+            
+            # Save figure
+            filename = f"{figures_dir}/ice_accretion_winter_{int(winter_idx)}.png"
+            plt.savefig(filename, dpi=300, bbox_inches='tight')
+            print(f"Saved: {filename}")
+            plt.close()  # Close figure to free memory
+            
+        print(f"All plots saved to {figures_dir}/ directory")
+    else:
+        print("No valid winter data available for plotting")
+
+
+def calculate_ice_load_for_dataset(ds, start_date, end_date, accre_var='ACCRE_CYL', ablat_var='ABLAT_CYL', method=3, max_load=5.0):
     """
     Calculate ice load for the dataset using available variables
     
@@ -189,20 +221,35 @@ def calculate_ice_load_for_dataset(ds, accre_var='ACCRE_CYL', ablat_var='ABLAT_C
     xarray.DataArray
         Ice load data with same dimensions as input
     """
-
+    # Check if dataset is None
     if ds is None:
         print("Dataset is None")
         return None
-    
+
+    # Subset dataset to the specified date range
+    ds1 = ds.sel(time=slice(start_date,end_date))
+
+    # Define Winters
+    dates = pd.date_range(start_date, end_date,freq='YS-JUL')
+
+    # Add winter number to dataset
+    df = ds1['time'].to_pandas()
+    for iwinter,winterstartdate in enumerate(dates[:-1]):
+        winterenddate = dates[iwinter+1]-pd.to_timedelta('30min')
+        print(iwinter,winterstartdate,winterenddate)
+        datesperwinter = pd.date_range(winterstartdate,winterenddate,freq='30min')
+        df.loc[datesperwinter]=iwinter
+    ds1 = ds1.assign_coords(winterno=('time',df.values))
+
     # Check if required variables exist
-    if accre_var not in ds.data_vars:
+    if accre_var not in ds1.data_vars:
         print(f"Accretion variable '{accre_var}' not found in dataset.")
-        print(f"Available variables: {list(ds.data_vars)}")
+        print(f"Available variables: {list(ds1.data_vars)}")
         return None
     
-    if ablat_var not in ds.data_vars:
+    if ablat_var not in ds1.data_vars:
         print(f"Ablation variable '{ablat_var}' not found in dataset.")
-        print(f"Available variables: {list(ds.data_vars)}")
+        print(f"Available variables: {list(ds1.data_vars)}")
         return None
     
     print(f"\n=== Calculating Ice Load ===")
@@ -212,8 +259,8 @@ def calculate_ice_load_for_dataset(ds, accre_var='ACCRE_CYL', ablat_var='ABLAT_C
     print(f"Maximum load limit: {max_load} kg/m")
     
     # Extract the variables
-    accre = ds[accre_var]
-    ablat = ds[ablat_var]
+    accre = ds1[accre_var]
+    ablat = ds1[ablat_var]
     
     print(f"Accretion data shape: {accre.shape}")
     print(f"Ablation data shape: {ablat.shape}")
@@ -233,5 +280,6 @@ def calculate_ice_load_for_dataset(ds, accre_var='ACCRE_CYL', ablat_var='ABLAT_C
     print(f"Result shape: {ice_load_result.shape}")
     print(f"Max ice load in dataset: {ice_load_result.max().values:.3f} kg/m")
     print(f"Min ice load in dataset: {ice_load_result.min().values:.3f} kg/m")
-    
+
+   
     return ice_load_result
