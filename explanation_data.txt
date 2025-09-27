@@ -1,0 +1,39 @@
+File: alexandre.nc
+
+30+ years pf data of the Alan Island. It looks like it 
+
+Dimensions: 
+    time: 596064
+    height: 1
+    south_north: 14
+    west_east: 14
+
+Coordinates:
+    XLAT
+    XLON
+    crs
+    height
+    south_north
+    time
+    west_east
+
+Variables: 
+    ABLAT_CYL
+    ACCRE_CYL: accumulated 30min ice accretion ona rotating cylinder
+    PBLH
+    PRECIP
+    QVAPOR
+    RMOL
+    T
+    WS
+
+Attributes: 115
+    ADAPT_DT_MAX:                    15.0
+    ADAPT_DT_MIN:                    3.0
+    ADAPT_DT_START:                  13.0
+    AER_ANGEXP_OPT:                  1
+    AER_ANGEXP_VAL:                  1.2999999523162842
+    AER_AOD550_OPT:                  1
+    ...                              ...
+
+

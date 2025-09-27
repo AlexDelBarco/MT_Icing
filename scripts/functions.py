@@ -4,9 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-# Figures directory - relative path from scripts/ to figures/
-figures_dir = "figures"
-
+# Results directories
+figures_dir = "results/figures"
+results_dir = "results"
 
 def load_netcdf_data(file_path):
     """Load and explore NetCDF data using xarray"""
@@ -105,7 +105,7 @@ def ice_load(accre,ablat,method):
         acm = np.zeros_like(accre.isel(time=0))
         
         for i in range(1, len(accre.time)):
-            print(i,len(accre.time))
+            #print(i,len(accre.time))
             # Calculate change in ice load
             #delta = xr.where(accre.isel(time=i) > 0.0005, accre.isel(time=i), 0) + xr.where(ablat.isel(time=i) < 0, ablat.isel(time=i), 0)
             delta = xr.where(accre.isel(time=i) > 0.0005, accre.isel(time=i), xr.where(ablat.isel(time=i) < 0, ablat.isel(time=i), 0))
@@ -122,7 +122,7 @@ def ice_load(accre,ablat,method):
         acm = np.zeros_like(accre.isel(time=0))
         
         for i in range(1, len(accre.time)):
-            print(i,len(accre.time))
+            #print(i,len(accre.time))
             # Calculate change in ice load
             #delta = xr.where(accre.isel(time=i) > 0.0005, accre.isel(time=i), 0) + xr.where(ablat.isel(time=i) < 0, ablat.isel(time=i), 0)
             delta = xr.where(accre.isel(time=i) > 0.0005, accre.isel(time=i), xr.where(ablat.isel(time=i) < 0, ablat.isel(time=i), 0))
@@ -151,8 +151,13 @@ def accreation_per_winter(ds, start_date, end_date):
     # Subset dataset to the specified date range
     ds1 = ds.sel(time=slice(start_date,end_date))
 
-    # Define Winters
-    dates = pd.date_range(start_date, end_date,freq='YS-JUL')
+    # Define Winters - extend range to capture proper winter boundaries
+    winter_start = pd.to_datetime(start_date) - pd.DateOffset(years=1)
+    winter_end = pd.to_datetime(end_date) + pd.DateOffset(years=1)
+    dates = pd.date_range(winter_start, winter_end, freq='YS-JUL')
+    
+    # Create figures directory if it doesn't exist
+    os.makedirs(figures_dir, exist_ok=True)
 
     # Add winter number to dataset
     df = ds1['time'].to_pandas()
@@ -170,11 +175,15 @@ def accreation_per_winter(ds, start_date, end_date):
 
     # Plot accretion sum - one plot per winter
 
-    # Only group by valid (non-NaN) winter numbers
-    valid_winters = ds1.where(~np.isnan(ds1.winterno), drop=True)
+    # Check if we have any valid winter numbers
+    valid_winter_mask = ~np.isnan(winter_numbers)
     
-    if len(valid_winters.time) > 0:
-        plot_data = valid_winters.ACCRE_CYL.isel(height=0).groupby('winterno').sum(dim='time')
+    if np.any(valid_winter_mask):
+        # Filter dataset to only include times with valid winter numbers
+        valid_times = ds1.time.values[valid_winter_mask]
+        ds1_filtered = ds1.sel(time=valid_times)
+        
+        plot_data = ds1_filtered.ACCRE_CYL.isel(height=0).groupby('winterno').sum(dim='time')
                 
         # Create one plot for each winter
         for i, winter_idx in enumerate(plot_data.winterno.values):
@@ -199,87 +208,132 @@ def accreation_per_winter(ds, start_date, end_date):
         print("No valid winter data available for plotting")
 
 
-def calculate_ice_load_for_dataset(ds, start_date, end_date, accre_var='ACCRE_CYL', ablat_var='ABLAT_CYL', method=3, max_load=5.0):
+def calculate_ice_load(ds1, dates, create_figures=True):
     """
-    Calculate ice load for the dataset using available variables
+    Calculate ice load and create representative figures
     
     Parameters:
     -----------
-    ds : xarray.Dataset
-        The dataset containing ice accretion and ablation data
-    accre_var : str
-        Name of the accretion variable in the dataset (default: 'ACCRE_CYL')
-    ablat_var : str
-        Name of the ablation variable in the dataset (default: 'ABLAT_CYL')
-    method : int
-        Calculation method (1-5, default: 3)
-    max_load : float
-        Maximum ice load limit in kg/m (default: 5.0)
+    ds1 : xarray.Dataset
+        Dataset containing ice accretion and ablation data
+    dates : pandas.DatetimeIndex
+        Date range for winter seasons
+    create_figures : bool
+        Whether to create visualization figures (default: True)
     
     Returns:
     --------
-    xarray.DataArray
-        Ice load data with same dimensions as input
+    str
+        Path to the figures directory containing all generated plots
     """
-    # Check if dataset is None
-    if ds is None:
-        print("Dataset is None")
-        return None
-
-    # Subset dataset to the specified date range
-    ds1 = ds.sel(time=slice(start_date,end_date))
-
-    # Define Winters
-    dates = pd.date_range(start_date, end_date,freq='YS-JUL')
-
-    # Add winter number to dataset
-    df = ds1['time'].to_pandas()
-    for iwinter,winterstartdate in enumerate(dates[:-1]):
-        winterenddate = dates[iwinter+1]-pd.to_timedelta('30min')
-        print(iwinter,winterstartdate,winterenddate)
-        datesperwinter = pd.date_range(winterstartdate,winterenddate,freq='30min')
-        df.loc[datesperwinter]=iwinter
-    ds1 = ds1.assign_coords(winterno=('time',df.values))
-
-    # Check if required variables exist
-    if accre_var not in ds1.data_vars:
-        print(f"Accretion variable '{accre_var}' not found in dataset.")
-        print(f"Available variables: {list(ds1.data_vars)}")
+    
+    dsiceload = xr.zeros_like(ds1['ACCRE_CYL'].isel(height=0)) * np.nan
+    for idate,date in enumerate(dates[:-1]):
+        print(f"Processing winter {idate+1}/{len(dates)-1}: {date} to {dates[idate+1]-pd.to_timedelta('30min')}")
+        load = ice_load(ds1['ACCRE_CYL'].isel(height=0).sel(time=slice(date,dates[idate+1]-pd.to_timedelta('30min'))).load(),\
+                        ds1['ABLAT_CYL'].isel(height=0).sel(time=slice(date,dates[idate+1]-pd.to_timedelta('30min'))).load(),5)
+        dsiceload.loc[{'time':load.time}] = load
+        print(f"Winter {idate+1} completed")
+    
+    print("\nCreating representative figures of ice load results...")
+    
+    # Create figures directory if it doesn't exist
+    os.makedirs(figures_dir, exist_ok=True)
+    
+    # Remove NaN values for analysis
+    ice_load_clean = dsiceload.where(~np.isnan(dsiceload), drop=True)
+    
+    if len(ice_load_clean.time) == 0:
+        print("No valid ice load data found!")
         return None
     
-    if ablat_var not in ds1.data_vars:
-        print(f"Ablation variable '{ablat_var}' not found in dataset.")
-        print(f"Available variables: {list(ds1.data_vars)}")
-        return None
+    # 1. Maximum ice load over the entire period
+    print("Creating maximum ice load map...")
+    max_ice_load = ice_load_clean.max(dim='time')
     
-    print(f"\n=== Calculating Ice Load ===")
-    print(f"Using accretion variable: {accre_var}")
-    print(f"Using ablation variable: {ablat_var}")
-    print(f"Method: {method}")
-    print(f"Maximum load limit: {max_load} kg/m")
+    plt.figure(figsize=(12, 8))
+    im = plt.imshow(max_ice_load.values, cmap='Blues', aspect='auto')
+    plt.colorbar(im, label='Maximum Ice Load (kg/m)')
+    plt.title('Maximum Ice Load Over All Winters')
+    plt.xlabel('West-East Grid Points')
+    plt.ylabel('South-North Grid Points')
+    plt.tight_layout()
     
-    # Extract the variables
-    accre = ds1[accre_var]
-    ablat = ds1[ablat_var]
+    max_ice_filename = os.path.join(figures_dir, 'max_ice_load_map.png')
+    plt.savefig(max_ice_filename, dpi=300, bbox_inches='tight')
+    print(f"Saved: {max_ice_filename}")
+    plt.close()
     
-    print(f"Accretion data shape: {accre.shape}")
-    print(f"Ablation data shape: {ablat.shape}")
-    print(f"Time steps: {len(accre.time)}")
+    # 2. Time series of average ice load
+    print("Creating time series plot...")
+    avg_ice_load_time = ice_load_clean.mean(dim=['south_north', 'west_east'])
     
-    # Call the original ice_load function
-    ice_load_result = ice_load(accre, ablat, method)
+    plt.figure(figsize=(15, 6))
+    avg_ice_load_time.plot(x='time')
+    plt.title('Average Ice Load Over Time (All Grid Points)')
+    plt.xlabel('Time')
+    plt.ylabel('Average Ice Load (kg/m)')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
     
-    # Add metadata
-    ice_load_result.attrs['description'] = f'Ice load calculated using method {method}'
-    ice_load_result.attrs['units'] = 'kg/m'
-    ice_load_result.attrs['max_load_limit'] = max_load
-    ice_load_result.attrs['accretion_source'] = accre_var
-    ice_load_result.attrs['ablation_source'] = ablat_var
+    timeseries_filename = os.path.join(figures_dir, 'ice_load_timeseries.png')
+    plt.savefig(timeseries_filename, dpi=300, bbox_inches='tight')
+    print(f"Saved: {timeseries_filename}")
+    plt.close()
     
-    print(f"Ice load calculation completed!")
-    print(f"Result shape: {ice_load_result.shape}")
-    print(f"Max ice load in dataset: {ice_load_result.max().values:.3f} kg/m")
-    print(f"Min ice load in dataset: {ice_load_result.min().values:.3f} kg/m")
+    # 3. Histogram of ice load values
+    print("Creating ice load distribution histogram...")
+    ice_values = ice_load_clean.values.flatten()
+    ice_values_no_zero = ice_values[ice_values > 0]  # Remove zeros for better visualization
+    
+    plt.figure(figsize=(10, 6))
+    plt.hist(ice_values_no_zero, bins=50, alpha=0.7, edgecolor='black')
+    plt.xlabel('Ice Load (kg/m)')
+    plt.ylabel('Frequency')
+    plt.title('Distribution of Ice Load Values (Non-zero)')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    hist_filename = os.path.join(figures_dir, 'ice_load_distribution.png')
+    plt.savefig(hist_filename, dpi=300, bbox_inches='tight')
+    print(f"Saved: {hist_filename}")
+    plt.close()
+    
+    # 4. Seasonal patterns (if multiple winters)
+    if len(dates) > 2:  # More than one winter
+        print("Creating seasonal comparison...")
+        
+        plt.figure(figsize=(15, 8))
+        
+        for idate in range(len(dates)-1):
+            winter_start = dates[idate]
+            winter_end = dates[idate+1] - pd.to_timedelta('30min')
+            
+            winter_data = ice_load_clean.sel(time=slice(winter_start, winter_end))
+            if len(winter_data.time) > 0:
+                winter_avg = winter_data.mean(dim=['south_north', 'west_east'])
+                winter_avg.plot(x='time', label=f'Winter {idate+1}')
+        
+        plt.title('Ice Load Comparison Across Winters')
+        plt.xlabel('Time')
+        plt.ylabel('Average Ice Load (kg/m)')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        
+        seasonal_filename = os.path.join(figures_dir, 'ice_load_seasonal_comparison.png')
+        plt.savefig(seasonal_filename, dpi=300, bbox_inches='tight')
+        print(f"Saved: {seasonal_filename}")
+        plt.close()
+    
+    # Print summary statistics
+    print(f"\n=== Ice Load Analysis Summary ===")
+    print(f"Data shape: {dsiceload.shape}")
+    print(f"Valid data points: {len(ice_values):,}")
+    print(f"Non-zero data points: {len(ice_values_no_zero):,}")
+    print(f"Maximum ice load: {stats_data['Maximum']:.3f} kg/m")
+    print(f"Average ice load: {stats_data['Mean']:.3f} kg/m")
+    print(f"Figures saved to: {figures_dir}/")
+    
+    return figures_dir
 
-   
-    return ice_load_result
