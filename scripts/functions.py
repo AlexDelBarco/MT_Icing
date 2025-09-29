@@ -68,6 +68,11 @@ def explore_variable_detail(ds, var_name):
 
 
 def ice_load(accre,ablat,method):
+    # Check if input data is empty
+    if len(accre.time) == 0:
+        print(f"Warning: No data available for this time period. Skipping ice load calculation.")
+        return None
+    
     if method == 1:
 
         load = accre.cumsum().load()
@@ -208,9 +213,226 @@ def accreation_per_winter(ds, start_date, end_date):
         print("No valid winter data available for plotting")
 
 
+def create_spatial_gradient_plots(ice_load_clean):
+    """
+    Create spatial gradient analysis plots for ice load data
+    
+    Parameters:
+    -----------
+    ice_load_clean : xarray.DataArray
+        Clean ice load data (NaN values removed)
+    max_ice_load : xarray.DataArray
+        Maximum ice load over the entire period
+    
+    Returns:
+    --------
+    dict
+        Dictionary containing gradient statistics
+    """
+    print("Creating spatial gradient analysis...")
+    
+    # Calculate spatial gradients using numpy gradient
+    max_ice_load = ice_load_clean.max(dim='time')
+    max_ice_2d = max_ice_load.values
+    
+    # Calculate gradients in both directions
+    grad_y, grad_x = np.gradient(max_ice_2d)
+    gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2)
+    
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    
+    # Original maximum ice load
+    im1 = axes[0,0].imshow(max_ice_2d, cmap='Blues', aspect='auto')
+    axes[0,0].set_title('Maximum Ice Load')
+    axes[0,0].set_xlabel('West-East')
+    axes[0,0].set_ylabel('South-North')
+    plt.colorbar(im1, ax=axes[0,0], label='Ice Load (kg/m)')
+    
+    # X-direction gradient (West-East)
+    im2 = axes[0,1].imshow(grad_x, cmap='RdBu_r', aspect='auto')
+    axes[0,1].set_title('Spatial Gradient (West-East)')
+    axes[0,1].set_xlabel('West-East')
+    axes[0,1].set_ylabel('South-North')
+    plt.colorbar(im2, ax=axes[0,1], label='Gradient (kg/m per grid)')
+    
+    # Y-direction gradient (South-North)
+    im3 = axes[1,0].imshow(grad_y, cmap='RdBu_r', aspect='auto')
+    axes[1,0].set_title('Spatial Gradient (South-North)')
+    axes[1,0].set_xlabel('West-East')
+    axes[1,0].set_ylabel('South-North')
+    plt.colorbar(im3, ax=axes[1,0], label='Gradient (kg/m per grid)')
+    
+    # Gradient magnitude
+    im4 = axes[1,1].imshow(gradient_magnitude, cmap='plasma', aspect='auto')
+    axes[1,1].set_title('Gradient Magnitude')
+    axes[1,1].set_xlabel('West-East')
+    axes[1,1].set_ylabel('South-North')
+    plt.colorbar(im4, ax=axes[1,1], label='Gradient Magnitude')
+    
+    plt.tight_layout()
+    
+    spatial_grad_filename = os.path.join(figures_dir, 'ice_load_maximum_spatial_gradients.png')
+    plt.savefig(spatial_grad_filename, dpi=300, bbox_inches='tight')
+    print(f"Saved: {spatial_grad_filename}")
+    plt.close()
+    
+    # Mean spatial gradient analysis over all time periods
+    print("Creating mean temporal spatial gradient analysis...")
+    
+    # Calculate spatial gradients for each time step
+    print("Computing gradients for all time steps...")
+    
+    # Initialize arrays to store gradients for all time steps
+    all_grad_x = np.zeros_like(ice_load_clean.values)
+    all_grad_y = np.zeros_like(ice_load_clean.values)
+    
+    # Calculate gradients for each time step
+    for i, time_step in enumerate(ice_load_clean.time.values):
+        ice_2d_t = ice_load_clean.sel(time=time_step).values
+        
+        # Skip if all NaN
+        if not np.all(np.isnan(ice_2d_t)):
+            grad_y_t, grad_x_t = np.gradient(ice_2d_t)
+            all_grad_x[i, :, :] = grad_x_t
+            all_grad_y[i, :, :] = grad_y_t
+        else:
+            all_grad_x[i, :, :] = np.nan
+            all_grad_y[i, :, :] = np.nan
+    
+    # Compute mean gradients over time (ignoring NaN values)
+    mean_grad_x = np.nanmean(all_grad_x, axis=0)
+    mean_grad_y = np.nanmean(all_grad_y, axis=0)
+    mean_gradient_magnitude = np.sqrt(mean_grad_x**2 + mean_grad_y**2)
+    
+    # Also compute the mean ice load for comparison
+    mean_ice_load = ice_load_clean.mean(dim='time').values
+    
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    
+    # Mean ice load over time
+    im1 = axes[0,0].imshow(mean_ice_load, cmap='Blues', aspect='auto')
+    axes[0,0].set_title('Mean Ice Load Over Time')
+    axes[0,0].set_xlabel('West-East')
+    axes[0,0].set_ylabel('South-North')
+    plt.colorbar(im1, ax=axes[0,0], label='Mean Ice Load (kg/m)')
+    
+    # Mean X-direction gradient (West-East)
+    im2 = axes[0,1].imshow(mean_grad_x, cmap='RdBu_r', aspect='auto')
+    axes[0,1].set_title('Mean Spatial Gradient (West-East)')
+    axes[0,1].set_xlabel('West-East')
+    axes[0,1].set_ylabel('South-North')
+    plt.colorbar(im2, ax=axes[0,1], label='Mean Gradient (kg/m per grid)')
+    
+    # Mean Y-direction gradient (South-North)
+    im3 = axes[1,0].imshow(mean_grad_y, cmap='RdBu_r', aspect='auto')
+    axes[1,0].set_title('Mean Spatial Gradient (South-North)')
+    axes[1,0].set_xlabel('West-East')
+    axes[1,0].set_ylabel('South-North')
+    plt.colorbar(im3, ax=axes[1,0], label='Mean Gradient (kg/m per grid)')
+    
+    # Mean gradient magnitude
+    im4 = axes[1,1].imshow(mean_gradient_magnitude, cmap='plasma', aspect='auto')
+    axes[1,1].set_title('Mean Gradient Magnitude')
+    axes[1,1].set_xlabel('West-East')
+    axes[1,1].set_ylabel('South-North')
+    plt.colorbar(im4, ax=axes[1,1], label='Mean Gradient Magnitude')
+    
+    plt.tight_layout()
+    
+    mean_spatial_grad_filename = os.path.join(figures_dir, 'ice_load_mean_spatial_gradients.png')
+    plt.savefig(mean_spatial_grad_filename, dpi=300, bbox_inches='tight')
+    print(f"Saved: {mean_spatial_grad_filename}")
+    plt.close()
+    
+    # Return statistics for use in summary
+    return {
+        'max_gradient_magnitude': gradient_magnitude.max(),
+        'mean_gradient_magnitude': gradient_magnitude.mean(),
+        'max_mean_gradient_magnitude': np.nanmax(mean_gradient_magnitude),
+        'mean_mean_gradient_magnitude': np.nanmean(mean_gradient_magnitude)
+    }
+
+
+def create_temporal_gradient_plots(ice_load_clean):
+    """
+    Create temporal gradient analysis plots for ice load data
+    
+    Parameters:
+    -----------
+    ice_load_clean : xarray.DataArray
+        Clean ice load data (NaN values removed)
+    
+    Returns:
+    --------
+    dict
+        Dictionary containing temporal gradient statistics
+    """
+    print("Creating temporal gradient analysis...")
+    
+    # Calculate temporal gradient (rate of change over time)
+    temporal_gradient = ice_load_clean.diff(dim='time')
+    
+    # Get statistics of temporal changes
+    temp_grad_mean = temporal_gradient.mean(dim=['south_north', 'west_east'])
+    temp_grad_std = temporal_gradient.std(dim=['south_north', 'west_east'])
+    temp_grad_max = temporal_gradient.max(dim=['south_north', 'west_east'])
+    temp_grad_min = temporal_gradient.min(dim=['south_north', 'west_east'])
+    
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    
+    # Mean temporal gradient over time
+    axes[0,0].plot(temp_grad_mean.time, temp_grad_mean.values)
+    axes[0,0].set_title('Mean Temporal Gradient (Rate of Change)')
+    axes[0,0].set_xlabel('Time')
+    axes[0,0].set_ylabel('Mean Rate of Change (kg/m per 30min)')
+    axes[0,0].grid(True, alpha=0.3)
+    axes[0,0].axhline(y=0, color='red', linestyle='--', alpha=0.5)
+    
+    # Standard deviation of temporal gradient
+    axes[0,1].plot(temp_grad_std.time, temp_grad_std.values, color='orange')
+    axes[0,1].set_title('Temporal Gradient Variability')
+    axes[0,1].set_xlabel('Time')
+    axes[0,1].set_ylabel('Std Dev of Rate of Change (kg/m per 30min)')
+    axes[0,1].grid(True, alpha=0.3)
+    
+    # Maximum and minimum temporal gradients
+    axes[1,0].plot(temp_grad_max.time, temp_grad_max.values, label='Maximum', color='red')
+    axes[1,0].plot(temp_grad_min.time, temp_grad_min.values, label='Minimum', color='blue')
+    axes[1,0].set_title('Extreme Temporal Gradients')
+    axes[1,0].set_xlabel('Time')
+    axes[1,0].set_ylabel('Rate of Change (kg/m per 30min)')
+    axes[1,0].legend()
+    axes[1,0].grid(True, alpha=0.3)
+    axes[1,0].axhline(y=0, color='black', linestyle='--', alpha=0.5)
+    
+    # Histogram of all temporal gradients
+    all_temp_gradients = temporal_gradient.values.flatten()
+    all_temp_gradients = all_temp_gradients[~np.isnan(all_temp_gradients)]
+    
+    axes[1,1].hist(all_temp_gradients, bins=50, alpha=0.7, edgecolor='black')
+    axes[1,1].set_title('Distribution of Temporal Gradients')
+    axes[1,1].set_xlabel('Rate of Change (kg/m per 30min)')
+    axes[1,1].set_ylabel('Frequency')
+    axes[1,1].axvline(x=0, color='red', linestyle='--', alpha=0.7)
+    axes[1,1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    temporal_grad_filename = os.path.join(figures_dir, 'ice_load_temporal_gradients.png')
+    plt.savefig(temporal_grad_filename, dpi=300, bbox_inches='tight')
+    print(f"Saved: {temporal_grad_filename}")
+    plt.close()
+    
+    # Return statistics for use in summary
+    return {
+        'max_temporal_gradient': all_temp_gradients.max(),
+        'min_temporal_gradient': all_temp_gradients.min()
+    }
+
+
 def calculate_ice_load(ds1, dates, create_figures=True):
     """
-    Calculate ice load and create representative figures
+    Calculate ice load and create basic visualization figures
     
     Parameters:
     -----------
@@ -219,21 +441,36 @@ def calculate_ice_load(ds1, dates, create_figures=True):
     dates : pandas.DatetimeIndex
         Date range for winter seasons
     create_figures : bool
-        Whether to create visualization figures (default: True)
+        Whether to create basic visualization figures (default: True)
+        Note: Gradient analysis plots are created separately using dedicated functions
     
     Returns:
     --------
-    str
-        Path to the figures directory containing all generated plots
+    xarray.DataArray
+        Calculated ice load data for all time periods
     """
     
     dsiceload = xr.zeros_like(ds1['ACCRE_CYL'].isel(height=0)) * np.nan
     for idate,date in enumerate(dates[:-1]):
         print(f"Processing winter {idate+1}/{len(dates)-1}: {date} to {dates[idate+1]-pd.to_timedelta('30min')}")
-        load = ice_load(ds1['ACCRE_CYL'].isel(height=0).sel(time=slice(date,dates[idate+1]-pd.to_timedelta('30min'))).load(),\
-                        ds1['ABLAT_CYL'].isel(height=0).sel(time=slice(date,dates[idate+1]-pd.to_timedelta('30min'))).load(),5)
-        dsiceload.loc[{'time':load.time}] = load
-        print(f"Winter {idate+1} completed")
+        
+        # Get data for this winter period
+        winter_accre = ds1['ACCRE_CYL'].isel(height=0).sel(time=slice(date,dates[idate+1]-pd.to_timedelta('30min'))).load()
+        winter_ablat = ds1['ABLAT_CYL'].isel(height=0).sel(time=slice(date,dates[idate+1]-pd.to_timedelta('30min'))).load()
+        
+        # Check if there's data for this winter
+        if len(winter_accre.time) == 0:
+            print(f"  No data available for winter {idate+1}. Skipping...")
+            continue
+            
+        load = ice_load(winter_accre, winter_ablat, 5)
+        
+        # Only assign if load calculation was successful
+        if load is not None:
+            dsiceload.loc[{'time':load.time}] = load
+            print(f"Winter {idate+1} completed")
+        else:
+            print(f"Winter {idate+1} skipped due to insufficient data")
     
     print("\nCreating representative figures of ice load results...")
     
@@ -326,178 +563,6 @@ def calculate_ice_load(ds1, dates, create_figures=True):
         print(f"Saved: {seasonal_filename}")
         plt.close()
     
-    # 6. Spatial gradient analysis
-    print("Creating spatial gradient analysis...")
-    
-    # Calculate spatial gradients using numpy gradient
-    max_ice_2d = max_ice_load.values
-    
-    # Calculate gradients in both directions
-    grad_y, grad_x = np.gradient(max_ice_2d)
-    gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2)
-    
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-    
-    # Original maximum ice load
-    im1 = axes[0,0].imshow(max_ice_2d, cmap='Blues', aspect='auto')
-    axes[0,0].set_title('Maximum Ice Load')
-    axes[0,0].set_xlabel('West-East')
-    axes[0,0].set_ylabel('South-North')
-    plt.colorbar(im1, ax=axes[0,0], label='Ice Load (kg/m)')
-    
-    # X-direction gradient (West-East)
-    im2 = axes[0,1].imshow(grad_x, cmap='RdBu_r', aspect='auto')
-    axes[0,1].set_title('Spatial Gradient (West-East)')
-    axes[0,1].set_xlabel('West-East')
-    axes[0,1].set_ylabel('South-North')
-    plt.colorbar(im2, ax=axes[0,1], label='Gradient (kg/m per grid)')
-    
-    # Y-direction gradient (South-North)
-    im3 = axes[1,0].imshow(grad_y, cmap='RdBu_r', aspect='auto')
-    axes[1,0].set_title('Spatial Gradient (South-North)')
-    axes[1,0].set_xlabel('West-East')
-    axes[1,0].set_ylabel('South-North')
-    plt.colorbar(im3, ax=axes[1,0], label='Gradient (kg/m per grid)')
-    
-    # Gradient magnitude
-    im4 = axes[1,1].imshow(gradient_magnitude, cmap='plasma', aspect='auto')
-    axes[1,1].set_title('Gradient Magnitude')
-    axes[1,1].set_xlabel('West-East')
-    axes[1,1].set_ylabel('South-North')
-    plt.colorbar(im4, ax=axes[1,1], label='Gradient Magnitude')
-    
-    plt.tight_layout()
-    
-    spatial_grad_filename = os.path.join(figures_dir, 'ice_load_spatial_gradients.png')
-    plt.savefig(spatial_grad_filename, dpi=300, bbox_inches='tight')
-    print(f"Saved: {spatial_grad_filename}")
-    plt.close()
-    
-    # 6.5. Mean spatial gradient analysis over all time periods
-    print("Creating mean temporal spatial gradient analysis...")
-    
-    # Calculate spatial gradients for each time step
-    print("Computing gradients for all time steps...")
-    
-    # Initialize arrays to store gradients for all time steps
-    all_grad_x = np.zeros_like(ice_load_clean.values)
-    all_grad_y = np.zeros_like(ice_load_clean.values)
-    
-    # Calculate gradients for each time step
-    for i, time_step in enumerate(ice_load_clean.time.values):
-        ice_2d_t = ice_load_clean.sel(time=time_step).values
-        
-        # Skip if all NaN
-        if not np.all(np.isnan(ice_2d_t)):
-            grad_y_t, grad_x_t = np.gradient(ice_2d_t)
-            all_grad_x[i, :, :] = grad_x_t
-            all_grad_y[i, :, :] = grad_y_t
-        else:
-            all_grad_x[i, :, :] = np.nan
-            all_grad_y[i, :, :] = np.nan
-    
-    # Compute mean gradients over time (ignoring NaN values)
-    mean_grad_x = np.nanmean(all_grad_x, axis=0)
-    mean_grad_y = np.nanmean(all_grad_y, axis=0)
-    mean_gradient_magnitude = np.sqrt(mean_grad_x**2 + mean_grad_y**2)
-    
-    # Also compute the mean ice load for comparison
-    mean_ice_load = ice_load_clean.mean(dim='time').values
-    
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-    
-    # Mean ice load over time
-    im1 = axes[0,0].imshow(mean_ice_load, cmap='Blues', aspect='auto')
-    axes[0,0].set_title('Mean Ice Load Over Time')
-    axes[0,0].set_xlabel('West-East')
-    axes[0,0].set_ylabel('South-North')
-    plt.colorbar(im1, ax=axes[0,0], label='Mean Ice Load (kg/m)')
-    
-    # Mean X-direction gradient (West-East)
-    im2 = axes[0,1].imshow(mean_grad_x, cmap='RdBu_r', aspect='auto')
-    axes[0,1].set_title('Mean Spatial Gradient (West-East)')
-    axes[0,1].set_xlabel('West-East')
-    axes[0,1].set_ylabel('South-North')
-    plt.colorbar(im2, ax=axes[0,1], label='Mean Gradient (kg/m per grid)')
-    
-    # Mean Y-direction gradient (South-North)
-    im3 = axes[1,0].imshow(mean_grad_y, cmap='RdBu_r', aspect='auto')
-    axes[1,0].set_title('Mean Spatial Gradient (South-North)')
-    axes[1,0].set_xlabel('West-East')
-    axes[1,0].set_ylabel('South-North')
-    plt.colorbar(im3, ax=axes[1,0], label='Mean Gradient (kg/m per grid)')
-    
-    # Mean gradient magnitude
-    im4 = axes[1,1].imshow(mean_gradient_magnitude, cmap='plasma', aspect='auto')
-    axes[1,1].set_title('Mean Gradient Magnitude')
-    axes[1,1].set_xlabel('West-East')
-    axes[1,1].set_ylabel('South-North')
-    plt.colorbar(im4, ax=axes[1,1], label='Mean Gradient Magnitude')
-    
-    plt.tight_layout()
-    
-    mean_spatial_grad_filename = os.path.join(figures_dir, 'ice_load_mean_spatial_gradients.png')
-    plt.savefig(mean_spatial_grad_filename, dpi=300, bbox_inches='tight')
-    print(f"Saved: {mean_spatial_grad_filename}")
-    plt.close()
-    
-    # 7. Temporal gradient analysis
-    print("Creating temporal gradient analysis...")
-    
-    # Calculate temporal gradient (rate of change over time)
-    temporal_gradient = ice_load_clean.diff(dim='time')
-    
-    # Get statistics of temporal changes
-    temp_grad_mean = temporal_gradient.mean(dim=['south_north', 'west_east'])
-    temp_grad_std = temporal_gradient.std(dim=['south_north', 'west_east'])
-    temp_grad_max = temporal_gradient.max(dim=['south_north', 'west_east'])
-    temp_grad_min = temporal_gradient.min(dim=['south_north', 'west_east'])
-    
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-    
-    # Mean temporal gradient over time
-    axes[0,0].plot(temp_grad_mean.time, temp_grad_mean.values)
-    axes[0,0].set_title('Mean Temporal Gradient (Rate of Change)')
-    axes[0,0].set_xlabel('Time')
-    axes[0,0].set_ylabel('Mean Rate of Change (kg/m per 30min)')
-    axes[0,0].grid(True, alpha=0.3)
-    axes[0,0].axhline(y=0, color='red', linestyle='--', alpha=0.5)
-    
-    # Standard deviation of temporal gradient
-    axes[0,1].plot(temp_grad_std.time, temp_grad_std.values, color='orange')
-    axes[0,1].set_title('Temporal Gradient Variability')
-    axes[0,1].set_xlabel('Time')
-    axes[0,1].set_ylabel('Std Dev of Rate of Change (kg/m per 30min)')
-    axes[0,1].grid(True, alpha=0.3)
-    
-    # Maximum and minimum temporal gradients
-    axes[1,0].plot(temp_grad_max.time, temp_grad_max.values, label='Maximum', color='red')
-    axes[1,0].plot(temp_grad_min.time, temp_grad_min.values, label='Minimum', color='blue')
-    axes[1,0].set_title('Extreme Temporal Gradients')
-    axes[1,0].set_xlabel('Time')
-    axes[1,0].set_ylabel('Rate of Change (kg/m per 30min)')
-    axes[1,0].legend()
-    axes[1,0].grid(True, alpha=0.3)
-    axes[1,0].axhline(y=0, color='black', linestyle='--', alpha=0.5)
-    
-    # Histogram of all temporal gradients
-    all_temp_gradients = temporal_gradient.values.flatten()
-    all_temp_gradients = all_temp_gradients[~np.isnan(all_temp_gradients)]
-    
-    axes[1,1].hist(all_temp_gradients, bins=50, alpha=0.7, edgecolor='black')
-    axes[1,1].set_title('Distribution of Temporal Gradients')
-    axes[1,1].set_xlabel('Rate of Change (kg/m per 30min)')
-    axes[1,1].set_ylabel('Frequency')
-    axes[1,1].axvline(x=0, color='red', linestyle='--', alpha=0.7)
-    axes[1,1].grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    
-    temporal_grad_filename = os.path.join(figures_dir, 'ice_load_temporal_gradients.png')
-    plt.savefig(temporal_grad_filename, dpi=300, bbox_inches='tight')
-    print(f"Saved: {temporal_grad_filename}")
-    plt.close()
-    
     # Print summary statistics
     print(f"\n=== Ice Load Analysis Summary ===")
     print(f"Data shape: {dsiceload.shape}")
@@ -506,16 +571,5 @@ def calculate_ice_load(ds1, dates, create_figures=True):
     print(f"Maximum ice load: {float(ice_load_clean.max().values):.3f} kg/m")
     print(f"Average ice load: {float(ice_load_clean.mean().values):.3f} kg/m")
     
-    # Gradient statistics
-    print(f"\n=== Gradient Analysis Summary ===")
-    print(f"Max spatial gradient magnitude (from max ice load): {gradient_magnitude.max():.3f}")
-    print(f"Mean spatial gradient magnitude (from max ice load): {gradient_magnitude.mean():.3f}")
-    print(f"Max mean spatial gradient magnitude (over time): {np.nanmax(mean_gradient_magnitude):.3f}")
-    print(f"Mean spatial gradient magnitude (over time): {np.nanmean(mean_gradient_magnitude):.3f}")
-    print(f"Max temporal gradient: {all_temp_gradients.max():.3f} kg/m per 30min")
-    print(f"Min temporal gradient: {all_temp_gradients.min():.3f} kg/m per 30min")
-    
-    print(f"\nFigures saved to: {figures_dir}/")
-    
-    return figures_dir
+    return dsiceload
 
