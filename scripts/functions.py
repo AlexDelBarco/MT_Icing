@@ -161,8 +161,9 @@ def accreation_per_winter(ds, start_date, end_date):
     winter_end = pd.to_datetime(end_date) + pd.DateOffset(years=1)
     dates = pd.date_range(winter_start, winter_end, freq='YS-JUL')
     
-    # Create figures directory if it doesn't exist
-    os.makedirs(figures_dir, exist_ok=True)
+    # Create figures directory and ice_accretion subfolder if they don't exist
+    ice_accretion_dir = os.path.join(figures_dir, "ice_accretion")
+    os.makedirs(ice_accretion_dir, exist_ok=True)
 
     # Add winter number to dataset
     df = ds1['time'].to_pandas()
@@ -203,26 +204,24 @@ def accreation_per_winter(ds, start_date, end_date):
             plt.tight_layout()
             
             # Save figure
-            filename = f"{figures_dir}/ice_accretion_winter_{int(winter_idx)}.png"
+            filename = os.path.join(ice_accretion_dir, f"ice_accretion_winter_{int(winter_idx)}.png")
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             print(f"Saved: {filename}")
             plt.close()  # Close figure to free memory
             
-        print(f"All plots saved to {figures_dir}/ directory")
+        print(f"All plots saved to {ice_accretion_dir}/ directory")
     else:
         print("No valid winter data available for plotting")
 
 
-def create_spatial_gradient_plots(ice_load_clean):
+def create_spatial_gradient_plots(ice_load_data):
     """
     Create spatial gradient analysis plots for ice load data
     
     Parameters:
     -----------
-    ice_load_clean : xarray.DataArray
-        Clean ice load data (NaN values removed)
-    max_ice_load : xarray.DataArray
-        Maximum ice load over the entire period
+    ice_load_data : xarray.DataArray
+        Raw ice load data (may contain NaN values)
     
     Returns:
     --------
@@ -231,8 +230,15 @@ def create_spatial_gradient_plots(ice_load_clean):
     """
     print("Creating spatial gradient analysis...")
     
-    # Calculate spatial gradients using numpy gradient
+    # Create spatial_gradient subfolder if it doesn't exist
+    spatial_gradient_dir = os.path.join(figures_dir, "spatial_gradient")
+    os.makedirs(spatial_gradient_dir, exist_ok=True)
+    
+    # Clean the data by removing NaN values
+    ice_load_clean = ice_load_data.where(~np.isnan(ice_load_data), drop=True)
     max_ice_load = ice_load_clean.max(dim='time')
+    
+    # Calculate spatial gradients using numpy gradient
     max_ice_2d = max_ice_load.values
     
     # Calculate gradients in both directions
@@ -271,7 +277,7 @@ def create_spatial_gradient_plots(ice_load_clean):
     
     plt.tight_layout()
     
-    spatial_grad_filename = os.path.join(figures_dir, 'ice_load_maximum_spatial_gradients.png')
+    spatial_grad_filename = os.path.join(spatial_gradient_dir, 'ice_load_maximum_spatial_gradients.png')
     plt.savefig(spatial_grad_filename, dpi=300, bbox_inches='tight')
     print(f"Saved: {spatial_grad_filename}")
     plt.close()
@@ -339,7 +345,7 @@ def create_spatial_gradient_plots(ice_load_clean):
     
     plt.tight_layout()
     
-    mean_spatial_grad_filename = os.path.join(figures_dir, 'ice_load_mean_spatial_gradients.png')
+    mean_spatial_grad_filename = os.path.join(spatial_gradient_dir, 'ice_load_mean_spatial_gradients.png')
     plt.savefig(mean_spatial_grad_filename, dpi=300, bbox_inches='tight')
     print(f"Saved: {mean_spatial_grad_filename}")
     plt.close()
@@ -353,14 +359,14 @@ def create_spatial_gradient_plots(ice_load_clean):
     }
 
 
-def create_temporal_gradient_plots(ice_load_clean):
+def create_temporal_gradient_plots(ice_load_data):
     """
     Create temporal gradient analysis plots for ice load data
     
     Parameters:
     -----------
-    ice_load_clean : xarray.DataArray
-        Clean ice load data (NaN values removed)
+    ice_load_data : xarray.DataArray
+        Raw ice load data (may contain NaN values)
     
     Returns:
     --------
@@ -368,6 +374,13 @@ def create_temporal_gradient_plots(ice_load_clean):
         Dictionary containing temporal gradient statistics
     """
     print("Creating temporal gradient analysis...")
+    
+    # Create temporal_gradient subfolder if it doesn't exist
+    temporal_gradient_dir = os.path.join(figures_dir, "temporal_gradient")
+    os.makedirs(temporal_gradient_dir, exist_ok=True)
+    
+    # Clean the data by removing NaN values
+    ice_load_clean = ice_load_data.where(~np.isnan(ice_load_data), drop=True)
     
     # Calculate temporal gradient (rate of change over time)
     temporal_gradient = ice_load_clean.diff(dim='time')
@@ -418,7 +431,7 @@ def create_temporal_gradient_plots(ice_load_clean):
     
     plt.tight_layout()
     
-    temporal_grad_filename = os.path.join(figures_dir, 'ice_load_temporal_gradients.png')
+    temporal_grad_filename = os.path.join(temporal_gradient_dir, 'ice_load_temporal_gradients.png')
     plt.savefig(temporal_grad_filename, dpi=300, bbox_inches='tight')
     print(f"Saved: {temporal_grad_filename}")
     plt.close()
@@ -430,7 +443,37 @@ def create_temporal_gradient_plots(ice_load_clean):
     }
 
 
-def calculate_ice_load(ds1, dates, create_figures=True):
+def save_ice_load_data(dsiceload, start_date, end_date):
+    """
+    Save calculated ice load data to disk
+    
+    Parameters:
+    -----------
+    dsiceload : xarray.DataArray
+        Calculated ice load data
+    start_date : str
+        Start date in format 'YYYY-MM-DD'
+    end_date : str
+        End date in format 'YYYY-MM-DD'
+    """
+    # Create results directory if it doesn't exist
+    os.makedirs(results_dir, exist_ok=True)
+    
+    # Create filename based on date range
+    start_str = pd.to_datetime(start_date).strftime('%Y%m%d')
+    end_str = pd.to_datetime(end_date).strftime('%Y%m%d')
+    filename = f"iceload_{start_str}_to_{end_str}.nc"
+    filepath = os.path.join(results_dir, filename)
+    
+    print(f"Saving ice load data to: {filepath}")
+    try:
+        dsiceload.to_netcdf(filepath)
+        print(f"Successfully saved ice load data with shape: {dsiceload.shape}")
+    except Exception as e:
+        print(f"Error saving ice load data: {e}")
+
+
+def calculate_ice_load(ds1, dates, method, create_figures=True):
     """
     Calculate ice load and create basic visualization figures
     
@@ -450,6 +493,8 @@ def calculate_ice_load(ds1, dates, create_figures=True):
         Calculated ice load data for all time periods
     """
     
+    print("Calculating ice load...")
+    
     dsiceload = xr.zeros_like(ds1['ACCRE_CYL'].isel(height=0)) * np.nan
     for idate,date in enumerate(dates[:-1]):
         print(f"Processing winter {idate+1}/{len(dates)-1}: {date} to {dates[idate+1]-pd.to_timedelta('30min')}")
@@ -463,7 +508,7 @@ def calculate_ice_load(ds1, dates, create_figures=True):
             print(f"  No data available for winter {idate+1}. Skipping...")
             continue
             
-        load = ice_load(winter_accre, winter_ablat, 5)
+        load = ice_load(winter_accre, winter_ablat, method)
         
         # Only assign if load calculation was successful
         if load is not None:
@@ -570,6 +615,11 @@ def calculate_ice_load(ds1, dates, create_figures=True):
     print(f"Non-zero data points: {len(ice_values_no_zero):,}")
     print(f"Maximum ice load: {float(ice_load_clean.max().values):.3f} kg/m")
     print(f"Average ice load: {float(ice_load_clean.mean().values):.3f} kg/m")
+    
+    # Save the calculated ice load data for future reference
+    start_date = dates[0].strftime('%Y-%m-%d')
+    end_date = dates[-1].strftime('%Y-%m-%d')
+    save_ice_load_data(dsiceload, start_date, end_date)
     
     return dsiceload
 

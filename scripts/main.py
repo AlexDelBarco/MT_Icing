@@ -17,24 +17,20 @@ fn.explore_variables(dataset)
 fn.explore_variable_detail(dataset, 'ACCRE_CYL')
 
 # Accreation for winter and time period + plot
-
 start_date = '1899-07-01T00:00:00'
 end_date = '2021-06-30T23:30:00'
 dates = pd.date_range(start_date, '2021-07-01T23:30:00', freq='YS-JUL')
-
-fn.accreation_per_winter(dataset, start_date, end_date)
+#fn.accreation_per_winter(dataset, start_date, end_date)
 
 # ice load calculation + plots
 print("Calculating ice load...")
-ice_load_data = fn.calculate_ice_load(dataset, dates)
+ice_load_data = fn.calculate_ice_load(dataset, dates, 5)
 
 # Spatial gradients analysis
-ice_load_clean = ice_load_data.where(~np.isnan(ice_load_data), drop=True)
-max_ice_load = ice_load_clean.max(dim='time')
-spatial_stats = fn.create_spatial_gradient_plots(ice_load_clean, max_ice_load)
+spatial_stats = fn.create_spatial_gradient_plots(ice_load_data)
 
 # Temporal gradients analysis
-temporal_stats = fn.create_temporal_gradient_plots(ice_load_clean)
+temporal_stats = fn.create_temporal_gradient_plots(ice_load_data)
 
 # Print gradient statistics
 print(f"\n=== Gradient Analysis Summary ===")
