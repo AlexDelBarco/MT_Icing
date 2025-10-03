@@ -24,4 +24,3 @@ Compute ice load, o mass of ice on blades [kg/m]
 Questions:
 
 Explain the difffernt methos to compute accretion
-What is winter number
