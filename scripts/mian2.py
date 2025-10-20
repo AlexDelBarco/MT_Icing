@@ -5,27 +5,51 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 
+# PARAMTERES
+height = 2  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
+ice_load_method = 5  # Method for ice load calculation
+calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
+
+
 # IMPORT DATA
 # Import data and first look
-data1 = "data/newa_wrf_for_jana_mstudent_extended.nc"
+data1 = "data/alexandre.nc"
 dataset = fn.load_netcdf_data(data1)
 
+
 # EXPLORE DATASET
+height_level = dataset.height.values[height]  # Height level in meters
+print(f"Exploring dataset at height level: {height_level} m")
 # explore the variables
-#fn.explore_variables(dataset)
+fn.explore_variables(dataset)
 
 # explore one variable in detail in a chosen period
-fn.explore_variable_detail(dataset, 'ACCRE_CYL')
+#fn.explore_variable_detail(dataset, 'ACCRE_CYL')
 
-# Accreation for winter and time period + plot
+# Plot grid location on map
+#fn.plot_grid_points_cartopy_map(dataset, margin_degrees=1.5, zoom_level=8, title="Grid Points - Terrain Map")
+
+# Compute and plot wind rose for a specific grid point or center point
+#fn.plot_wind_rose(dataset, grid_point=None, height=height_level, time_filter='all', bins=16)  
+
+
+# CALCULATIONS AND PLOTS
+
+# Period
 start_date = '1989-01-01T00:00:00.000000000'
 end_date = '2022-12-31T23:30:00.000000000'
 dates = pd.date_range(start_date, end_date, freq='YS-JUL')
-#fn.accreation_per_winter(dataset, start_date, end_date)
 
-# Load/calculate ice load data
-#print("Loading existing ice load data...")
-#ice_load_data = xr.open_dataarray(f"results/iceload_{start_date[:10]}_to_{end_date[:10]}.nc")
-#print(f"Loaded ice load data with shape: {ice_load_data.shape}")
-#print("Calculating ice load...")
-#ice_load_data = fn.calculate_ice_load(dataset, dates, 5)
+# Accreation for winter and time period + plot
+#fn.accreation_per_winter(dataset, start_date, end_date, height_level=height)
+
+# ice load data: load/calculate 
+if calculate_new_ice_load:
+    print("Calculating ice load...")
+    #ice_load_data = fn.calculate_ice_load(dataset, dates, ice_load_method, height_level=height, create_figures=True)
+else:
+    print("Loading existing ice load data...")
+    #filename = f"results/iceload_19890701_to_20220701_h150m.nc"
+    #ice_load_data = xr.open_dataarray(filename)
+    #print(f"Loaded ice load data from: {filename}")
+    #print(f"Loaded ice load data with shape: {ice_load_data.shape}")
