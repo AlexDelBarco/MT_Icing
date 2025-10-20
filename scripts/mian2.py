@@ -13,7 +13,7 @@ calculate_new_ice_load = False  # Whether to calculate ice load or load existing
 
 # IMPORT DATA
 # Import data and first look
-data1 = "data/alexandre.nc"
+data1 = "data/newa_wrf_for_jana_mstudent_extended.nc"
 dataset = fn.load_netcdf_data(data1)
 
 

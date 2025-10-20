@@ -1373,61 +1373,8 @@ def plot_wind_rose(dataset, grid_point=None, height=50, time_filter='all', bins=
             print("Available variables in dataset:")
             for var in ds_filtered.data_vars:
                 print(f"  - {var}")
-            
-            # Check for wind speed and direction variables as alternative
-            possible_wspd_names = ['WSPD', 'WS', 'wind_speed', 'windspeed', 'WINDSPEED']
-            possible_wdir_names = ['WDIR', 'WD', 'wind_dir', 'winddir', 'WINDDIR', 'wind_direction']
-            
-            wspd_var = None
-            wdir_var = None
-            
-            for name in possible_wspd_names:
-                if name in ds_filtered.data_vars:
-                    wspd_var = name
-                    break
-            
-            for name in possible_wdir_names:
-                if name in ds_filtered.data_vars:
-                    wdir_var = name
-                    break
-            
-            if wspd_var and wdir_var:
-                print(f"Found wind speed and direction variables: WSPD='{wspd_var}', WDIR='{wdir_var}'")
-                print("Converting wind speed and direction to U/V components...")
-                
-                # Extract wind speed and direction for the selected grid point
-                try:
-                    wspd_data = ds_filtered[wspd_var].isel(south_north=sn_idx, west_east=we_idx)
-                    wdir_data = ds_filtered[wdir_var].isel(south_north=sn_idx, west_east=we_idx)
-                    
-                    # Convert to numpy arrays and remove NaN values
-                    wspd_values = wspd_data.values.flatten()
-                    wdir_values = wdir_data.values.flatten()
-                    
-                    # Remove NaN values
-                    valid_mask = ~(np.isnan(wspd_values) | np.isnan(wdir_values))
-                    wspd_clean = wspd_values[valid_mask]
-                    wdir_clean = wdir_values[valid_mask]
-                    
-                    if len(wspd_clean) == 0:
-                        print("Error: No valid wind speed/direction data found")
-                        return None
-                    
-                    # Convert wind speed and direction to U/V components
-                    # Note: meteorological convention - direction is "from" direction
-                    wdir_rad = np.radians(wdir_clean)
-                    u_clean = -wspd_clean * np.sin(wdir_rad)  # U component (east-west)
-                    v_clean = -wspd_clean * np.cos(wdir_rad)  # V component (north-south)
-                    
-                    print(f"Successfully converted {len(wspd_clean)} wind observations from speed/direction to U/V components")
-                    
-                except Exception as e:
-                    print(f"Error extracting wind speed/direction data: {e}")
-                    return None
-                    
-            else:
-                print("Error: Could not find wind components (U/V) or wind speed/direction in dataset")
-                return None
+            print("Error: Could not find wind components (U/V) in dataset")
+            return None
             
         print(f"Using wind components: U='{u_var}', V='{v_var}'")
         
