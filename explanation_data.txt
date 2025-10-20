@@ -4,7 +4,7 @@ File: alexandre.nc
 
 Dimensions: 
     time: 596064
-    height: 1
+    height: 3
     south_north: 14
     west_east: 14
 
@@ -20,6 +20,9 @@ Coordinates:
 Variables: 
     ABLAT_CYL
     ACCRE_CYL: accumulated 30min ice accretion ona rotating cylinder
+    HGT
+    LANDMASK
+    LU_INDEX
     PBLH
     PRECIP
     QVAPOR

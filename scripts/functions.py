@@ -19,7 +19,14 @@ def load_netcdf_data(file_path):
         print(f"Dimensions: {dict(ds.dims)}")
         print(f"Data variables: {list(ds.data_vars)}")
         print(f"Coordinates: {list(ds.coords)}")
-        
+        print(f"First timestamp: {ds.time.values[0]}")
+        print(f"Last timestamp: {ds.time.values[-1]}")
+        print(f"Total time steps: {len(ds.time)}")
+        print(f"Time frequency: {pd.to_datetime(ds.time.values[1]) - pd.to_datetime(ds.time.values[0])}")
+        print(f"Height levels in dataset: {ds.height.values}")
+        print(f"South north values in dataset: {ds.south_north.values}")
+        print(f"West East values in dataset: {ds.west_east.values}")
+
         return ds
     
     except Exception as e:
@@ -53,7 +60,11 @@ def explore_variable_detail(ds, var_name):
         
     # Show time range
     print(f"Time range: {ds.time.values[0]} to {ds.time.values[-1]}")
-    
+
+    # Show dimensions and shape
+    print(f"dimensions: {var.dims}")
+    print(f"shape: {var.shape}")
+
     # Show spatial coordinates
     print(f"Latitude range: {ds.XLAT.values.min():.3f} to {ds.XLAT.values.max():.3f}")
     print(f"Longitude range: {ds.XLON.values.min():.3f} to {ds.XLON.values.max():.3f}")
