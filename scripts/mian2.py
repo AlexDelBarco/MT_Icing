@@ -21,19 +21,20 @@ dataset = fn.load_netcdf_data(data1)
 height_level = dataset.height.values[height]  # Height level in meters
 print(f"Exploring dataset at height level: {height_level} m")
 # explore the variables
-fn.explore_variables(dataset)
+#fn.explore_variables(dataset)
 
 # explore one variable in detail in a chosen period
-#fn.explore_variable_detail(dataset, 'ACCRE_CYL')
+#fn.explore_variable_detail(dataset, 'LANDMASK')
 
 # Plot grid location on map
 #fn.plot_grid_points_cartopy_map(dataset, margin_degrees=1.5, zoom_level=8, title="Grid Points - Terrain Map")
 
-# Compute and plot wind rose for a specific grid point or center point
-#fn.plot_wind_rose(dataset, grid_point=None, height=height_level, time_filter='all', bins=16)  
+# Offshore / Onshore classification
+#landmask_results = fn.analyze_landmask(dataset, create_plot=True, save_results=True)
 
 
 # CALCULATIONS AND PLOTS
+
 
 # Period
 start_date = '1989-01-01T00:00:00.000000000'

@@ -1276,246 +1276,192 @@ def plot_grid_points_cartopy_map(dataset, margin_degrees=0.2, zoom_level=6, titl
         return None
 
 
-def plot_wind_rose(dataset, grid_point=None, height=50, time_filter='all', bins=16):
+def analyze_landmask(dataset, create_plot=True, save_results=True):
     """
-    Plot a wind rose for a specific grid point showing wind direction and speed distribution.
+    Analyze the LANDMASK variable to count land vs water grid cells
     
     Parameters:
     -----------
     dataset : xarray.Dataset
-        The WRF dataset containing wind data
-    grid_point : tuple or None
-        Tuple of (south_north_index, west_east_index) for the grid point.
-        If None, uses the center point of the grid.
-    height : int
-        Height level in meters (default: 50)
-    time_filter : str
-        Time filter option: 'all', 'winter', 'summer', 'spring', 'autumn'
-    bins : int
-        Number of directional bins for the wind rose (default: 16)
-    
+        The dataset containing LANDMASK variable
+    create_plot : bool, default True
+        Whether to create a visualization of the landmask
+    save_results : bool, default True
+        Whether to save the analysis results and plot
+        
     Returns:
     --------
-    dict : Wind statistics and plot information
+    dict : Dictionary containing landmask analysis results
     """
+    print("=== LANDMASK ANALYSIS ===")
     
     try:
-        import matplotlib.pyplot as plt
-        from matplotlib import cm
-        import numpy as np
+        # Extract LANDMASK data
+        landmask = dataset.LANDMASK
         
-        if dataset is None:
-            print("Error: No dataset provided")
-            return None
-            
-        # Find center point if not specified
-        if grid_point is None:
-            center_sn = len(dataset.south_north) // 2
-            center_we = len(dataset.west_east) // 2
-            grid_point = (center_sn, center_we)
-            print(f"Using center grid point: ({center_sn}, {center_we})")
+        # Basic information
+        print(f"\n1. Basic Information:")
+        print(f"   Grid shape: {landmask.shape}")
+        print(f"   Data type: {landmask.dtype}")
+        print(f"   Dimensions: {landmask.dims}")
         
-        sn_idx, we_idx = grid_point
+        # Count land and water cells
+        landmask_values = landmask.values
+        water_cells = np.sum(landmask_values == 0)
+        land_cells = np.sum(landmask_values == 1)
+        total_cells = landmask.size
         
-        # Check if indices are valid
-        if sn_idx >= len(dataset.south_north) or we_idx >= len(dataset.west_east):
-            print(f"Error: Grid point indices ({sn_idx}, {we_idx}) are out of bounds")
-            return None
-            
-        # Get coordinates for the selected point
-        if 'XLAT' in dataset.coords or 'XLAT' in dataset.data_vars:
-            lat = float(dataset.XLAT.isel(south_north=sn_idx, west_east=we_idx).values)
-            lon = float(dataset.XLON.isel(south_north=sn_idx, west_east=we_idx).values)
-        elif 'xlat' in dataset.coords or 'xlat' in dataset.data_vars:
-            lat = float(dataset.xlat.isel(south_north=sn_idx, west_east=we_idx).values)
-            lon = float(dataset.xlon.isel(south_north=sn_idx, west_east=we_idx).values)
+        # Calculate percentages
+        water_percentage = (water_cells / total_cells) * 100
+        land_percentage = (land_cells / total_cells) * 100
+        
+        # Print results
+        print(f"\n2. Land/Water Distribution:")
+        print(f"   Water cells (value = 0): {water_cells} ({water_percentage:.1f}%)")
+        print(f"   Land cells (value = 1):  {land_cells} ({land_percentage:.1f}%)")
+        print(f"   Total grid cells:        {total_cells}")
+        
+        # Check for any unexpected values
+        unique_values = np.unique(landmask_values)
+        print(f"\n3. Data Quality Check:")
+        print(f"   Unique values found: {unique_values}")
+        if len(unique_values) > 2 or not all(val in [0, 1] for val in unique_values):
+            print(f"   WARNING: Unexpected values found in LANDMASK!")
         else:
-            print("Error: Could not find latitude/longitude coordinates (XLAT/XLON or xlat/xlon)")
-            return None
+            print(f"   ✓ LANDMASK contains only expected values (0, 1)")
         
-        print(f"Selected grid point: ({sn_idx}, {we_idx})")
-        print(f"Coordinates: Lat {lat:.3f}°N, Lon {lon:.3f}°E")
+        # Spatial context
+        if 'XLAT' in dataset and 'XLON' in dataset:
+            lat_range = [float(dataset.XLAT.min()), float(dataset.XLAT.max())]
+            lon_range = [float(dataset.XLON.min()), float(dataset.XLON.max())]
+            print(f"\n4. Spatial Context:")
+            print(f"   Latitude range:  {lat_range[0]:.3f}° to {lat_range[1]:.3f}°")
+            print(f"   Longitude range: {lon_range[0]:.3f}° to {lon_range[1]:.3f}°")
         
-        # Apply seasonal filter if specified
-        ds_filtered = dataset
-        if time_filter != 'all':
-            months_dict = {
-                'winter': [12, 1, 2],
-                'spring': [3, 4, 5], 
-                'summer': [6, 7, 8],
-                'autumn': [9, 10, 11]
-            }
-            if time_filter in months_dict:
-                months = months_dict[time_filter]
-                ds_filtered = ds_filtered.sel(time=ds_filtered.time.dt.month.isin(months))
+        # Create detailed grid cell analysis
+        print(f"\n5. Grid Cell Details:")
+        print("   Row-by-row analysis (from south to north):")
+        for i in range(landmask.shape[0]):
+            row = landmask_values[i, :]
+            land_in_row = np.sum(row == 1)
+            water_in_row = np.sum(row == 0)
+            print(f"   Row {i:2d}: Land={land_in_row:2d}, Water={water_in_row:2d} | {row}")
         
-        # Look for wind components in the dataset
-        wind_vars = []
-        possible_u_names = ['U', 'U10', 'u', 'u10', 'WSPD_U', 'wind_u']
-        possible_v_names = ['V', 'V10', 'v', 'v10', 'WSPD_V', 'wind_v']
-        
-        u_var = None
-        v_var = None
-        
-        # Find U component
-        for name in possible_u_names:
-            if name in ds_filtered.data_vars:
-                u_var = name
-                break
-                
-        # Find V component  
-        for name in possible_v_names:
-            if name in ds_filtered.data_vars:
-                v_var = name
-                break
-        
-        if u_var is None or v_var is None:
-            print("Available variables in dataset:")
-            for var in ds_filtered.data_vars:
-                print(f"  - {var}")
-            print("Error: Could not find wind components (U/V) in dataset")
-            return None
+        # Create visualization if requested
+        if create_plot:
+            print(f"\n6. Creating visualization...")
             
-        print(f"Using wind components: U='{u_var}', V='{v_var}'")
-        
-        # Select height level if available
-        if 'height' in ds_filtered.dims:
-            try:
-                ds_filtered = ds_filtered.sel(height=height, method='nearest')
-                actual_height = float(ds_filtered.height.values)
-                print(f"Selected height: {actual_height}m")
-            except:
-                print(f"Warning: Could not select height {height}m, using all heights")
-        
-        # Extract wind components for the selected grid point
-        try:
-            u_wind = ds_filtered[u_var].isel(south_north=sn_idx, west_east=we_idx)
-            v_wind = ds_filtered[v_var].isel(south_north=sn_idx, west_east=we_idx)
-        except:
-            print(f"Error: Could not extract wind data for grid point ({sn_idx}, {we_idx})")
-            return None
-        
-        # Convert to numpy arrays and remove NaN values
-        u_values = u_wind.values.flatten()
-        v_values = v_wind.values.flatten()
-        
-        # Remove NaN values
-        valid_mask = ~(np.isnan(u_values) | np.isnan(v_values))
-        u_clean = u_values[valid_mask]
-        v_clean = v_values[valid_mask]
-        
-        if len(u_clean) == 0:
-            print("Error: No valid wind data found")
-            return None
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
             
-        # Calculate wind speed and direction
-        wind_speed = np.sqrt(u_clean**2 + v_clean**2)
-        wind_direction = (270 - np.arctan2(v_clean, u_clean) * 180/np.pi) % 360
-        
-        # Create wind speed bins
-        speed_bins = [0, 2, 4, 6, 8, 10, 15, np.inf]
-        speed_labels = ['0-2', '2-4', '4-6', '6-8', '8-10', '10-15', '15+']
-        speed_colors = ['#3498db', '#2ecc71', '#f1c40f', '#e67e22', '#e74c3c', '#9b59b6', '#34495e']
-        
-        # Create directional bins
-        dir_bins = np.linspace(0, 360, bins + 1)
-        dir_centers = (dir_bins[:-1] + dir_bins[1:]) / 2
-        
-        # Create the wind rose
-        fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))
-        
-        # Calculate frequency for each direction and speed bin
-        theta = np.radians(dir_centers)
-        bottom = np.zeros(len(dir_centers))
-        
-        for i, (speed_min, speed_max) in enumerate(zip(speed_bins[:-1], speed_bins[1:])):
-            if speed_max == np.inf:
-                speed_mask = wind_speed >= speed_min
-            else:
-                speed_mask = (wind_speed >= speed_min) & (wind_speed < speed_max)
+            # Plot 1: LANDMASK spatial distribution
+            im1 = ax1.imshow(landmask_values, cmap='RdYlBu_r', origin='lower', 
+                           interpolation='nearest')
+            ax1.set_title('LANDMASK - Spatial Distribution')
+            ax1.set_xlabel('West-East Grid Points')
+            ax1.set_ylabel('South-North Grid Points')
             
-            if np.any(speed_mask):
-                speed_dir = wind_direction[speed_mask]
-                
-                # Calculate frequency in each direction bin
-                freq = np.zeros(len(dir_centers))
-                for j, (dir_min, dir_max) in enumerate(zip(dir_bins[:-1], dir_bins[1:])):
-                    dir_mask = (speed_dir >= dir_min) & (speed_dir < dir_max)
-                    freq[j] = np.sum(dir_mask) / len(wind_direction) * 100
-                
-                # Plot bars
-                bars = ax.bar(theta, freq, width=2*np.pi/bins, bottom=bottom, 
-                             color=speed_colors[i], alpha=0.8, edgecolor='white', linewidth=0.5)
-                bottom += freq
+            # Add grid cell values as text
+            for i in range(landmask.shape[0]):
+                for j in range(landmask.shape[1]):
+                    value = landmask_values[i, j]
+                    color = 'white' if value < 0.5 else 'black'
+                    ax1.text(j, i, f'{int(value)}', ha='center', va='center', 
+                            color=color, fontsize=8, weight='bold')
+            
+            # Add colorbar
+            cbar1 = plt.colorbar(im1, ax=ax1, shrink=0.8)
+            cbar1.set_label('LANDMASK (0=Water, 1=Land)')
+            cbar1.set_ticks([0, 1])
+            cbar1.set_ticklabels(['Water', 'Land'])
+            
+            # Plot 2: Summary statistics
+            categories = ['Water\n(0)', 'Land\n(1)']
+            counts = [water_cells, land_cells]
+            colors = ['lightblue', 'lightgreen']
+            
+            bars = ax2.bar(categories, counts, color=colors, edgecolor='black', linewidth=1)
+            ax2.set_title('Land vs Water Distribution')
+            ax2.set_ylabel('Number of Grid Cells')
+            ax2.grid(True, alpha=0.3)
+            
+            # Add count labels on bars
+            for bar, count, percentage in zip(bars, counts, [water_percentage, land_percentage]):
+                height = bar.get_height()
+                ax2.text(bar.get_x() + bar.get_width()/2., height + 0.5,
+                        f'{count}\n({percentage:.1f}%)', 
+                        ha='center', va='bottom', fontweight='bold')
+            
+            # Add total cells information
+            ax2.text(0.5, max(counts) * 0.8, f'Total: {total_cells} cells', 
+                    ha='center', transform=ax2.transData, 
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor="wheat", alpha=0.8))
+            
+            plt.tight_layout()
+            
+            # Save plot if requested
+            if save_results:
+                os.makedirs(figures_dir, exist_ok=True)
+                plot_path = f"{figures_dir}/landmask_analysis.png"
+                plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+                print(f"   Plot saved to: {plot_path}")
+            
+            plt.show()
         
-        # Customize the plot
-        ax.set_theta_zero_location('N')
-        ax.set_theta_direction(-1)
-        ax.set_ylim(0, np.max(bottom) * 1.1)
-        
-        # Add labels
-        ax.set_title(f'Wind Rose - Grid Point ({sn_idx}, {we_idx})\n' + 
-                    f'Lat: {lat:.3f}°N, Lon: {lon:.3f}°E\n' +
-                    f'Height: {height}m, Period: {time_filter}', 
-                    pad=20, fontsize=14)
-        
-        # Add direction labels
-        directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
-        angles = [0, 45, 90, 135, 180, 225, 270, 315]
-        for direction, angle in zip(directions, angles):
-            ax.text(np.radians(angle), ax.get_ylim()[1] * 1.05, direction, 
-                   ha='center', va='center', fontsize=12, fontweight='bold')
-        
-        # Add legend
-        legend_elements = [plt.Rectangle((0,0),1,1, facecolor=speed_colors[i], alpha=0.8, 
-                          edgecolor='white') for i in range(len(speed_labels))]
-        ax.legend(legend_elements, [f'{label} m/s' for label in speed_labels], 
-                 loc='upper left', bbox_to_anchor=(1.1, 1))
-        
-        # Add radial labels (frequency %)
-        ax.set_ylabel('Frequency (%)', labelpad=30)
-        
-        plt.tight_layout()
-        
-        # Create WindRose subdirectory if it doesn't exist
-        wind_rose_dir = os.path.join(figures_dir, "WindRose")
-        os.makedirs(wind_rose_dir, exist_ok=True)
-        
-        # Save plot with automatic filename
-        filename = f"wind_rose_point_{sn_idx}_{we_idx}_h{height}m_{time_filter}.png"
-        filepath = os.path.join(wind_rose_dir, filename)
-        plt.savefig(filepath, dpi=300, bbox_inches='tight')
-        print(f"Wind rose saved to: {filepath}")
-        
-        plt.show()
-        
-        # Calculate and return statistics
-        stats = {
-            'grid_point': grid_point,
-            'coordinates': {'lat': lat, 'lon': lon},
-            'height': height,
-            'n_observations': len(wind_speed),
-            'mean_speed': float(np.mean(wind_speed)),
-            'max_speed': float(np.max(wind_speed)),
-            'prevailing_direction': float(dir_centers[np.argmax(bottom)]),
-            'calm_percentage': float(np.sum(wind_speed < 1) / len(wind_speed) * 100),
-            'time_filter': time_filter,
-            'wind_components_used': {'u': u_var, 'v': v_var}
+        # Prepare results dictionary
+        results = {
+            'grid_shape': landmask.shape,
+            'total_cells': total_cells,
+            'water_cells': water_cells,
+            'land_cells': land_cells,
+            'water_percentage': water_percentage,
+            'land_percentage': land_percentage,
+            'unique_values': unique_values.tolist(),
+            'landmask_array': landmask_values,
+            'is_valid': len(unique_values) <= 2 and all(val in [0, 1] for val in unique_values)
         }
         
-        print(f"\nWind Statistics:")
-        print(f"  Mean wind speed: {stats['mean_speed']:.2f} m/s")
-        print(f"  Maximum wind speed: {stats['max_speed']:.2f} m/s") 
-        print(f"  Prevailing direction: {stats['prevailing_direction']:.1f}°")
-        print(f"  Calm conditions (<1 m/s): {stats['calm_percentage']:.1f}%")
-        print(f"  Total observations: {stats['n_observations']}")
+        # Add spatial info if available
+        if 'XLAT' in dataset and 'XLON' in dataset:
+            results['lat_range'] = lat_range
+            results['lon_range'] = lon_range
         
-        return stats
+        # Save results to file if requested
+        if save_results:
+            os.makedirs(results_dir, exist_ok=True)
+            results_path = f"{results_dir}/landmask_analysis.txt"
+            with open(results_path, 'w') as f:
+                f.write("LANDMASK ANALYSIS RESULTS\n")
+                f.write("========================\n\n")
+                f.write(f"Grid shape: {landmask.shape}\n")
+                f.write(f"Total cells: {total_cells}\n")
+                f.write(f"Water cells (0): {water_cells} ({water_percentage:.1f}%)\n")
+                f.write(f"Land cells (1): {land_cells} ({land_percentage:.1f}%)\n")
+                f.write(f"Unique values: {unique_values.tolist()}\n")
+                f.write(f"Data valid: {results['is_valid']}\n\n")
+                
+                if 'lat_range' in results:
+                    f.write(f"Latitude range: {lat_range[0]:.3f}° to {lat_range[1]:.3f}°\n")
+                    f.write(f"Longitude range: {lon_range[0]:.3f}° to {lon_range[1]:.3f}°\n\n")
+                
+                f.write("Grid cell details (row by row):\n")
+                for i in range(landmask.shape[0]):
+                    row = landmask_values[i, :]
+                    land_in_row = np.sum(row == 1)
+                    water_in_row = np.sum(row == 0)
+                    f.write(f"Row {i:2d}: Land={land_in_row:2d}, Water={water_in_row:2d} | {row}\n")
+            
+            print(f"   Results saved to: {results_path}")
         
-    except ImportError as e:
-        print(f"Error: Missing required library: {e}")
+        print(f"\n✓ LANDMASK analysis completed successfully!")
+        return results
+        
+    except KeyError:
+        print("Error: LANDMASK variable not found in dataset")
         return None
     except Exception as e:
-        print(f"Error creating wind rose: {e}")
+        print(f"Error analyzing LANDMASK: {e}")
         return None
+
+
+
 
