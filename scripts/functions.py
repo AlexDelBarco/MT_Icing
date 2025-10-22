@@ -1463,5 +1463,768 @@ def analyze_landmask(dataset, create_plot=True, save_results=True):
         return None
 
 
+def plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_bins=None, ice_load_threshold=0.0):
+    """
+    Create cumulative duration curves showing hours per year for each ice load level
+    for every grid cell. The function creates a mean over all years and plots
+    X-axis: Ice load (kg/m)
+    Y-axis: Hours per year
+    
+    Parameters:
+    -----------
+    ice_load_data : xarray.DataArray
+        Ice load data with dimensions (time, south_north, west_east)
+    save_plots : bool, default True
+        Whether to save the plots to files
+    ice_load_bins : array-like, optional
+        Custom ice load bins for analysis. If None, uses automatic binning
+    ice_load_threshold : float, default 0.0
+        Minimum ice load value to be plotted (kg/m). Values below this threshold will be excluded
+        
+    Returns:
+    --------
+    dict : Dictionary containing analysis results and statistics
+    """
+    print("=== ICE LOAD DURATION CURVE ANALYSIS ===")
+    
+    try:
+        # Check data structure
+        print(f"\n1. Data Information:")
+        print(f"   Shape: {ice_load_data.shape}")
+        print(f"   Dimensions: {ice_load_data.dims}")
+        print(f"   Time range: {ice_load_data.time.min().values} to {ice_load_data.time.max().values}")
+        
+        # Get spatial dimensions
+        n_south_north = ice_load_data.sizes['south_north']
+        n_west_east = ice_load_data.sizes['west_east']
+        n_time = ice_load_data.sizes['time']
+        
+        print(f"   Grid size: {n_south_north} × {n_west_east} = {n_south_north * n_west_east} cells")
+        print(f"   Time steps: {n_time}")
+        
+        # Convert time to pandas for easier manipulation
+        time_index = pd.to_datetime(ice_load_data.time.values)
+        n_years = len(time_index.year.unique())
+        print(f"   Years covered: {n_years}")
+        print(f"   Years: {sorted(time_index.year.unique())}")
+        
+        # Calculate time step in hours (assuming regular intervals)
+        if len(time_index) > 1:
+            time_step_hours = (time_index[1] - time_index[0]).total_seconds() / 3600
+        else:
+            time_step_hours = 0.5  # Default to 30 minutes
+        print(f"   Time step: {time_step_hours} hours")
+        
+        # Remove NaN values and get overall data statistics
+        ice_data_clean = ice_load_data.where(ice_load_data >= 0, 0)  # Replace negative/NaN with 0
+        max_ice_load = float(ice_data_clean.max())
+        min_ice_load = 0.0
+        
+        print(f"\n2. Ice Load Statistics:")
+        print(f"   Range: {min_ice_load:.3f} to {max_ice_load:.3f} kg/m")
+        print(f"   Mean: {float(ice_data_clean.mean()):.3f} kg/m")
+        
+        # Define ice load bins if not provided
+        if ice_load_bins is None:
+            if max_ice_load > ice_load_threshold:
+                # Create logarithmic-like bins for better distribution, starting from threshold
+                min_bin_value = max(ice_load_threshold, 0.01)  # Ensure we have a reasonable minimum for log scale
+                ice_load_bins = np.concatenate([
+                    [ice_load_threshold] if ice_load_threshold > 0 else [0],  # Include threshold or zero
+                    np.logspace(np.log10(min_bin_value), np.log10(max_ice_load), 30)
+                ])
+                # Remove duplicates and sort
+                ice_load_bins = np.unique(ice_load_bins)
+                # Filter bins to only include those >= threshold
+                ice_load_bins = ice_load_bins[ice_load_bins >= ice_load_threshold]
+            else:
+                ice_load_bins = np.array([ice_load_threshold, ice_load_threshold + 0.01, ice_load_threshold + 0.1, ice_load_threshold + 1, ice_load_threshold + 10])
+        else:
+            # Filter provided bins to only include those >= threshold
+            ice_load_bins = ice_load_bins[ice_load_bins >= ice_load_threshold]
+        
+        print(f"   Using {len(ice_load_bins)} ice load bins")
+        print(f"   Ice load threshold: {ice_load_threshold:.3f} kg/m")
+        print(f"   Bin range: {ice_load_bins[0]:.4f} to {ice_load_bins[-1]:.3f} kg/m")
+        
+        # Prepare results storage
+        results = {
+            'grid_shape': (n_south_north, n_west_east),
+            'n_years': n_years,
+            'time_step_hours': time_step_hours,
+            'ice_load_bins': ice_load_bins,
+            'duration_curves': {},
+            'statistics': {}
+        }
+        
+        # Create figure for all grid cells
+        n_cols = min(n_west_east, 5)  # Maximum 5 columns
+        n_rows = int(np.ceil((n_south_north * n_west_east) / n_cols))
+        
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(4*n_cols, 3*n_rows))
+        if n_rows == 1 and n_cols == 1:
+            axes = [axes]
+        elif n_rows == 1 or n_cols == 1:
+            axes = axes.flatten()
+        else:
+            axes = axes.flatten()
+        
+        print(f"\n3. Processing grid cells...")
+        
+        cell_count = 0
+        for i in range(n_south_north):
+            for j in range(n_west_east):
+                # Extract time series for this grid cell
+                cell_data = ice_data_clean.isel(south_north=i, west_east=j)
+                cell_values = cell_data.values
+                
+                # Remove NaN values
+                valid_mask = ~np.isnan(cell_values)
+                cell_values_clean = cell_values[valid_mask]
+                
+                if len(cell_values_clean) == 0:
+                    print(f"   Warning: No valid data for cell ({i},{j})")
+                    continue
+                
+                # Calculate duration curve
+                duration_hours = []
+                
+                for ice_threshold in ice_load_bins:
+                    # Count hours when ice load >= threshold
+                    hours_above_threshold = np.sum(cell_values_clean >= ice_threshold) * time_step_hours
+                    # Convert to hours per year
+                    hours_per_year = hours_above_threshold / n_years
+                    duration_hours.append(hours_per_year)
+                
+                duration_hours = np.array(duration_hours)
+                
+                # Store results for this cell
+                cell_key = f'cell_{i}_{j}'
+                results['duration_curves'][cell_key] = {
+                    'ice_load_bins': ice_load_bins,
+                    'hours_per_year': duration_hours,
+                    'position': (i, j)
+                }
+                
+                # Calculate statistics for this cell
+                total_hours_per_year = 365.25 * 24  # Account for leap years
+                max_hours = duration_hours[0] if len(duration_hours) > 0 else 0
+                zero_ice_hours = total_hours_per_year - max_hours
+                
+                results['statistics'][cell_key] = {
+                    'max_ice_load': float(np.max(cell_values_clean)),
+                    'mean_ice_load': float(np.mean(cell_values_clean)),
+                    'hours_with_ice_per_year': max_hours,
+                    'hours_without_ice_per_year': zero_ice_hours,
+                    'ice_occurrence_percentage': (max_hours / total_hours_per_year) * 100
+                }
+                
+                # Plot duration curve for this cell
+                if cell_count < len(axes):
+                    ax = axes[cell_count]
+                    ax.plot(ice_load_bins, duration_hours, 'b-', linewidth=2, marker='o', markersize=3)
+                    ax.set_xlabel('Ice Load (kg/m)')
+                    ax.set_ylabel('Hours/Year')
+                    ax.set_title(f'Cell ({i},{j})')
+                    ax.grid(True, alpha=0.3)
+                    ax.set_xlim(left=ice_load_threshold)
+                    ax.set_ylim(bottom=0)
+                    
+                    # Use log scale for x-axis if there's a wide range
+                    if max_ice_load > 10:
+                        ax.set_xscale('log')
+                        ax.set_xlim(left=max(ice_load_threshold, 0.01))  # Ensure minimum for log scale
+                
+                cell_count += 1
+                
+                if cell_count % 5 == 0:
+                    print(f"   Processed {cell_count}/{n_south_north * n_west_east} cells...")
+        
+        # Hide unused subplots
+        for idx in range(cell_count, len(axes)):
+            axes[idx].set_visible(False)
+        
+        plt.tight_layout()
+        
+        # Save plot if requested
+        if save_plots:
+            # Create specific directory structure for ice load per cell plots
+            ice_load_plots_dir = os.path.join(figures_dir, "spatial_gradient", "ice_load_per_cell")
+            os.makedirs(ice_load_plots_dir, exist_ok=True)
+            plot_path = f"{ice_load_plots_dir}/ice_load_duration_curves_all_cells.png"
+            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+            print(f"\n   Duration curves plot saved to: {plot_path}")
+        
+        # Create summary plot with mean curve
+        print(f"\n4. Creating summary statistics...")
+        
+        # Calculate mean duration curve across all cells
+        all_duration_curves = []
+        for cell_key, cell_data in results['duration_curves'].items():
+            all_duration_curves.append(cell_data['hours_per_year'])
+        
+        if all_duration_curves:
+            mean_duration = np.mean(all_duration_curves, axis=0)
+            std_duration = np.std(all_duration_curves, axis=0)
+            
+            plt.figure(figsize=(10, 6))
+            plt.plot(ice_load_bins, mean_duration, 'r-', linewidth=3, label='Mean across all cells')
+            plt.fill_between(ice_load_bins, mean_duration - std_duration, 
+                           mean_duration + std_duration, alpha=0.3, color='red', 
+                           label='±1 Standard Deviation')
+            
+            plt.xlabel('Ice Load (kg/m)')
+            plt.ylabel('Hours per Year')
+            plt.title('Ice Load Duration Curve - Domain Average')
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            plt.xlim(left=ice_load_threshold)
+            plt.ylim(bottom=0)
+            
+            if max_ice_load > 10:
+                plt.xscale('log')
+                plt.xlim(left=max(ice_load_threshold, 0.01))  # Ensure minimum for log scale
+            
+            plt.tight_layout()
+            
+            if save_plots:
+                summary_path = f"{ice_load_plots_dir}/ice_load_duration_curve_summary.png"
+                plt.savefig(summary_path, dpi=300, bbox_inches='tight')
+                print(f"   Summary plot saved to: {summary_path}")
+            
+            # Store summary statistics
+            results['domain_statistics'] = {
+                'mean_duration_curve': mean_duration,
+                'std_duration_curve': std_duration,
+                'ice_load_bins': ice_load_bins
+            }
+        
+        # Print summary statistics
+        print(f"\n5. Summary Statistics:")
+        print(f"   Processed {len(results['duration_curves'])} grid cells")
+        
+        if results['statistics']:
+            all_stats = list(results['statistics'].values())
+            mean_ice_occurrence = np.mean([s['ice_occurrence_percentage'] for s in all_stats])
+            max_ice_occurrence = np.max([s['ice_occurrence_percentage'] for s in all_stats])
+            min_ice_occurrence = np.min([s['ice_occurrence_percentage'] for s in all_stats])
+            
+            print(f"   Ice occurrence across domain:")
+            print(f"     Mean: {mean_ice_occurrence:.1f}% of time")
+            print(f"     Range: {min_ice_occurrence:.1f}% to {max_ice_occurrence:.1f}%")
+        
+        # Save detailed results
+        if save_plots:
+            results_path = f"{results_dir}/ice_load_duration_analysis.txt"
+            with open(results_path, 'w') as f:
+                f.write("ICE LOAD DURATION CURVE ANALYSIS RESULTS\n")
+                f.write("=======================================\n\n")
+                f.write(f"Data shape: {ice_load_data.shape}\n")
+                f.write(f"Years analyzed: {n_years}\n")
+                f.write(f"Time step: {time_step_hours} hours\n")
+                f.write(f"Ice load range: {min_ice_load:.3f} to {max_ice_load:.3f} kg/m\n\n")
+                
+                f.write("Grid Cell Statistics:\n")
+                f.write("-" * 50 + "\n")
+                for cell_key, stats in results['statistics'].items():
+                    pos = results['duration_curves'][cell_key]['position']
+                    f.write(f"Cell {pos}: ")
+                    f.write(f"Max ice: {stats['max_ice_load']:.3f} kg/m, ")
+                    f.write(f"Mean ice: {stats['mean_ice_load']:.3f} kg/m, ")
+                    f.write(f"Ice occurrence: {stats['ice_occurrence_percentage']:.1f}%\n")
+            
+            print(f"   Detailed results saved to: {results_path}")
+        
+        # Create spatial gradient analysis using Wasserstein Distance
+        print(f"\n6. Spatial Gradient Analysis (Wasserstein Distance)...")
+        
+        try:
+            from scipy.stats import wasserstein_distance
+            
+            # Initialize gradient matrices
+            n_south_north, n_west_east = ice_load_data.shape[1], ice_load_data.shape[2]
+            
+            # East-West gradients (comparing adjacent cells horizontally)
+            ew_gradients = np.full((n_south_north, n_west_east-1), np.nan)
+            
+            # South-North gradients (comparing adjacent cells vertically)
+            sn_gradients = np.full((n_south_north-1, n_west_east), np.nan)
+            
+            # Combined gradients (for each cell, average of all neighbor comparisons)
+            combined_gradients = np.full((n_south_north, n_west_east), np.nan)
+            
+            print(f"   Computing Wasserstein distances between neighboring cells...")
+            
+            # Calculate East-West gradients
+            for i in range(n_south_north):
+                for j in range(n_west_east-1):
+                    cell1_key = f'cell_{i}_{j}'
+                    cell2_key = f'cell_{i}_{j+1}'
+                    
+                    if cell1_key in results['duration_curves'] and cell2_key in results['duration_curves']:
+                        curve1 = results['duration_curves'][cell1_key]['hours_per_year']
+                        curve2 = results['duration_curves'][cell2_key]['hours_per_year']
+                        bins1 = results['duration_curves'][cell1_key]['ice_load_bins']
+                        bins2 = results['duration_curves'][cell2_key]['ice_load_bins']
+                        
+                        # Calculate Wasserstein distance between the duration curves
+                        # We need to treat these as distributions, so we create weighted samples
+                        try:
+                            distance = wasserstein_distance(bins1, bins2, curve1, curve2)
+                            ew_gradients[i, j] = distance
+                        except:
+                            # Fallback to simple difference if Wasserstein fails
+                            distance = np.mean(np.abs(curve1 - curve2))
+                            ew_gradients[i, j] = distance
+            
+            # Calculate South-North gradients
+            for i in range(n_south_north-1):
+                for j in range(n_west_east):
+                    cell1_key = f'cell_{i}_{j}'
+                    cell2_key = f'cell_{i+1}_{j}'
+                    
+                    if cell1_key in results['duration_curves'] and cell2_key in results['duration_curves']:
+                        curve1 = results['duration_curves'][cell1_key]['hours_per_year']
+                        curve2 = results['duration_curves'][cell2_key]['hours_per_year']
+                        bins1 = results['duration_curves'][cell1_key]['ice_load_bins']
+                        bins2 = results['duration_curves'][cell2_key]['ice_load_bins']
+                        
+                        try:
+                            distance = wasserstein_distance(bins1, bins2, curve1, curve2)
+                            sn_gradients[i, j] = distance
+                        except:
+                            distance = np.mean(np.abs(curve1 - curve2))
+                            sn_gradients[i, j] = distance
+            
+            # Calculate combined gradients (average of all valid neighbor distances)
+            for i in range(n_south_north):
+                for j in range(n_west_east):
+                    distances = []
+                    
+                    # Check East neighbor
+                    if j < n_west_east-1 and not np.isnan(ew_gradients[i, j]):
+                        distances.append(ew_gradients[i, j])
+                    
+                    # Check West neighbor
+                    if j > 0 and not np.isnan(ew_gradients[i, j-1]):
+                        distances.append(ew_gradients[i, j-1])
+                    
+                    # Check North neighbor
+                    if i < n_south_north-1 and not np.isnan(sn_gradients[i, j]):
+                        distances.append(sn_gradients[i, j])
+                    
+                    # Check South neighbor
+                    if i > 0 and not np.isnan(sn_gradients[i-1, j]):
+                        distances.append(sn_gradients[i-1, j])
+                    
+                    if distances:
+                        combined_gradients[i, j] = np.mean(distances)
+            
+            # Create the spatial gradient plots
+            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+            
+            # Plot 1: East-West gradients
+            im1 = axes[0, 0].imshow(ew_gradients, cmap='viridis', origin='lower', 
+                                   interpolation='nearest', aspect='auto')
+            axes[0, 0].set_title('East-West Gradient\n(Wasserstein Distance)')
+            axes[0, 0].set_xlabel('West-East Grid Points')
+            axes[0, 0].set_ylabel('South-North Grid Points')
+            cbar1 = plt.colorbar(im1, ax=axes[0, 0], shrink=0.8)
+            cbar1.set_label('Wasserstein Distance')
+            
+            # Add grid lines
+            axes[0, 0].set_xticks(range(n_west_east-1))
+            axes[0, 0].set_yticks(range(n_south_north))
+            axes[0, 0].grid(True, alpha=0.3)
+            
+            # Plot 2: South-North gradients
+            im2 = axes[0, 1].imshow(sn_gradients, cmap='viridis', origin='lower', 
+                                   interpolation='nearest', aspect='auto')
+            axes[0, 1].set_title('South-North Gradient\n(Wasserstein Distance)')
+            axes[0, 1].set_xlabel('West-East Grid Points')
+            axes[0, 1].set_ylabel('South-North Grid Points')
+            cbar2 = plt.colorbar(im2, ax=axes[0, 1], shrink=0.8)
+            cbar2.set_label('Wasserstein Distance')
+            
+            axes[0, 1].set_xticks(range(n_west_east))
+            axes[0, 1].set_yticks(range(n_south_north-1))
+            axes[0, 1].grid(True, alpha=0.3)
+            
+            # Plot 3: Combined gradients
+            im3 = axes[1, 0].imshow(combined_gradients, cmap='viridis', origin='lower', 
+                                   interpolation='nearest', aspect='auto')
+            axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)')
+            axes[1, 0].set_xlabel('West-East Grid Points')
+            axes[1, 0].set_ylabel('South-North Grid Points')
+            cbar3 = plt.colorbar(im3, ax=axes[1, 0], shrink=0.8)
+            cbar3.set_label('Average Wasserstein Distance')
+            
+            axes[1, 0].set_xticks(range(n_west_east))
+            axes[1, 0].set_yticks(range(n_south_north))
+            axes[1, 0].grid(True, alpha=0.3)
+            
+            # Plot 4: Gradient magnitude (combining EW and SN)
+            # Create a full-size gradient magnitude matrix
+            gradient_magnitude = np.full((n_south_north, n_west_east), np.nan)
+            
+            for i in range(n_south_north):
+                for j in range(n_west_east):
+                    magnitudes = []
+                    
+                    # East-West component
+                    if j < n_west_east-1 and not np.isnan(ew_gradients[i, j]):
+                        magnitudes.append(ew_gradients[i, j]**2)
+                    if j > 0 and not np.isnan(ew_gradients[i, j-1]):
+                        magnitudes.append(ew_gradients[i, j-1]**2)
+                    
+                    # South-North component  
+                    if i < n_south_north-1 and not np.isnan(sn_gradients[i, j]):
+                        magnitudes.append(sn_gradients[i, j]**2)
+                    if i > 0 and not np.isnan(sn_gradients[i-1, j]):
+                        magnitudes.append(sn_gradients[i-1, j]**2)
+                    
+                    if magnitudes:
+                        gradient_magnitude[i, j] = np.sqrt(np.mean(magnitudes))
+            
+            im4 = axes[1, 1].imshow(gradient_magnitude, cmap='plasma', origin='lower', 
+                                   interpolation='nearest', aspect='auto')
+            axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)')
+            axes[1, 1].set_xlabel('West-East Grid Points')
+            axes[1, 1].set_ylabel('South-North Grid Points')
+            cbar4 = plt.colorbar(im4, ax=axes[1, 1], shrink=0.8)
+            cbar4.set_label('RMS Gradient Magnitude')
+            
+            axes[1, 1].set_xticks(range(n_west_east))
+            axes[1, 1].set_yticks(range(n_south_north))
+            axes[1, 1].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Save spatial gradient plots
+            if save_plots:
+                gradient_path = f"{ice_load_plots_dir}/ice_load_spatial_gradients.png"
+                plt.savefig(gradient_path, dpi=300, bbox_inches='tight')
+                print(f"   Spatial gradient plots saved to: {gradient_path}")
+            
+            # Store gradient results
+            results['spatial_gradients'] = {
+                'east_west_gradients': ew_gradients,
+                'south_north_gradients': sn_gradients,
+                'combined_gradients': combined_gradients,
+                'gradient_magnitude': gradient_magnitude,
+                'ew_mean': np.nanmean(ew_gradients),
+                'ew_std': np.nanstd(ew_gradients),
+                'sn_mean': np.nanmean(sn_gradients),
+                'sn_std': np.nanstd(sn_gradients),
+                'combined_mean': np.nanmean(combined_gradients),
+                'combined_std': np.nanstd(combined_gradients)
+            }
+            
+            # Print gradient statistics
+            print(f"   Gradient Statistics:")
+            print(f"     East-West: Mean = {results['spatial_gradients']['ew_mean']:.3f}, Std = {results['spatial_gradients']['ew_std']:.3f}")
+            print(f"     South-North: Mean = {results['spatial_gradients']['sn_mean']:.3f}, Std = {results['spatial_gradients']['sn_std']:.3f}")
+            print(f"     Combined: Mean = {results['spatial_gradients']['combined_mean']:.3f}, Std = {results['spatial_gradients']['combined_std']:.3f}")
+            
+        except ImportError:
+            print("   Warning: scipy not available, skipping Wasserstein distance calculation")
+            print("   Install scipy with: conda install scipy")
+        except Exception as e:
+            print(f"   Error in spatial gradient analysis: {e}")
+        
+        print(f"\n✓ Ice load duration curve analysis completed successfully!")
+        return results
+        
+    except Exception as e:
+        print(f"Error in ice load duration analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def plot_ice_load_threshold_exceedance_map(ice_load_data, ice_load_threshold, save_plots=True, 
+                                         colormap='viridis', grid_labels=True, units='hours'):
+    """
+    Create a spatial map showing how often each grid cell exceeds a specified ice load threshold
+    per year on average. Uses a colorbar to show spatial differences in threshold exceedance.
+    
+    Parameters:
+    -----------
+    ice_load_data : xarray.DataArray
+        Ice load data with dimensions (time, south_north, west_east)
+    ice_load_threshold : float
+        Ice load threshold value (kg/m) to analyze exceedance for
+    save_plots : bool, default True
+        Whether to save the plot to file
+    colormap : str, default 'viridis'
+        Matplotlib colormap to use for the spatial plot
+    grid_labels : bool, default True
+        Whether to add grid cell coordinate labels to the plot
+    units : str, default 'hours'
+        Units for the exceedance frequency ('hours', 'days', or 'percentage')
+        
+    Returns:
+    --------
+    dict : Dictionary containing exceedance analysis results and statistics
+    """
+    print(f"=== ICE LOAD THRESHOLD EXCEEDANCE ANALYSIS ===")
+    print(f"Threshold: {ice_load_threshold:.3f} kg/m")
+    
+    try:
+        # Check data structure
+        print(f"\n1. Data Information:")
+        print(f"   Shape: {ice_load_data.shape}")
+        print(f"   Dimensions: {ice_load_data.dims}")
+        
+        # Get spatial dimensions
+        n_time = ice_load_data.sizes['time']
+        n_south_north = ice_load_data.sizes['south_north']
+        n_west_east = ice_load_data.sizes['west_east']
+        
+        print(f"   Grid size: {n_south_north} × {n_west_east} = {n_south_north * n_west_east} cells")
+        print(f"   Time steps: {n_time}")
+        
+        # Calculate temporal information
+        time_index = pd.to_datetime(ice_load_data.time.values)
+        n_years = len(time_index.year.unique())
+        years = sorted(time_index.year.unique())
+        
+        # Calculate time step in hours (assuming regular intervals)
+        if len(time_index) > 1:
+            time_step_hours = (time_index[1] - time_index[0]).total_seconds() / 3600
+        else:
+            time_step_hours = 0.5  # Default to 30 minutes
+            
+        print(f"   Years covered: {n_years} ({years[0]} to {years[-1]})")
+        print(f"   Time step: {time_step_hours} hours")
+        
+        # Clean the data (remove NaN values, replace negative with 0)
+        ice_data_clean = ice_load_data.where(ice_load_data >= 0, 0)
+        
+        print(f"\n2. Threshold Exceedance Analysis:")
+        print(f"   Analyzing exceedance of {ice_load_threshold:.3f} kg/m threshold...")
+        
+        # Initialize exceedance matrix
+        exceedance_matrix = np.zeros((n_south_north, n_west_east))
+        
+        # Calculate exceedance for each grid cell
+        total_cells = n_south_north * n_west_east
+        processed_cells = 0
+        
+        for i in range(n_south_north):
+            for j in range(n_west_east):
+                # Extract time series for this grid cell
+                cell_data = ice_data_clean.isel(south_north=i, west_east=j)
+                cell_values = cell_data.values
+                
+                # Remove NaN values
+                valid_mask = ~np.isnan(cell_values)
+                cell_values_clean = cell_values[valid_mask]
+                
+                if len(cell_values_clean) > 0:
+                    # Count exceedances
+                    exceedances = np.sum(cell_values_clean >= ice_load_threshold)
+                    
+                    # Convert to the requested units
+                    if units == 'hours':
+                        # Hours per year
+                        exceedance_value = (exceedances * time_step_hours) / n_years
+                    elif units == 'days':
+                        # Days per year
+                        exceedance_value = (exceedances * time_step_hours) / (24 * n_years)
+                    elif units == 'percentage':
+                        # Percentage of time
+                        total_hours_per_year = 365.25 * 24  # Account for leap years
+                        hours_per_year = (exceedances * time_step_hours) / n_years
+                        exceedance_value = (hours_per_year / total_hours_per_year) * 100
+                    else:
+                        # Default to hours
+                        exceedance_value = (exceedances * time_step_hours) / n_years
+                    
+                    exceedance_matrix[i, j] = exceedance_value
+                else:
+                    exceedance_matrix[i, j] = np.nan
+                
+                processed_cells += 1
+                if processed_cells % 20 == 0:
+                    print(f"   Processed {processed_cells}/{total_cells} cells...")
+        
+        # Calculate statistics
+        valid_exceedances = exceedance_matrix[~np.isnan(exceedance_matrix)]
+        
+        print(f"\n3. Exceedance Statistics:")
+        if len(valid_exceedances) > 0:
+            print(f"   Mean exceedance: {np.mean(valid_exceedances):.2f} {units}/year")
+            print(f"   Std exceedance: {np.std(valid_exceedances):.2f} {units}/year")
+            print(f"   Min exceedance: {np.min(valid_exceedances):.2f} {units}/year")
+            print(f"   Max exceedance: {np.max(valid_exceedances):.2f} {units}/year")
+            print(f"   Cells with exceedances: {np.sum(valid_exceedances > 0)}/{len(valid_exceedances)}")
+        else:
+            print(f"   No valid exceedance data found")
+        
+        # Create the spatial plot
+        print(f"\n4. Creating spatial exceedance map...")
+        
+        fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+        
+        # Create the main plot
+        im = ax.imshow(exceedance_matrix, cmap=colormap, origin='lower', 
+                      interpolation='nearest', aspect='auto')
+        
+        # Set title and labels
+        unit_label = units.capitalize()
+        if units == 'percentage':
+            unit_label = '% of Time'
+        
+        ax.set_title(f'Ice Load Threshold Exceedance Map\n'
+                    f'Threshold: {ice_load_threshold:.3f} kg/m\n'
+                    f'Mean Annual Exceedance ({unit_label})')
+        ax.set_xlabel('West-East Grid Points')
+        ax.set_ylabel('South-North Grid Points')
+        
+        # Add colorbar
+        cbar = plt.colorbar(im, ax=ax, shrink=0.8, aspect=20)
+        cbar.set_label(f'Exceedance ({unit_label}/Year)')
+        
+        # Add grid lines
+        ax.set_xticks(range(n_west_east))
+        ax.set_yticks(range(n_south_north))
+        ax.grid(True, alpha=0.3, color='white', linewidth=0.5)
+        
+        # Add cell values as text labels if requested
+        if grid_labels:
+            for i in range(n_south_north):
+                for j in range(n_west_east):
+                    value = exceedance_matrix[i, j]
+                    if not np.isnan(value):
+                        # Choose text color based on background
+                        text_color = 'white' if value > np.nanmean(exceedance_matrix) else 'black'
+                        ax.text(j, i, f'{value:.1f}', ha='center', va='center',
+                               color=text_color, fontsize=8, weight='bold')
+        
+        # Add coordinate references
+        ax.set_xticks(range(n_west_east))
+        ax.set_yticks(range(n_south_north))
+        ax.set_xticklabels([f'{j}' for j in range(n_west_east)])
+        ax.set_yticklabels([f'{i}' for i in range(n_south_north)])
+        
+        plt.tight_layout()
+        
+        # Save plot if requested
+        if save_plots:
+            # Create specific directory for threshold analysis
+            threshold_plots_dir = os.path.join(figures_dir, "spatial_gradient", "ice_load_grid")
+            os.makedirs(threshold_plots_dir, exist_ok=True)
+            
+            # Create filename with threshold value
+            threshold_str = f"{ice_load_threshold:.1f}".replace('.', 'p')
+            plot_path = f"{threshold_plots_dir}/ice_load_threshold_exceedance_{threshold_str}kgm.png"
+            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+            print(f"   Exceedance map saved to: {plot_path}")
+        
+        plt.close()  # Close the plot to prevent it from showing
+        
+        # Create additional summary statistics plot
+        if len(valid_exceedances) > 0:
+            fig2, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+            
+            # Histogram of exceedance values
+            ax1.hist(valid_exceedances, bins=min(20, len(np.unique(valid_exceedances))), 
+                    alpha=0.7, color='skyblue', edgecolor='black')
+            ax1.set_xlabel(f'Exceedance ({unit_label}/Year)')
+            ax1.set_ylabel('Number of Grid Cells')
+            ax1.set_title(f'Distribution of Threshold Exceedances\nThreshold: {ice_load_threshold:.3f} kg/m')
+            ax1.grid(True, alpha=0.3)
+            
+            # Box plot by row (south-north variation)
+            row_data = []
+            row_labels = []
+            for i in range(n_south_north):
+                row_exceedances = exceedance_matrix[i, :]
+                valid_row = row_exceedances[~np.isnan(row_exceedances)]
+                if len(valid_row) > 0:
+                    row_data.append(valid_row)
+                    row_labels.append(f'Row {i}')
+            
+            if row_data:
+                ax2.boxplot(row_data, labels=row_labels)
+                ax2.set_xlabel('Grid Row (South to North)')
+                ax2.set_ylabel(f'Exceedance ({unit_label}/Year)')
+                ax2.set_title('Exceedance by Grid Row')
+                ax2.grid(True, alpha=0.3)
+                ax2.tick_params(axis='x', rotation=45)
+            
+            plt.tight_layout()
+            
+            if save_plots:
+                summary_path = f"{threshold_plots_dir}/ice_load_threshold_exceedance_summary_{threshold_str}kgm.png"
+                plt.savefig(summary_path, dpi=300, bbox_inches='tight')
+                print(f"   Summary statistics saved to: {summary_path}")
+            
+            plt.close()  # Close the plot to prevent it from showing
+        
+        # Prepare results dictionary
+        results = {
+            'threshold': ice_load_threshold,
+            'units': units,
+            'exceedance_matrix': exceedance_matrix,
+            'grid_shape': (n_south_north, n_west_east),
+            'n_years': n_years,
+            'years_range': (years[0], years[-1]),
+            'time_step_hours': time_step_hours,
+            'statistics': {
+                'mean': np.nanmean(exceedance_matrix),
+                'std': np.nanstd(exceedance_matrix),
+                'min': np.nanmin(exceedance_matrix),
+                'max': np.nanmax(exceedance_matrix),
+                'cells_with_exceedances': np.sum(valid_exceedances > 0) if len(valid_exceedances) > 0 else 0,
+                'total_valid_cells': len(valid_exceedances) if len(valid_exceedances) > 0 else 0
+            }
+        }
+        
+        # Save detailed results to file
+        if save_plots:
+            results_path = f"{results_dir}/ice_load_threshold_exceedance_{threshold_str}kgm.txt"
+            with open(results_path, 'w') as f:
+                f.write("ICE LOAD THRESHOLD EXCEEDANCE ANALYSIS RESULTS\n")
+                f.write("=" * 50 + "\n\n")
+                f.write(f"Threshold: {ice_load_threshold:.3f} kg/m\n")
+                f.write(f"Units: {units}\n")
+                f.write(f"Grid shape: {n_south_north} × {n_west_east}\n")
+                f.write(f"Years analyzed: {n_years} ({years[0]} to {years[-1]})\n")
+                f.write(f"Time step: {time_step_hours} hours\n\n")
+                
+                f.write("Exceedance Statistics:\n")
+                f.write("-" * 25 + "\n")
+                if len(valid_exceedances) > 0:
+                    f.write(f"Mean: {results['statistics']['mean']:.3f} {units}/year\n")
+                    f.write(f"Std: {results['statistics']['std']:.3f} {units}/year\n")
+                    f.write(f"Min: {results['statistics']['min']:.3f} {units}/year\n")
+                    f.write(f"Max: {results['statistics']['max']:.3f} {units}/year\n")
+                    f.write(f"Cells with exceedances: {results['statistics']['cells_with_exceedances']}\n")
+                    f.write(f"Total valid cells: {results['statistics']['total_valid_cells']}\n\n")
+                
+                f.write("Grid Cell Exceedance Values:\n")
+                f.write("-" * 30 + "\n")
+                for i in range(n_south_north):
+                    row_str = f"Row {i:2d}: "
+                    for j in range(n_west_east):
+                        value = exceedance_matrix[i, j]
+                        if np.isnan(value):
+                            row_str += "   NaN   "
+                        else:
+                            row_str += f"{value:7.2f} "
+                    f.write(row_str + "\n")
+            
+            print(f"   Detailed results saved to: {results_path}")
+        
+        print(f"\n✓ Ice load threshold exceedance analysis completed successfully!")
+        return results
+        
+    except Exception as e:
+        print(f"Error in threshold exceedance analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
