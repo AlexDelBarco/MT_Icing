@@ -58,10 +58,11 @@ else:
 # Analyze ice load duration curves for all grid cells
 #print("\n=== ICE LOAD DURATION CURVE ANALYSIS ===")
 #duration_results = fn.plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_threshold=0.1)
+#print("\n=== ICE LOAD PDF CURVE ANALYSIS ===")
+#pdf_results = fn.plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_threshold=0.1)
+print("\n=== ICE LOAD CDF CURVE ANALYSIS ===")
+cdf_results = fn.plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_threshold=0.1)
 
 # Analyze threshold exceedance spatial patterns
-print("\n=== ICE LOAD THRESHOLD EXCEEDANCE ANALYSIS ===")
-threshold_results = fn.plot_ice_load_threshold_exceedance_map(ice_load_data, 
-                                                            ice_load_threshold=0.4, 
-                                                            save_plots=True, 
-                                                            units='hours')
+#print("\n=== ICE LOAD THRESHOLD EXCEEDANCE ANALYSIS ===")
+#threshold_results = fn.plot_ice_load_threshold_exceedance_map(ice_load_data, ice_load_threshold=0.4, save_plots=True, units='hours')
