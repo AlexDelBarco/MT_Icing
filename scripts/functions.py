@@ -2531,6 +2531,8 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                 
                 cdf_values = np.array(cdf_values)
                 
+                cdf_values = np.array(cdf_values)
+                
                 # Store results for this cell
                 cell_key = f'cell_{i}_{j}'
                 results['cdf_curves'][cell_key] = {

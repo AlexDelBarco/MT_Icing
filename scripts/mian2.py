@@ -52,6 +52,7 @@ else:
     print("Loading existing ice load data...")
     filename = f"results/iceload_19890701_to_20220701_h150m.nc"
     ice_load_data = xr.open_dataarray(filename)
+
     print(f"Loaded ice load data from: {filename}")
     print(f"Loaded ice load data with shape: {ice_load_data.shape}")
     
@@ -61,7 +62,7 @@ else:
 #print("\n=== ICE LOAD PDF CURVE ANALYSIS ===")
 #pdf_results = fn.plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_threshold=0.1)
 print("\n=== ICE LOAD CDF CURVE ANALYSIS ===")
-cdf_results = fn.plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_threshold=0.1)
+cdf_results = fn.plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_threshold=0.001)
 
 # Analyze threshold exceedance spatial patterns
 #print("\n=== ICE LOAD THRESHOLD EXCEEDANCE ANALYSIS ===")
