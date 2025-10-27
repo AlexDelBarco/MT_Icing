@@ -2572,8 +2572,6 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                 
                 cdf_values = np.array(cdf_values)
                 
-                cdf_values = np.array(cdf_values)
-                
                 # Store results for this cell
                 cell_key = f'cell_{i}_{j}'
                 results['cdf_curves'][cell_key] = {
@@ -2809,11 +2807,11 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             # Plot 1: East-West gradients
             im1 = axes[0, 0].imshow(ew_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[0, 0].set_title('East-West Gradient\n(CDF L1 Distance)')
+            axes[0, 0].set_title('East-West Gradient\n(CDF Earth Mover\'s Distance)')
             axes[0, 0].set_xlabel('West-East Grid Points')
             axes[0, 0].set_ylabel('South-North Grid Points')
             cbar1 = plt.colorbar(im1, ax=axes[0, 0], shrink=0.8)
-            cbar1.set_label('L1 Distance')
+            cbar1.set_label('Earth Mover\'s Distance (kg/m)')
             
             # Add grid lines
             axes[0, 0].set_xticks(range(n_west_east-1))
@@ -2823,11 +2821,11 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             # Plot 2: South-North gradients
             im2 = axes[0, 1].imshow(sn_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[0, 1].set_title('South-North Gradient\n(CDF L1 Distance)')
+            axes[0, 1].set_title('South-North Gradient\n(CDF Earth Mover\'s Distance)')
             axes[0, 1].set_xlabel('West-East Grid Points')
             axes[0, 1].set_ylabel('South-North Grid Points')
             cbar2 = plt.colorbar(im2, ax=axes[0, 1], shrink=0.8)
-            cbar2.set_label('L1 Distance')
+            cbar2.set_label('Earth Mover\'s Distance (kg/m)')
             
             axes[0, 1].set_xticks(range(n_west_east))
             axes[0, 1].set_yticks(range(n_south_north-1))
@@ -2840,7 +2838,7 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             axes[1, 0].set_xlabel('West-East Grid Points')
             axes[1, 0].set_ylabel('South-North Grid Points')
             cbar3 = plt.colorbar(im3, ax=axes[1, 0], shrink=0.8)
-            cbar3.set_label('Average L1 Distance')
+            cbar3.set_label('Average Earth Mover\'s Distance (kg/m)')
             
             axes[1, 0].set_xticks(range(n_west_east))
             axes[1, 0].set_yticks(range(n_south_north))
@@ -2883,10 +2881,10 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             
             plt.tight_layout()
             
-            # Save spatial gradient plots
+            # Save absolute spatial gradient plots
             if save_plots:
                 # Create gradient filename with filtering information
-                gradient_filename_parts = ["ice_load_cdf_spatial_gradients"]
+                gradient_filename_parts = ["ice_load_cdf_spatial_gradients_absolute"]
                 if months is not None:
                     months_str = "_".join(map(str, sorted(months)))
                     gradient_filename_parts.append(f"months_{months_str}")
@@ -2898,14 +2896,120 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                 gradient_filename = "_".join(gradient_filename_parts) + ".png"
                 gradient_path = f"{ice_load_plots_dir}/{gradient_filename}"
                 plt.savefig(gradient_path, dpi=300, bbox_inches='tight')
-                print(f"   Spatial gradient plots saved to: {gradient_path}")
+                print(f"   Absolute spatial gradient plots saved to: {gradient_path}")
             
-            # Store gradient results
+            # Calculate dimensionless values (relative to domain mean)
+            print(f"   Creating dimensionless gradient plots...")
+            
+            # Calculate domain means for normalization
+            ew_mean = np.nanmean(ew_gradients)
+            sn_mean = np.nanmean(sn_gradients)
+            combined_mean = np.nanmean(combined_gradients)
+            gradient_magnitude_mean = np.nanmean(gradient_magnitude)
+            
+            # Create dimensionless matrices
+            ew_gradients_normalized = ew_gradients / ew_mean if ew_mean > 0 else ew_gradients
+            sn_gradients_normalized = sn_gradients / sn_mean if sn_mean > 0 else sn_gradients
+            combined_gradients_normalized = combined_gradients / combined_mean if combined_mean > 0 else combined_gradients
+            gradient_magnitude_normalized = gradient_magnitude / gradient_magnitude_mean if gradient_magnitude_mean > 0 else gradient_magnitude
+            
+            print(f"     Normalization factors:")
+            print(f"       East-West mean: {ew_mean:.3f} kg/m")
+            print(f"       South-North mean: {sn_mean:.3f} kg/m")
+            print(f"       Combined mean: {combined_mean:.3f} kg/m")
+            print(f"       Gradient magnitude mean: {gradient_magnitude_mean:.3f} kg/m")
+            
+            # Create the dimensionless spatial gradient plots
+            fig_norm, axes_norm = plt.subplots(2, 2, figsize=(15, 12))
+            
+            # Plot 1: East-West gradients (normalized)
+            im1_norm = axes_norm[0, 0].imshow(ew_gradients_normalized, cmap='RdBu_r', origin='lower', 
+                                             interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
+            axes_norm[0, 0].set_title('East-West Gradient\n(Dimensionless, Relative to Domain Mean)')
+            axes_norm[0, 0].set_xlabel('West-East Grid Points')
+            axes_norm[0, 0].set_ylabel('South-North Grid Points')
+            cbar1_norm = plt.colorbar(im1_norm, ax=axes_norm[0, 0], shrink=0.8)
+            cbar1_norm.set_label('Gradient / Domain Mean')
+            
+            # Add grid lines
+            axes_norm[0, 0].set_xticks(range(n_west_east-1))
+            axes_norm[0, 0].set_yticks(range(n_south_north))
+            axes_norm[0, 0].grid(True, alpha=0.3)
+            
+            # Plot 2: South-North gradients (normalized)
+            im2_norm = axes_norm[0, 1].imshow(sn_gradients_normalized, cmap='RdBu_r', origin='lower', 
+                                             interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
+            axes_norm[0, 1].set_title('South-North Gradient\n(Dimensionless, Relative to Domain Mean)')
+            axes_norm[0, 1].set_xlabel('West-East Grid Points')
+            axes_norm[0, 1].set_ylabel('South-North Grid Points')
+            cbar2_norm = plt.colorbar(im2_norm, ax=axes_norm[0, 1], shrink=0.8)
+            cbar2_norm.set_label('Gradient / Domain Mean')
+            
+            axes_norm[0, 1].set_xticks(range(n_west_east))
+            axes_norm[0, 1].set_yticks(range(n_south_north-1))
+            axes_norm[0, 1].grid(True, alpha=0.3)
+            
+            # Plot 3: Combined gradients (normalized)
+            im3_norm = axes_norm[1, 0].imshow(combined_gradients_normalized, cmap='RdBu_r', origin='lower', 
+                                             interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
+            axes_norm[1, 0].set_title('Combined Spatial Gradient\n(Dimensionless, Relative to Domain Mean)')
+            axes_norm[1, 0].set_xlabel('West-East Grid Points')
+            axes_norm[1, 0].set_ylabel('South-North Grid Points')
+            cbar3_norm = plt.colorbar(im3_norm, ax=axes_norm[1, 0], shrink=0.8)
+            cbar3_norm.set_label('Gradient / Domain Mean')
+            
+            axes_norm[1, 0].set_xticks(range(n_west_east))
+            axes_norm[1, 0].set_yticks(range(n_south_north))
+            axes_norm[1, 0].grid(True, alpha=0.3)
+            
+            # Plot 4: Gradient magnitude (normalized)
+            im4_norm = axes_norm[1, 1].imshow(gradient_magnitude_normalized, cmap='RdBu_r', origin='lower', 
+                                             interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
+            axes_norm[1, 1].set_title('Gradient Magnitude\n(Dimensionless, Relative to Domain Mean)')
+            axes_norm[1, 1].set_xlabel('West-East Grid Points')
+            axes_norm[1, 1].set_ylabel('South-North Grid Points')
+            cbar4_norm = plt.colorbar(im4_norm, ax=axes_norm[1, 1], shrink=0.8)
+            cbar4_norm.set_label('Gradient / Domain Mean')
+            
+            axes_norm[1, 1].set_xticks(range(n_west_east))
+            axes_norm[1, 1].set_yticks(range(n_south_north))
+            axes_norm[1, 1].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Save dimensionless spatial gradient plots
+            if save_plots:
+                # Create dimensionless gradient filename with filtering information
+                dimensionless_filename_parts = ["ice_load_cdf_spatial_gradients_dimensionless"]
+                if months is not None:
+                    months_str = "_".join(map(str, sorted(months)))
+                    dimensionless_filename_parts.append(f"months_{months_str}")
+                if ice_load_threshold > 0:
+                    dimensionless_filename_parts.append(f"min_{ice_load_threshold:.1f}")
+                if percentile is not None:
+                    dimensionless_filename_parts.append(f"p{percentile}")
+                
+                dimensionless_filename = "_".join(dimensionless_filename_parts) + ".png"
+                dimensionless_path = f"{ice_load_plots_dir}/{dimensionless_filename}"
+                plt.savefig(dimensionless_path, dpi=300, bbox_inches='tight')
+                print(f"   Dimensionless spatial gradient plots saved to: {dimensionless_path}")
+            
+            # Store gradient results (including both absolute and dimensionless)
             results['spatial_gradients'] = {
                 'east_west_gradients': ew_gradients,
                 'south_north_gradients': sn_gradients,
                 'combined_gradients': combined_gradients,
                 'gradient_magnitude': gradient_magnitude,
+                'east_west_gradients_normalized': ew_gradients_normalized,
+                'south_north_gradients_normalized': sn_gradients_normalized,
+                'combined_gradients_normalized': combined_gradients_normalized,
+                'gradient_magnitude_normalized': gradient_magnitude_normalized,
+                'normalization_factors': {
+                    'ew_mean': ew_mean,
+                    'sn_mean': sn_mean,
+                    'combined_mean': combined_mean,
+                    'gradient_magnitude_mean': gradient_magnitude_mean
+                },
                 'ew_mean': np.nanmean(ew_gradients),
                 'ew_std': np.nanstd(ew_gradients),
                 'sn_mean': np.nanmean(sn_gradients),
@@ -2916,9 +3020,15 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             
             # Print gradient statistics
             print(f"   Gradient Statistics:")
-            print(f"     East-West: Mean = {results['spatial_gradients']['ew_mean']:.3f}, Std = {results['spatial_gradients']['ew_std']:.3f}")
-            print(f"     South-North: Mean = {results['spatial_gradients']['sn_mean']:.3f}, Std = {results['spatial_gradients']['sn_std']:.3f}")
-            print(f"     Combined: Mean = {results['spatial_gradients']['combined_mean']:.3f}, Std = {results['spatial_gradients']['combined_std']:.3f}")
+            print(f"     Absolute values:")
+            print(f"       East-West: Mean = {results['spatial_gradients']['ew_mean']:.3f}, Std = {results['spatial_gradients']['ew_std']:.3f}")
+            print(f"       South-North: Mean = {results['spatial_gradients']['sn_mean']:.3f}, Std = {results['spatial_gradients']['sn_std']:.3f}")
+            print(f"       Combined: Mean = {results['spatial_gradients']['combined_mean']:.3f}, Std = {results['spatial_gradients']['combined_std']:.3f}")
+            print(f"     Dimensionless values (relative to domain mean):")
+            print(f"       East-West: Mean = {np.nanmean(ew_gradients_normalized):.3f}, Std = {np.nanstd(ew_gradients_normalized):.3f}")
+            print(f"       South-North: Mean = {np.nanmean(sn_gradients_normalized):.3f}, Std = {np.nanstd(sn_gradients_normalized):.3f}")
+            print(f"       Combined: Mean = {np.nanmean(combined_gradients_normalized):.3f}, Std = {np.nanstd(combined_gradients_normalized):.3f}")
+            print(f"       Gradient Magnitude: Mean = {np.nanmean(gradient_magnitude_normalized):.3f}, Std = {np.nanstd(gradient_magnitude_normalized):.3f}")
             
         except ImportError:
             print("   Warning: scipy not available, skipping Earth Mover's distance calculation")
