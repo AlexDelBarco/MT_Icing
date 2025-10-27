@@ -1735,8 +1735,8 @@ def plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_bins=
             
             print(f"   Detailed results saved to: {results_path}")
         
-        # Create spatial gradient analysis using Wasserstein Distance
-        print(f"\n6. Spatial Gradient Analysis (Wasserstein Distance)...")
+        # Create spatial gradient analysis using Earth Mover's Distance
+        print(f"\n6. Spatial Gradient Analysis (Earth Mover's Distance)...")
         
         try:
             from scipy.stats import wasserstein_distance
@@ -1767,15 +1767,13 @@ def plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_bins=
                         bins1 = results['duration_curves'][cell1_key]['ice_load_bins']
                         bins2 = results['duration_curves'][cell2_key]['ice_load_bins']
                         
-                        # Calculate Wasserstein distance between the duration curves
+                        # Calculate Earth Mover's distance between the duration curves
                         # We need to treat these as distributions, so we create weighted samples
                         try:
                             distance = wasserstein_distance(bins1, bins2, curve1, curve2)
                             ew_gradients[i, j] = distance
                         except:
-                            # Fallback to simple difference if Wasserstein fails
-                            distance = np.mean(np.abs(curve1 - curve2))
-                            ew_gradients[i, j] = distance
+                            print(f"   Warning: Could not compute Wasserstein distance for cells ({i},{j}) and ({i},{j+1})")
             
             # Calculate South-North gradients
             for i in range(n_south_north-1):
@@ -1793,8 +1791,7 @@ def plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_bins=
                             distance = wasserstein_distance(bins1, bins2, curve1, curve2)
                             sn_gradients[i, j] = distance
                         except:
-                            distance = np.mean(np.abs(curve1 - curve2))
-                            sn_gradients[i, j] = distance
+                            print(f"   Warning: Could not compute Earth Mover's distance for cells ({i},{j}) and ({i+1},{j})")
             
             # Calculate combined gradients (average of all valid neighbor distances)
             for i in range(n_south_north):
@@ -1826,11 +1823,11 @@ def plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_bins=
             # Plot 1: East-West gradients
             im1 = axes[0, 0].imshow(ew_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[0, 0].set_title('East-West Gradient\n(Wasserstein Distance)')
+            axes[0, 0].set_title('East-West Gradient\n(Earth Mover\'s Distance)')
             axes[0, 0].set_xlabel('West-East Grid Points')
             axes[0, 0].set_ylabel('South-North Grid Points')
             cbar1 = plt.colorbar(im1, ax=axes[0, 0], shrink=0.8)
-            cbar1.set_label('Wasserstein Distance')
+            cbar1.set_label('Earth Mover\'s Distance')
             
             # Add grid lines
             axes[0, 0].set_xticks(range(n_west_east-1))
@@ -1840,11 +1837,11 @@ def plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_bins=
             # Plot 2: South-North gradients
             im2 = axes[0, 1].imshow(sn_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[0, 1].set_title('South-North Gradient\n(Wasserstein Distance)')
+            axes[0, 1].set_title('South-North Gradient\n(Earth Mover\'s Distance)')
             axes[0, 1].set_xlabel('West-East Grid Points')
             axes[0, 1].set_ylabel('South-North Grid Points')
             cbar2 = plt.colorbar(im2, ax=axes[0, 1], shrink=0.8)
-            cbar2.set_label('Wasserstein Distance')
+            cbar2.set_label('Earth Mover\'s Distance')
             
             axes[0, 1].set_xticks(range(n_west_east))
             axes[0, 1].set_yticks(range(n_south_north-1))
@@ -1927,7 +1924,7 @@ def plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_bins=
             print(f"     Combined: Mean = {results['spatial_gradients']['combined_mean']:.3f}, Std = {results['spatial_gradients']['combined_std']:.3f}")
             
         except ImportError:
-            print("   Warning: scipy not available, skipping Wasserstein distance calculation")
+            print("   Warning: scipy not available, skipping Earth Mover's distance calculation")
             print("   Install scipy with: conda install scipy")
         except Exception as e:
             print(f"   Error in spatial gradient analysis: {e}")
@@ -2180,8 +2177,8 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             print(f"     Mean: {mean_ice_occurrence:.1f}% of time")
             print(f"     Range: {min_ice_occurrence:.1f}% to {max_ice_occurrence:.1f}%")
         
-        # Create spatial gradient analysis using Wasserstein Distance
-        print(f"\n6. Spatial Gradient Analysis (Wasserstein Distance)...")
+        # Create spatial gradient analysis using Earth Mover's Distance
+        print(f"\n6. Spatial Gradient Analysis (Earth Mover's Distance)...")
         
         try:
             from scipy.stats import wasserstein_distance
@@ -2198,7 +2195,7 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             # Combined gradients (for each cell, average of all neighbor comparisons)
             combined_gradients = np.full((n_south_north, n_west_east), np.nan)
             
-            print(f"   Computing Wasserstein distances between neighboring cells...")
+            print(f"   Computing Earth Mover's distances between neighboring cells...")
             
             # Calculate East-West gradients
             for i in range(n_south_north):
@@ -2212,19 +2209,12 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                         bins1 = results['pdf_curves'][cell1_key]['ice_load_bins']
                         bins2 = results['pdf_curves'][cell2_key]['ice_load_bins']
                         
-                        # Calculate Wasserstein distance between the PDF curves
+                        # Calculate Earth Mover's distance between the PDF curves
                         try:
                             distance = wasserstein_distance(bins1, bins2, pdf1, pdf2)
                             ew_gradients[i, j] = distance
                         except:
-                            # Fallback to simple difference if Wasserstein fails
-                            # Interpolate to common bins first
-                            common_bins = np.linspace(min(bins1.min(), bins2.min()), 
-                                                    max(bins1.max(), bins2.max()), 30)
-                            pdf1_interp = np.interp(common_bins, bins1, pdf1)
-                            pdf2_interp = np.interp(common_bins, bins2, pdf2)
-                            distance = np.mean(np.abs(pdf1_interp - pdf2_interp))
-                            ew_gradients[i, j] = distance
+                            print(f"   Warning: Could not compute Wasserstein distance for cells ({i},{j}) and ({i},{j+1})")
             
             # Calculate South-North gradients
             for i in range(n_south_north-1):
@@ -2242,13 +2232,7 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                             distance = wasserstein_distance(bins1, bins2, pdf1, pdf2)
                             sn_gradients[i, j] = distance
                         except:
-                            # Fallback to simple difference if Wasserstein fails
-                            common_bins = np.linspace(min(bins1.min(), bins2.min()), 
-                                                    max(bins1.max(), bins2.max()), 30)
-                            pdf1_interp = np.interp(common_bins, bins1, pdf1)
-                            pdf2_interp = np.interp(common_bins, bins2, pdf2)
-                            distance = np.mean(np.abs(pdf1_interp - pdf2_interp))
-                            sn_gradients[i, j] = distance
+                            print(f"   Warning: Could not compute Earth Mover's distance for cells ({i},{j}) and ({i+1},{j})")
             
             # Calculate combined gradients (average of all valid neighbor distances)
             for i in range(n_south_north):
@@ -2280,11 +2264,11 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             # Plot 1: East-West gradients
             im1 = axes[0, 0].imshow(ew_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[0, 0].set_title('East-West Gradient\n(PDF Wasserstein Distance)')
+            axes[0, 0].set_title('East-West Gradient\n(PDF Earth Mover\'s Distance)')
             axes[0, 0].set_xlabel('West-East Grid Points')
             axes[0, 0].set_ylabel('South-North Grid Points')
             cbar1 = plt.colorbar(im1, ax=axes[0, 0], shrink=0.8)
-            cbar1.set_label('Wasserstein Distance')
+            cbar1.set_label('Earth Mover\'s Distance')
             
             # Add grid lines
             axes[0, 0].set_xticks(range(n_west_east-1))
@@ -2294,11 +2278,11 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             # Plot 2: South-North gradients
             im2 = axes[0, 1].imshow(sn_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[0, 1].set_title('South-North Gradient\n(PDF Wasserstein Distance)')
+            axes[0, 1].set_title('South-North Gradient\n(PDF Earth Mover\'s Distance)')
             axes[0, 1].set_xlabel('West-East Grid Points')
             axes[0, 1].set_ylabel('South-North Grid Points')
             cbar2 = plt.colorbar(im2, ax=axes[0, 1], shrink=0.8)
-            cbar2.set_label('Wasserstein Distance')
+            cbar2.set_label('Earth Mover\'s Distance')
             
             axes[0, 1].set_xticks(range(n_west_east))
             axes[0, 1].set_yticks(range(n_south_north-1))
@@ -2311,7 +2295,7 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             axes[1, 0].set_xlabel('West-East Grid Points')
             axes[1, 0].set_ylabel('South-North Grid Points')
             cbar3 = plt.colorbar(im3, ax=axes[1, 0], shrink=0.8)
-            cbar3.set_label('Average Wasserstein Distance')
+            cbar3.set_label('Average Earth Mover\'s Distance')
             
             axes[1, 0].set_xticks(range(n_west_east))
             axes[1, 0].set_yticks(range(n_south_north))
@@ -2381,7 +2365,7 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             print(f"     Combined: Mean = {results['spatial_gradients']['combined_mean']:.3f}, Std = {results['spatial_gradients']['combined_std']:.3f}")
             
         except ImportError:
-            print("   Warning: scipy not available, skipping Wasserstein distance calculation")
+            print("   Warning: scipy not available, skipping Earth Mover's distance calculation")
             print("   Install scipy with: conda install scipy")
         except Exception as e:
             print(f"   Error in spatial gradient analysis: {e}")
@@ -2396,7 +2380,7 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
         return None
 
 
-def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None, ice_load_threshold=0.0):
+def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None, ice_load_threshold=0.0, months=None, percentile=None):
     """
     Create cumulative distribution function (CDF) curves showing the cumulative probability for each ice load level
     for every grid cell. The function creates a mean over all years and plots
@@ -2412,7 +2396,15 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
     ice_load_bins : array-like, optional
         Custom ice load bins for analysis. If None, uses automatic binning
     ice_load_threshold : float, default 0.0
-        Minimum ice load value to be plotted (kg/m). Values below this threshold will be excluded
+        Minimum ice load value to be included in CDF calculation (kg/m). Values below this threshold 
+        will be completely excluded from the probability calculation, not just from plotting
+    months : list of int, optional
+        List of months to include in analysis (1-12). If None, uses all months.
+        Example: [12, 1, 2, 3, 4] for winter months (Dec-Apr)
+    percentile : float, optional
+        Percentile value (0-100) to use for filtering extreme values before CDF calculation.
+        If specified, only data below this percentile will be used for analysis.
+        Example: percentile=95 will exclude the top 5% of values
         
     Returns:
     --------
@@ -2450,12 +2442,54 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
         
         # Remove NaN values and get overall data statistics
         ice_data_clean = ice_load_data.where(ice_load_data >= 0, 0)  # Replace negative/NaN with 0
-        max_ice_load = float(ice_data_clean.max())
+        
+        # Filter data by months if specified
+        if months is not None:
+            print(f"\n   Filtering data to specified months only: {months}...")
+            time_index_full = pd.to_datetime(ice_data_clean.time.values)
+            month_mask = time_index_full.month.isin(months)
+            ice_data_filtered = ice_data_clean.isel(time=month_mask)
+            
+            # Update time information after filtering
+            time_index_filtered = pd.to_datetime(ice_data_filtered.time.values)
+            n_filtered_timesteps = len(time_index_filtered)
+            
+            print(f"   Original timesteps: {n_time}")
+            print(f"   Filtered timesteps: {n_filtered_timesteps}")
+            print(f"   Months included: {sorted(time_index_filtered.month.unique())}")
+            print(f"   Reduction: {((n_time - n_filtered_timesteps) / n_time * 100):.1f}% timesteps removed")
+            
+            # Use filtered data for analysis
+            ice_data_analysis = ice_data_filtered
+        else:
+            print(f"\n   Using all months for analysis...")
+            ice_data_analysis = ice_data_clean
+        
+        max_ice_load = float(ice_data_analysis.max())
         min_ice_load = 0.0
         
-        print(f"\n2. Ice Load Statistics:")
+        # Apply percentile filtering if specified
+        if percentile is not None:
+            if 0 < percentile < 100:
+                percentile_value = float(np.nanpercentile(ice_data_analysis.values, percentile))
+                if percentile_value < max_ice_load:
+                    print(f"   Applying {percentile}th percentile threshold: {percentile_value:.3f} kg/m")
+                    print(f"   Original max ice load: {max_ice_load:.3f} kg/m")
+                    max_ice_load = percentile_value
+                    # Filter the data to exclude values above percentile threshold
+                    ice_data_analysis = ice_data_analysis.where(ice_data_analysis <= percentile_value, np.nan)
+                    print(f"   Data filtered to exclude ice loads > {percentile_value:.3f} kg/m ({100-percentile:.1f}% of extreme values removed)")
+                else:
+                    print(f"   {percentile}th percentile ({percentile_value:.3f} kg/m) is above current data maximum, no additional filtering applied")
+            else:
+                print(f"   Warning: Invalid percentile value ({percentile}). Must be between 0 and 100. Skipping percentile filtering.")
+        
+        month_info = f" ({months})" if months is not None else " (all months)"
+        percentile_info = f", {percentile}th percentile: {max_ice_load:.3f}" if percentile is not None else ""
+        print(f"\n2. Ice Load Statistics{month_info}:")
         print(f"   Range: {min_ice_load:.3f} to {max_ice_load:.3f} kg/m")
-        print(f"   Mean: {float(ice_data_clean.mean()):.3f} kg/m")
+        print(f"   Thresholds - min: {ice_load_threshold:.3f}{percentile_info} kg/m")
+        print(f"   Mean: {float(ice_data_analysis.mean()):.3f} kg/m")
         
         # Define ice load bins if not provided
         if ice_load_bins is None:
@@ -2474,6 +2508,13 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
         print(f"   Using {len(ice_load_bins)} ice load bins")
         print(f"   Ice load threshold: {ice_load_threshold:.3f} kg/m")
         print(f"   Bin range: {ice_load_bins[0]:.4f} to {ice_load_bins[-1]:.3f} kg/m")
+        
+        # Include filtering information in results
+        filtering_applied = {
+            'ice_load_threshold': ice_load_threshold,
+            'percentile': percentile,
+            'months': months
+        }
         
         # Prepare results storage
         results = {
@@ -2502,8 +2543,8 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
         cell_count = 0
         for i in range(n_south_north):
             for j in range(n_west_east):
-                # Extract time series for this grid cell
-                cell_data = ice_data_clean.isel(south_north=i, west_east=j)
+                # Extract time series for this grid cell (using filtered data)
+                cell_data = ice_data_analysis.isel(south_north=i, west_east=j)
                 cell_values = cell_data.values
                 
                 # Remove NaN values
@@ -2521,12 +2562,12 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                     print(f"   Warning: No data above threshold for cell ({i},{j})")
                     continue
                 
-                # Calculate CDF
+                # Calculate CDF using only filtered values above threshold
                 cdf_values = []
                 for ice_threshold in ice_load_bins:
-                    # Calculate cumulative probability P(X <= ice_threshold)
-                    # Use ALL values including zeros for proper CDF calculation
-                    prob = np.sum(cell_values_clean <= ice_threshold) / len(cell_values_clean)
+                    # Calculate cumulative probability P(X <= ice_threshold) using only filtered data
+                    # This excludes datapoints below ice_load_threshold from the CDF calculation
+                    prob = np.sum(cell_values_filtered <= ice_threshold) / len(cell_values_filtered)
                     cdf_values.append(prob)
                 
                 cdf_values = np.array(cdf_values)
@@ -2541,22 +2582,23 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                     'position': (i, j)
                 }
                 
-                # Calculate statistics for this cell
+                # Calculate statistics for this cell (using filtered data for consistency with CDF)
                 results['statistics'][cell_key] = {
-                    'max_ice_load': float(np.max(cell_values_clean)),
-                    'mean_ice_load': float(np.mean(cell_values_clean)),
-                    'std_ice_load': float(np.std(cell_values_clean)),
-                    'median_ice_load': float(np.median(cell_values_clean)),
+                    'max_ice_load': float(np.max(cell_values_filtered)),
+                    'mean_ice_load': float(np.mean(cell_values_filtered)),
+                    'std_ice_load': float(np.std(cell_values_filtered)),
+                    'median_ice_load': float(np.median(cell_values_filtered)),
                     'ice_occurrence_percentage': (len(cell_values_filtered) / len(cell_values_clean)) * 100,
-                    'percentile_95': float(np.percentile(cell_values_clean, 95)),
-                    'percentile_99': float(np.percentile(cell_values_clean, 99))
+                    'percentile_95': float(np.percentile(cell_values_filtered, 95)),
+                    'percentile_99': float(np.percentile(cell_values_filtered, 99))
                 }
                 
                 # Plot CDF curve for this cell
                 if cell_count < len(axes):
                     ax = axes[cell_count]
-                    # Only plot bins >= threshold for visibility
+                    # Only plot bins within thresholds for visibility
                     plot_mask = ice_load_bins >= ice_load_threshold
+                    
                     plot_bins = ice_load_bins[plot_mask]
                     plot_cdf = cdf_values[plot_mask]
                     ax.plot(plot_bins, plot_cdf, 'b-', linewidth=2, marker='o', markersize=3)
@@ -2583,7 +2625,19 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             # Create specific directory structure for ice load per cell CDF plots
             ice_load_plots_dir = os.path.join(figures_dir, "spatial_gradient", "ice_load_per_cell_cdf")
             os.makedirs(ice_load_plots_dir, exist_ok=True)
-            plot_path = f"{ice_load_plots_dir}/ice_load_cdf_curves_all_cells.png"
+            
+            # Create filename with filtering information
+            filename_parts = ["ice_load_cdf_curves_all_cells"]
+            if months is not None:
+                months_str = "_".join(map(str, sorted(months)))
+                filename_parts.append(f"months_{months_str}")
+            if ice_load_threshold > 0:
+                filename_parts.append(f"min_{ice_load_threshold:.1f}")
+            if percentile is not None:
+                filename_parts.append(f"p{percentile}")
+            
+            plot_filename = "_".join(filename_parts) + ".png"
+            plot_path = f"{ice_load_plots_dir}/{plot_filename}"
             plt.savefig(plot_path, dpi=300, bbox_inches='tight')
             print(f"\n   CDF curves plot saved to: {plot_path}")
         
@@ -2600,8 +2654,9 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             std_cdf = np.std(all_cdf_curves, axis=0)
             
             plt.figure(figsize=(10, 6))
-            # Only plot bins >= threshold for visibility
+            # Only plot bins within thresholds for visibility
             plot_mask = ice_load_bins >= ice_load_threshold
+            
             plot_bins = ice_load_bins[plot_mask]
             plot_mean_cdf = mean_cdf[plot_mask]
             plot_std_cdf = std_cdf[plot_mask]
@@ -2622,7 +2677,18 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             plt.tight_layout()
             
             if save_plots:
-                summary_path = f"{ice_load_plots_dir}/ice_load_cdf_summary.png"
+                # Create summary filename with filtering information
+                summary_filename_parts = ["ice_load_cdf_summary"]
+                if months is not None:
+                    months_str = "_".join(map(str, sorted(months)))
+                    summary_filename_parts.append(f"months_{months_str}")
+                if ice_load_threshold > 0:
+                    summary_filename_parts.append(f"min_{ice_load_threshold:.1f}")
+                if percentile is not None:
+                    summary_filename_parts.append(f"p{percentile}")
+                
+                summary_filename = "_".join(summary_filename_parts) + ".png"
+                summary_path = f"{ice_load_plots_dir}/{summary_filename}"
                 plt.savefig(summary_path, dpi=300, bbox_inches='tight')
                 print(f"   Summary plot saved to: {summary_path}")
             
@@ -2652,8 +2718,8 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             print(f"     95th percentile: {mean_p95:.3f} kg/m")
             print(f"     99th percentile: {mean_p99:.3f} kg/m")
         
-        # Create spatial gradient analysis using Wasserstein Distance
-        print(f"\n6. Spatial Gradient Analysis (Wasserstein Distance)...")
+        # Create spatial gradient analysis using Earth Mover's Distance
+        print(f"\n6. Spatial Gradient Analysis (Earth Mover's Distance)...")
         
         try:
             from scipy.stats import wasserstein_distance
@@ -2670,7 +2736,7 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             # Combined gradients (for each cell, average of all neighbor comparisons)
             combined_gradients = np.full((n_south_north, n_west_east), np.nan)
             
-            print(f"   Computing Wasserstein distances between neighboring cells...")
+            print(f"   Computing Earth Mover's distances between neighboring cells...")
             
             # Calculate East-West gradients
             for i in range(n_south_north):
@@ -2684,7 +2750,7 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                         bins1 = results['cdf_curves'][cell1_key]['ice_load_bins']
                         bins2 = results['cdf_curves'][cell2_key]['ice_load_bins']
                         
-                        # For CDF, Wasserstein distance can be calculated using the L1 distance
+                        # For CDF, Earth Mover's distance can be calculated using the L1 distance
                         # between CDFs, which is mathematically equivalent
                         try:
                             distance = np.trapz(np.abs(cdf1 - cdf2), bins1)
@@ -2819,7 +2885,18 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             
             # Save spatial gradient plots
             if save_plots:
-                gradient_path = f"{ice_load_plots_dir}/ice_load_cdf_spatial_gradients.png"
+                # Create gradient filename with filtering information
+                gradient_filename_parts = ["ice_load_cdf_spatial_gradients"]
+                if months is not None:
+                    months_str = "_".join(map(str, sorted(months)))
+                    gradient_filename_parts.append(f"months_{months_str}")
+                if ice_load_threshold > 0:
+                    gradient_filename_parts.append(f"min_{ice_load_threshold:.1f}")
+                if percentile is not None:
+                    gradient_filename_parts.append(f"p{percentile}")
+                
+                gradient_filename = "_".join(gradient_filename_parts) + ".png"
+                gradient_path = f"{ice_load_plots_dir}/{gradient_filename}"
                 plt.savefig(gradient_path, dpi=300, bbox_inches='tight')
                 print(f"   Spatial gradient plots saved to: {gradient_path}")
             
@@ -2844,7 +2921,7 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             print(f"     Combined: Mean = {results['spatial_gradients']['combined_mean']:.3f}, Std = {results['spatial_gradients']['combined_std']:.3f}")
             
         except ImportError:
-            print("   Warning: scipy not available, skipping Wasserstein distance calculation")
+            print("   Warning: scipy not available, skipping Earth Mover's distance calculation")
             print("   Install scipy with: conda install scipy")
         except Exception as e:
             print(f"   Error in spatial gradient analysis: {e}")
@@ -2854,6 +2931,1010 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
         
     except Exception as e:
         print(f"Error in ice load CDF analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def plot_ice_load_cdf_curves_log_scale(ice_load_data, save_plots=True, ice_load_bins=None, ice_load_threshold=0.0, months=None):
+    """
+    Create cumulative distribution function (CDF) curves in logarithmic scale showing the cumulative probability for each ice load level
+    for every grid cell. The logarithmic scale helps visualize differences when most probabilities are close to 1.
+    X-axis: Ice load (kg/m)
+    Y-axis: Cumulative probability (log scale)
+    
+    Parameters:
+    -----------
+    ice_load_data : xarray.DataArray
+        Ice load data with dimensions (time, south_north, west_east)
+    save_plots : bool, default True
+        Whether to save the plots to files
+    ice_load_bins : array-like, optional
+        Custom ice load bins for analysis. If None, uses automatic binning
+    ice_load_threshold : float, default 0.0
+        Minimum ice load value to be plotted (kg/m). Values below this threshold will be excluded
+    months : list of int, optional
+        List of months to include in analysis (1-12). If None, uses all months.
+        Example: [12, 1, 2, 3, 4] for winter months (Dec-Apr)
+        
+    Returns:
+    --------
+    dict : Dictionary containing analysis results and statistics
+    """
+    print("=== ICE LOAD CDF CURVE ANALYSIS (LOG SCALE) ===")
+    
+    try:
+        # Check data structure
+        print(f"\n1. Data Information:")
+        print(f"   Shape: {ice_load_data.shape}")
+        print(f"   Dimensions: {ice_load_data.dims}")
+        print(f"   Time range: {ice_load_data.time.min().values} to {ice_load_data.time.max().values}")
+        
+        # Get spatial dimensions
+        n_south_north = ice_load_data.sizes['south_north']
+        n_west_east = ice_load_data.sizes['west_east']
+        n_time = ice_load_data.sizes['time']
+        
+        print(f"   Grid size: {n_south_north} × {n_west_east} = {n_south_north * n_west_east} cells")
+        print(f"   Time steps: {n_time}")
+        
+        # Convert time to pandas for easier manipulation
+        time_index = pd.to_datetime(ice_load_data.time.values)
+        n_years = len(time_index.year.unique())
+        print(f"   Years covered: {n_years}")
+        print(f"   Years: {sorted(time_index.year.unique())}")
+        
+        # Calculate time step in hours (assuming regular intervals)
+        if len(time_index) > 1:
+            time_step_hours = (time_index[1] - time_index[0]).total_seconds() / 3600
+        else:
+            time_step_hours = 0.5  # Default to 30 minutes
+        print(f"   Time step: {time_step_hours} hours")
+        
+        # Remove NaN values and get overall data statistics
+        ice_data_clean = ice_load_data.where(ice_load_data >= 0, 0)  # Replace negative/NaN with 0
+        
+        # Filter data by months if specified
+        if months is not None:
+            print(f"\n   Filtering data to specified months only: {months}...")
+            time_index_full = pd.to_datetime(ice_data_clean.time.values)
+            month_mask = time_index_full.month.isin(months)
+            ice_data_filtered = ice_data_clean.isel(time=month_mask)
+            
+            # Update time information after filtering
+            time_index_filtered = pd.to_datetime(ice_data_filtered.time.values)
+            n_filtered_timesteps = len(time_index_filtered)
+            
+            print(f"   Original timesteps: {n_time}")
+            print(f"   Filtered timesteps: {n_filtered_timesteps}")
+            print(f"   Months included: {sorted(time_index_filtered.month.unique())}")
+            print(f"   Reduction: {((n_time - n_filtered_timesteps) / n_time * 100):.1f}% timesteps removed")
+            
+            # Use filtered data for analysis
+            ice_data_analysis = ice_data_filtered
+        else:
+            print(f"\n   Using all months for analysis...")
+            ice_data_analysis = ice_data_clean
+        
+        max_ice_load = float(ice_data_analysis.max())
+        min_ice_load = 0.0
+        
+        month_info = f" ({months})" if months is not None else " (all months)"
+        print(f"\n2. Ice Load Statistics{month_info}:")
+        print(f"   Range: {min_ice_load:.3f} to {max_ice_load:.3f} kg/m")
+        print(f"   Mean: {float(ice_data_analysis.mean()):.3f} kg/m")
+        
+        # Define ice load bins if not provided
+        if ice_load_bins is None:
+            if max_ice_load > ice_load_threshold:
+                # Create bins for CDF analysis - use more bins for better resolution
+                # Always start from 0 for proper CDF calculation, but filter plotting later
+                ice_load_bins = np.linspace(0.0, max_ice_load, 100)
+            else:
+                ice_load_bins = np.array([0.0, ice_load_threshold + 0.01, ice_load_threshold + 0.1, ice_load_threshold + 1, ice_load_threshold + 10])
+        else:
+            # Ensure bins start from 0 for proper CDF calculation
+            if ice_load_bins[0] > 0:
+                ice_load_bins = np.concatenate([[0.0], ice_load_bins])
+            ice_load_bins = np.sort(ice_load_bins)
+        
+        print(f"   Using {len(ice_load_bins)} ice load bins")
+        print(f"   Ice load threshold: {ice_load_threshold:.3f} kg/m")
+        print(f"   Bin range: {ice_load_bins[0]:.4f} to {ice_load_bins[-1]:.3f} kg/m")
+        
+        # Prepare results storage
+        results = {
+            'grid_shape': (n_south_north, n_west_east),
+            'n_years': n_years,
+            'time_step_hours': time_step_hours,
+            'ice_load_bins': ice_load_bins,
+            'cdf_curves': {},
+            'statistics': {}
+        }
+        
+        # Create figure for all grid cells
+        n_cols = min(n_west_east, 5)  # Maximum 5 columns
+        n_rows = int(np.ceil((n_south_north * n_west_east) / n_cols))
+        
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(4*n_cols, 3*n_rows))
+        if n_rows == 1 and n_cols == 1:
+            axes = [axes]
+        elif n_rows == 1 or n_cols == 1:
+            axes = axes.flatten()
+        else:
+            axes = axes.flatten()
+        
+        print(f"\n3. Processing grid cells...")
+        
+        cell_count = 0
+        for i in range(n_south_north):
+            for j in range(n_west_east):
+                # Extract time series for this grid cell (using filtered data)
+                cell_data = ice_data_analysis.isel(south_north=i, west_east=j)
+                cell_values = cell_data.values
+                
+                # Remove NaN values
+                valid_mask = ~np.isnan(cell_values)
+                cell_values_clean = cell_values[valid_mask]
+                
+                if len(cell_values_clean) == 0:
+                    print(f"   Warning: No valid data for cell ({i},{j})")
+                    continue
+                
+                # Filter values to be >= threshold
+                cell_values_filtered = cell_values_clean[cell_values_clean >= ice_load_threshold]
+                
+                if len(cell_values_filtered) == 0:
+                    print(f"   Warning: No data above threshold for cell ({i},{j})")
+                    continue
+                
+                # Calculate CDF
+                cdf_values = []
+                for ice_threshold in ice_load_bins:
+                    # Calculate cumulative probability P(X <= ice_threshold)
+                    # Use ALL values including zeros for proper CDF calculation
+                    prob = np.sum(cell_values_clean <= ice_threshold) / len(cell_values_clean)
+                    cdf_values.append(prob)
+                
+                cdf_values = np.array(cdf_values)
+                
+                # Store results for this cell
+                cell_key = f'cell_{i}_{j}'
+                results['cdf_curves'][cell_key] = {
+                    'ice_load_bins': ice_load_bins,
+                    'cdf_values': cdf_values,
+                    'position': (i, j)
+                }
+                
+                # Calculate statistics for this cell
+                results['statistics'][cell_key] = {
+                    'max_ice_load': float(np.max(cell_values_clean)),
+                    'mean_ice_load': float(np.mean(cell_values_clean)),
+                    'std_ice_load': float(np.std(cell_values_clean)),
+                    'median_ice_load': float(np.median(cell_values_clean)),
+                    'ice_occurrence_percentage': (len(cell_values_filtered) / len(cell_values_clean)) * 100,
+                    'percentile_95': float(np.percentile(cell_values_clean, 95)),
+                    'percentile_99': float(np.percentile(cell_values_clean, 99))
+                }
+                
+                # Plot CDF curve for this cell in log-log scale
+                if cell_count < len(axes):
+                    ax = axes[cell_count]
+                    # Only plot bins >= threshold for visibility, and avoid log(0) for both axes
+                    plot_mask = ice_load_bins > max(ice_load_threshold, 1e-6)  # Ensure positive values for log
+                    plot_bins = ice_load_bins[plot_mask]
+                    plot_cdf = cdf_values[plot_mask]
+                    
+                    # Avoid log(0) by adding a small epsilon to probabilities that are exactly 0
+                    plot_cdf_safe = np.where(plot_cdf == 0, 1e-10, plot_cdf)
+                    
+                    ax.loglog(plot_bins, plot_cdf_safe, 'b-', linewidth=2, marker='o', markersize=3)
+                    ax.set_xlabel('Ice Load (kg/m, log scale)')
+                    ax.set_ylabel('Cumulative Probability (log scale)')
+                    ax.set_title(f'Cell ({i},{j})')
+                    ax.grid(True, alpha=0.3)
+                    ax.set_xlim(left=max(ice_load_threshold, 1e-6))
+                    ax.set_ylim([1e-10, 1])
+                
+                cell_count += 1
+                
+                if cell_count % 5 == 0:
+                    print(f"   Processed {cell_count}/{n_south_north * n_west_east} cells...")
+        
+        # Hide unused subplots
+        for idx in range(cell_count, len(axes)):
+            axes[idx].set_visible(False)
+        
+        plt.tight_layout()
+        
+        # Save plot if requested
+        if save_plots:
+            # Create specific directory structure for ice load per cell CDF plots
+            ice_load_plots_dir = os.path.join(figures_dir, "spatial_gradient", "ice_load_per_cell_cdf_log")
+            os.makedirs(ice_load_plots_dir, exist_ok=True)
+            plot_path = f"{ice_load_plots_dir}/ice_load_cdf_curves_all_cells_log.png"
+            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+            print(f"\n   CDF curves (log scale) plot saved to: {plot_path}")
+        
+        # Create summary plot with mean curve in log scale
+        print(f"\n4. Creating summary statistics...")
+        
+        # Calculate mean CDF curve across all cells
+        all_cdf_curves = []
+        for cell_key, cell_data in results['cdf_curves'].items():
+            all_cdf_curves.append(cell_data['cdf_values'])
+        
+        if all_cdf_curves:
+            mean_cdf = np.mean(all_cdf_curves, axis=0)
+            std_cdf = np.std(all_cdf_curves, axis=0)
+            
+            plt.figure(figsize=(10, 6))
+            # Only plot bins > threshold for visibility, and avoid log(0) for ice loads
+            plot_mask = ice_load_bins > max(ice_load_threshold, 1e-6)  # Ensure positive values for log
+            plot_bins = ice_load_bins[plot_mask]
+            plot_mean_cdf = mean_cdf[plot_mask]
+            plot_std_cdf = std_cdf[plot_mask]
+            
+            # Calculate confidence bands
+            plot_std_cdf_upper = plot_mean_cdf + plot_std_cdf
+            plot_std_cdf_lower = np.maximum(plot_mean_cdf - plot_std_cdf, 0)  # Ensure non-negative
+            
+            # Use safe log probabilities for plotting
+            plot_mean_cdf_safe = np.where(plot_mean_cdf == 0, 1e-10, plot_mean_cdf)
+            plot_std_cdf_upper_safe = np.where(plot_std_cdf_upper == 0, 1e-10, plot_std_cdf_upper)
+            plot_std_cdf_lower_safe = np.where(plot_std_cdf_lower == 0, 1e-10, plot_std_cdf_lower)
+            
+            plt.loglog(plot_bins, plot_mean_cdf_safe, 'r-', linewidth=3, label='Mean across all cells')
+            plt.fill_between(plot_bins, plot_std_cdf_lower_safe, plot_std_cdf_upper_safe, 
+                           alpha=0.3, color='red', label='±1 Standard Deviation')
+            
+            plt.xlabel('Ice Load (kg/m, log scale)')
+            plt.ylabel('Cumulative Probability (log scale)')
+            plt.title('Ice Load CDF - Domain Average (Log-Log Scale)')
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            plt.xlim(left=max(ice_load_threshold, 1e-6))
+            plt.ylim([1e-10, 1])
+            
+            plt.tight_layout()
+            
+            if save_plots:
+                summary_path = f"{ice_load_plots_dir}/ice_load_cdf_summary_log.png"
+                plt.savefig(summary_path, dpi=300, bbox_inches='tight')
+                print(f"   Summary plot (log scale) saved to: {summary_path}")
+            
+            # Store summary statistics
+            results['domain_statistics'] = {
+                'mean_cdf_curve': mean_cdf,
+                'std_cdf_curve': std_cdf,
+                'ice_load_bins': ice_load_bins
+            }
+        
+        # Print summary statistics
+        print(f"\n5. Summary Statistics:")
+        print(f"   Processed {len(results['cdf_curves'])} grid cells")
+        
+        if results['statistics']:
+            all_stats = list(results['statistics'].values())
+            mean_ice_occurrence = np.mean([s['ice_occurrence_percentage'] for s in all_stats])
+            max_ice_occurrence = np.max([s['ice_occurrence_percentage'] for s in all_stats])
+            min_ice_occurrence = np.min([s['ice_occurrence_percentage'] for s in all_stats])
+            mean_p95 = np.mean([s['percentile_95'] for s in all_stats])
+            mean_p99 = np.mean([s['percentile_99'] for s in all_stats])
+            
+            print(f"   Ice occurrence across domain:")
+            print(f"     Mean: {mean_ice_occurrence:.1f}% of time")
+            print(f"     Range: {min_ice_occurrence:.1f}% to {max_ice_occurrence:.1f}%")
+            print(f"   Domain average percentiles:")
+            print(f"     95th percentile: {mean_p95:.3f} kg/m")
+            print(f"     99th percentile: {mean_p99:.3f} kg/m")
+        
+        # Create spatial gradient analysis using Earth Mover's Distance with log-log scale binning
+        print(f"\n6. Spatial Gradient Analysis (Earth Mover's Distance with Log-Log Scale Binning)...")
+        
+        try:
+            from scipy.stats import wasserstein_distance
+            
+            # Initialize gradient matrices
+            n_south_north, n_west_east = ice_load_data.shape[1], ice_load_data.shape[2]
+            
+            # East-West gradients (comparing adjacent cells horizontally)
+            ew_gradients = np.full((n_south_north, n_west_east-1), np.nan)
+            
+            # South-North gradients (comparing adjacent cells vertically)
+            sn_gradients = np.full((n_south_north-1, n_west_east), np.nan)
+            
+            # Combined gradients (for each cell, average of all neighbor comparisons)
+            combined_gradients = np.full((n_south_north, n_west_east), np.nan)
+            
+            print(f"   Computing Earth Mover's distances between neighboring cells (log-log scale)...")
+            
+            # Calculate East-West gradients
+            for i in range(n_south_north):
+                for j in range(n_west_east-1):
+                    cell1_key = f'cell_{i}_{j}'
+                    cell2_key = f'cell_{i}_{j+1}'
+                    
+                    if cell1_key in results['cdf_curves'] and cell2_key in results['cdf_curves']:
+                        cdf1 = results['cdf_curves'][cell1_key]['cdf_values']
+                        cdf2 = results['cdf_curves'][cell2_key]['cdf_values']
+                        bins1 = results['cdf_curves'][cell1_key]['ice_load_bins']
+                        bins2 = results['cdf_curves'][cell2_key]['ice_load_bins']
+                        
+                        # Transform both bins and CDF values to log scale for distance calculation
+                        # Only use bins > 0 to avoid log(0), and CDF values > 0 for log scale
+                        mask = (bins1 > 1e-6) & (cdf1 > 1e-10) & (cdf2 > 1e-10)
+                        if np.sum(mask) > 1:
+                            log_bins = np.log10(bins1[mask])
+                            log_cdf1 = np.log10(np.maximum(cdf1[mask], 1e-10))
+                            log_cdf2 = np.log10(np.maximum(cdf2[mask], 1e-10))
+                            
+                            # Earth Mover's distance with log-log scale
+                            try:
+                                distance = np.trapz(np.abs(log_cdf1 - log_cdf2), log_bins)
+                                ew_gradients[i, j] = distance
+                            except:
+                                # Fallback to simple mean absolute difference
+                                distance = np.mean(np.abs(log_cdf1 - log_cdf2))
+                                ew_gradients[i, j] = distance
+            
+            # Calculate South-North gradients
+            for i in range(n_south_north-1):
+                for j in range(n_west_east):
+                    cell1_key = f'cell_{i}_{j}'
+                    cell2_key = f'cell_{i+1}_{j}'
+                    
+                    if cell1_key in results['cdf_curves'] and cell2_key in results['cdf_curves']:
+                        cdf1 = results['cdf_curves'][cell1_key]['cdf_values']
+                        cdf2 = results['cdf_curves'][cell2_key]['cdf_values']
+                        bins1 = results['cdf_curves'][cell1_key]['ice_load_bins']
+                        bins2 = results['cdf_curves'][cell2_key]['ice_load_bins']
+                        
+                        # Transform both bins and CDF values to log scale for distance calculation
+                        # Only use bins > 0 to avoid log(0), and CDF values > 0 for log scale
+                        mask = (bins1 > 1e-6) & (cdf1 > 1e-10) & (cdf2 > 1e-10)
+                        if np.sum(mask) > 1:
+                            log_bins = np.log10(bins1[mask])
+                            log_cdf1 = np.log10(np.maximum(cdf1[mask], 1e-10))
+                            log_cdf2 = np.log10(np.maximum(cdf2[mask], 1e-10))
+                            
+                            try:
+                                distance = np.trapz(np.abs(log_cdf1 - log_cdf2), log_bins)
+                                sn_gradients[i, j] = distance
+                            except:
+                                distance = np.mean(np.abs(log_cdf1 - log_cdf2))
+                                sn_gradients[i, j] = distance
+            
+            # Calculate combined gradients (average of all valid neighbor distances)
+            for i in range(n_south_north):
+                for j in range(n_west_east):
+                    distances = []
+                    
+                    # Check East neighbor
+                    if j < n_west_east-1 and not np.isnan(ew_gradients[i, j]):
+                        distances.append(ew_gradients[i, j])
+                    
+                    # Check West neighbor
+                    if j > 0 and not np.isnan(ew_gradients[i, j-1]):
+                        distances.append(ew_gradients[i, j-1])
+                    
+                    # Check North neighbor
+                    if i < n_south_north-1 and not np.isnan(sn_gradients[i, j]):
+                        distances.append(sn_gradients[i, j])
+                    
+                    # Check South neighbor
+                    if i > 0 and not np.isnan(sn_gradients[i-1, j]):
+                        distances.append(sn_gradients[i-1, j])
+                    
+                    if distances:
+                        combined_gradients[i, j] = np.mean(distances)
+            
+            # Create the spatial gradient plots
+            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+            
+            # Plot 1: East-West gradients
+            im1 = axes[0, 0].imshow(ew_gradients, cmap='viridis', origin='lower', 
+                                   interpolation='nearest', aspect='auto')
+            axes[0, 0].set_title('East-West Gradient\n(CDF L1 Distance, Log X-axis)')
+            axes[0, 0].set_xlabel('West-East Grid Points')
+            axes[0, 0].set_ylabel('South-North Grid Points')
+            cbar1 = plt.colorbar(im1, ax=axes[0, 0], shrink=0.8)
+            cbar1.set_label('L1 Distance (Log X-axis)')
+            
+            # Add grid lines
+            axes[0, 0].set_xticks(range(n_west_east-1))
+            axes[0, 0].set_yticks(range(n_south_north))
+            axes[0, 0].grid(True, alpha=0.3)
+            
+            # Plot 2: South-North gradients
+            im2 = axes[0, 1].imshow(sn_gradients, cmap='viridis', origin='lower', 
+                                   interpolation='nearest', aspect='auto')
+            axes[0, 1].set_title('South-North Gradient\n(CDF L1 Distance, Log X-axis)')
+            axes[0, 1].set_xlabel('West-East Grid Points')
+            axes[0, 1].set_ylabel('South-North Grid Points')
+            cbar2 = plt.colorbar(im2, ax=axes[0, 1], shrink=0.8)
+            cbar2.set_label('L1 Distance (Log X-axis)')
+            
+            axes[0, 1].set_xticks(range(n_west_east))
+            axes[0, 1].set_yticks(range(n_south_north-1))
+            axes[0, 1].grid(True, alpha=0.3)
+            
+            # Plot 3: Combined gradients
+            im3 = axes[1, 0].imshow(combined_gradients, cmap='viridis', origin='lower', 
+                                   interpolation='nearest', aspect='auto')
+            axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)')
+            axes[1, 0].set_xlabel('West-East Grid Points')
+            axes[1, 0].set_ylabel('South-North Grid Points')
+            cbar3 = plt.colorbar(im3, ax=axes[1, 0], shrink=0.8)
+            cbar3.set_label('Average L1 Distance (Log X-axis)')
+            
+            axes[1, 0].set_xticks(range(n_west_east))
+            axes[1, 0].set_yticks(range(n_south_north))
+            axes[1, 0].grid(True, alpha=0.3)
+            
+            # Plot 4: Gradient magnitude (combining EW and SN)
+            # Create a full-size gradient magnitude matrix
+            gradient_magnitude = np.full((n_south_north, n_west_east), np.nan)
+            
+            for i in range(n_south_north):
+                for j in range(n_west_east):
+                    magnitudes = []
+                    
+                    # East-West component
+                    if j < n_west_east-1 and not np.isnan(ew_gradients[i, j]):
+                        magnitudes.append(ew_gradients[i, j]**2)
+                    if j > 0 and not np.isnan(ew_gradients[i, j-1]):
+                        magnitudes.append(ew_gradients[i, j-1]**2)
+                    
+                    # South-North component  
+                    if i < n_south_north-1 and not np.isnan(sn_gradients[i, j]):
+                        magnitudes.append(sn_gradients[i, j]**2)
+                    if i > 0 and not np.isnan(sn_gradients[i-1, j]):
+                        magnitudes.append(sn_gradients[i-1, j]**2)
+                    
+                    if magnitudes:
+                        gradient_magnitude[i, j] = np.sqrt(np.mean(magnitudes))
+            
+            im4 = axes[1, 1].imshow(gradient_magnitude, cmap='plasma', origin='lower', 
+                                   interpolation='nearest', aspect='auto')
+            axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)')
+            axes[1, 1].set_xlabel('West-East Grid Points')
+            axes[1, 1].set_ylabel('South-North Grid Points')
+            cbar4 = plt.colorbar(im4, ax=axes[1, 1], shrink=0.8)
+            cbar4.set_label('RMS Gradient Magnitude')
+            
+            axes[1, 1].set_xticks(range(n_west_east))
+            axes[1, 1].set_yticks(range(n_south_north))
+            axes[1, 1].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Save spatial gradient plots
+            if save_plots:
+                gradient_path = f"{ice_load_plots_dir}/ice_load_cdf_spatial_gradients_log.png"
+                plt.savefig(gradient_path, dpi=300, bbox_inches='tight')
+                print(f"   Spatial gradient plots (log scale) saved to: {gradient_path}")
+            
+            # Store gradient results
+            results['spatial_gradients'] = {
+                'east_west_gradients': ew_gradients,
+                'south_north_gradients': sn_gradients,
+                'combined_gradients': combined_gradients,
+                'gradient_magnitude': gradient_magnitude,
+                'ew_mean': np.nanmean(ew_gradients),
+                'ew_std': np.nanstd(ew_gradients),
+                'sn_mean': np.nanmean(sn_gradients),
+                'sn_std': np.nanstd(sn_gradients),
+                'combined_mean': np.nanmean(combined_gradients),
+                'combined_std': np.nanstd(combined_gradients)
+            }
+            
+            # Print gradient statistics
+            print(f"   Gradient Statistics (Log X-axis Scale):")
+            print(f"     East-West: Mean = {results['spatial_gradients']['ew_mean']:.3f}, Std = {results['spatial_gradients']['ew_std']:.3f}")
+            print(f"     South-North: Mean = {results['spatial_gradients']['sn_mean']:.3f}, Std = {results['spatial_gradients']['sn_std']:.3f}")
+            print(f"     Combined: Mean = {results['spatial_gradients']['combined_mean']:.3f}, Std = {results['spatial_gradients']['combined_std']:.3f}")
+            
+        except ImportError:
+            print("   Warning: scipy not available, skipping Earth Mover's distance calculation")
+            print("   Install scipy with: conda install scipy")
+        except Exception as e:
+            print(f"   Error in spatial gradient analysis: {e}")
+        
+        print(f"\n✓ Ice load CDF analysis (log scale) completed successfully!")
+        return results
+        
+    except Exception as e:
+        print(f"Error in ice load CDF analysis (log scale): {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def plot_ice_load_1_minus_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None, ice_load_threshold=0.0, months=None):
+    """
+    Create exceedance probability curves (1 - CDF) showing the probability of exceeding each ice load level
+    for every grid cell. The function creates a mean over all years and plots
+    X-axis: Ice load (kg/m)
+    Y-axis: Exceedance probability (P(X > threshold))
+    
+    Parameters:
+    -----------
+    ice_load_data : xarray.DataArray
+        Ice load data with dimensions (time, south_north, west_east)
+    save_plots : bool, default True
+        Whether to save the plots to files
+    ice_load_bins : array-like, optional
+        Custom ice load bins for analysis. If None, uses automatic binning
+    ice_load_threshold : float, default 0.0
+        Minimum ice load value to be plotted (kg/m). Values below this threshold will be excluded
+    months : list of int, optional
+        List of months to include in analysis (1-12). If None, uses all months.
+        Example: [12, 1, 2, 3, 4] for winter months (Dec-Apr)
+        
+    Returns:
+    --------
+    dict : Dictionary containing analysis results and statistics
+    """
+    print("=== ICE LOAD EXCEEDANCE PROBABILITY CURVE ANALYSIS ===")
+    
+    try:
+        # Check data structure
+        print(f"\n1. Data Information:")
+        print(f"   Shape: {ice_load_data.shape}")
+        print(f"   Dimensions: {ice_load_data.dims}")
+        print(f"   Time range: {ice_load_data.time.min().values} to {ice_load_data.time.max().values}")
+        
+        # Get spatial dimensions
+        n_south_north = ice_load_data.sizes['south_north']
+        n_west_east = ice_load_data.sizes['west_east']
+        n_time = ice_load_data.sizes['time']
+        
+        print(f"   Grid size: {n_south_north} × {n_west_east} = {n_south_north * n_west_east} cells")
+        print(f"   Time steps: {n_time}")
+        
+        # Convert time to pandas for easier manipulation
+        time_index = pd.to_datetime(ice_load_data.time.values)
+        n_years = len(time_index.year.unique())
+        print(f"   Years covered: {n_years}")
+        print(f"   Years: {sorted(time_index.year.unique())}")
+        
+        # Calculate time step in hours (assuming regular intervals)
+        if len(time_index) > 1:
+            time_step_hours = (time_index[1] - time_index[0]).total_seconds() / 3600
+        else:
+            time_step_hours = 0.5  # Default to 30 minutes
+        print(f"   Time step: {time_step_hours} hours")
+        
+        # Remove NaN values and get overall data statistics
+        ice_data_clean = ice_load_data.where(ice_load_data >= 0, 0)  # Replace negative/NaN with 0
+        
+        # Filter data by months if specified
+        if months is not None:
+            print(f"\n   Filtering data to specified months only: {months}...")
+            time_index_full = pd.to_datetime(ice_data_clean.time.values)
+            month_mask = time_index_full.month.isin(months)
+            ice_data_filtered = ice_data_clean.isel(time=month_mask)
+            
+            # Update time information after filtering
+            time_index_filtered = pd.to_datetime(ice_data_filtered.time.values)
+            n_filtered_timesteps = len(time_index_filtered)
+            
+            print(f"   Original timesteps: {n_time}")
+            print(f"   Filtered timesteps: {n_filtered_timesteps}")
+            print(f"   Months included: {sorted(time_index_filtered.month.unique())}")
+            print(f"   Reduction: {((n_time - n_filtered_timesteps) / n_time * 100):.1f}% timesteps removed")
+            
+            # Use filtered data for analysis
+            ice_data_analysis = ice_data_filtered
+        else:
+            print(f"\n   Using all months for analysis...")
+            ice_data_analysis = ice_data_clean
+        
+        max_ice_load = float(ice_data_analysis.max())
+        min_ice_load = 0.0
+        
+        month_info = f" ({months})" if months is not None else " (all months)"
+        print(f"\n2. Ice Load Statistics{month_info}:")
+        print(f"   Range: {min_ice_load:.3f} to {max_ice_load:.3f} kg/m")
+        print(f"   Mean: {float(ice_data_analysis.mean()):.3f} kg/m")
+        
+        # Define ice load bins if not provided
+        if ice_load_bins is None:
+            if max_ice_load > ice_load_threshold:
+                # Create bins for exceedance probability analysis - use more bins for better resolution
+                # Always start from 0 for proper calculation, but filter plotting later
+                ice_load_bins = np.linspace(0.0, max_ice_load, 100)
+            else:
+                ice_load_bins = np.array([0.0, ice_load_threshold + 0.01, ice_load_threshold + 0.1, ice_load_threshold + 1, ice_load_threshold + 10])
+        else:
+            # Ensure bins start from 0 for proper calculation
+            if ice_load_bins[0] > 0:
+                ice_load_bins = np.concatenate([[0.0], ice_load_bins])
+            ice_load_bins = np.sort(ice_load_bins)
+        
+        print(f"   Using {len(ice_load_bins)} ice load bins")
+        print(f"   Ice load threshold: {ice_load_threshold:.3f} kg/m")
+        print(f"   Bin range: {ice_load_bins[0]:.4f} to {ice_load_bins[-1]:.3f} kg/m")
+        
+        # Prepare results storage
+        results = {
+            'grid_shape': (n_south_north, n_west_east),
+            'n_years': n_years,
+            'time_step_hours': time_step_hours,
+            'ice_load_bins': ice_load_bins,
+            'exceedance_curves': {},
+            'statistics': {}
+        }
+        
+        # Create figure for all grid cells
+        n_cols = min(n_west_east, 5)  # Maximum 5 columns
+        n_rows = int(np.ceil((n_south_north * n_west_east) / n_cols))
+        
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(4*n_cols, 3*n_rows))
+        if n_rows == 1 and n_cols == 1:
+            axes = [axes]
+        elif n_rows == 1 or n_cols == 1:
+            axes = axes.flatten()
+        else:
+            axes = axes.flatten()
+        
+        print(f"\n3. Processing grid cells...")
+        
+        cell_count = 0
+        for i in range(n_south_north):
+            for j in range(n_west_east):
+                # Extract time series for this grid cell (using filtered data)
+                cell_data = ice_data_analysis.isel(south_north=i, west_east=j)
+                cell_values = cell_data.values
+                
+                # Remove NaN values
+                valid_mask = ~np.isnan(cell_values)
+                cell_values_clean = cell_values[valid_mask]
+                
+                if len(cell_values_clean) == 0:
+                    print(f"   Warning: No valid data for cell ({i},{j})")
+                    continue
+                
+                # Filter values to be >= threshold
+                cell_values_filtered = cell_values_clean[cell_values_clean >= ice_load_threshold]
+                
+                if len(cell_values_filtered) == 0:
+                    print(f"   Warning: No data above threshold for cell ({i},{j})")
+                    continue
+                
+                # Calculate exceedance probability (1 - CDF)
+                exceedance_values = []
+                for ice_threshold in ice_load_bins:
+                    # Calculate exceedance probability P(X > ice_threshold) = 1 - P(X <= ice_threshold)
+                    # Use ALL values including zeros for proper calculation
+                    cdf_prob = np.sum(cell_values_clean <= ice_threshold) / len(cell_values_clean)
+                    exceedance_prob = 1.0 - cdf_prob
+                    exceedance_values.append(exceedance_prob)
+                
+                exceedance_values = np.array(exceedance_values)
+                
+                # Store results for this cell
+                cell_key = f'cell_{i}_{j}'
+                results['exceedance_curves'][cell_key] = {
+                    'ice_load_bins': ice_load_bins,
+                    'exceedance_values': exceedance_values,
+                    'position': (i, j)
+                }
+                
+                # Calculate statistics for this cell
+                results['statistics'][cell_key] = {
+                    'max_ice_load': float(np.max(cell_values_clean)),
+                    'mean_ice_load': float(np.mean(cell_values_clean)),
+                    'std_ice_load': float(np.std(cell_values_clean)),
+                    'median_ice_load': float(np.median(cell_values_clean)),
+                    'ice_occurrence_percentage': (len(cell_values_filtered) / len(cell_values_clean)) * 100,
+                    'percentile_95': float(np.percentile(cell_values_clean, 95)),
+                    'percentile_99': float(np.percentile(cell_values_clean, 99))
+                }
+                
+                # Plot exceedance curve for this cell
+                if cell_count < len(axes):
+                    ax = axes[cell_count]
+                    # Only plot bins >= threshold for visibility
+                    plot_mask = ice_load_bins >= ice_load_threshold
+                    plot_bins = ice_load_bins[plot_mask]
+                    plot_exceedance = exceedance_values[plot_mask]
+                    ax.plot(plot_bins, plot_exceedance, 'b-', linewidth=2, marker='o', markersize=3)
+                    ax.set_xlabel('Ice Load (kg/m)')
+                    ax.set_ylabel('Exceedance Probability')
+                    ax.set_title(f'Cell ({i},{j})')
+                    ax.grid(True, alpha=0.3)
+                    ax.set_xlim(left=ice_load_threshold)
+                    ax.set_ylim([0, 1])
+                
+                cell_count += 1
+                
+                if cell_count % 5 == 0:
+                    print(f"   Processed {cell_count}/{n_south_north * n_west_east} cells...")
+        
+        # Hide unused subplots
+        for idx in range(cell_count, len(axes)):
+            axes[idx].set_visible(False)
+        
+        plt.tight_layout()
+        
+        # Save plot if requested
+        if save_plots:
+            # Create specific directory structure for ice load per cell exceedance plots
+            ice_load_plots_dir = os.path.join(figures_dir, "spatial_gradient", "ice_load_per_cell_exceedance")
+            os.makedirs(ice_load_plots_dir, exist_ok=True)
+            plot_path = f"{ice_load_plots_dir}/ice_load_exceedance_curves_all_cells.png"
+            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+            print(f"\n   Exceedance curves plot saved to: {plot_path}")
+        
+        # Create summary plot with mean curve
+        print(f"\n4. Creating summary statistics...")
+        
+        # Calculate mean exceedance curve across all cells
+        all_exceedance_curves = []
+        for cell_key, cell_data in results['exceedance_curves'].items():
+            all_exceedance_curves.append(cell_data['exceedance_values'])
+        
+        if all_exceedance_curves:
+            mean_exceedance = np.mean(all_exceedance_curves, axis=0)
+            std_exceedance = np.std(all_exceedance_curves, axis=0)
+            
+            plt.figure(figsize=(10, 6))
+            # Only plot bins >= threshold for visibility
+            plot_mask = ice_load_bins >= ice_load_threshold
+            plot_bins = ice_load_bins[plot_mask]
+            plot_mean_exceedance = mean_exceedance[plot_mask]
+            plot_std_exceedance = std_exceedance[plot_mask]
+            
+            plt.plot(plot_bins, plot_mean_exceedance, 'r-', linewidth=3, label='Mean across all cells')
+            plt.fill_between(plot_bins, plot_mean_exceedance - plot_std_exceedance, 
+                           plot_mean_exceedance + plot_std_exceedance, alpha=0.3, color='red', 
+                           label='±1 Standard Deviation')
+            
+            plt.xlabel('Ice Load (kg/m)')
+            plt.ylabel('Exceedance Probability')
+            plt.title('Ice Load Exceedance Probability - Domain Average')
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            plt.xlim(left=ice_load_threshold)
+            plt.ylim([0, 1])
+            
+            plt.tight_layout()
+            
+            if save_plots:
+                summary_path = f"{ice_load_plots_dir}/ice_load_exceedance_summary.png"
+                plt.savefig(summary_path, dpi=300, bbox_inches='tight')
+                print(f"   Summary plot saved to: {summary_path}")
+            
+            # Store summary statistics
+            results['domain_statistics'] = {
+                'mean_exceedance_curve': mean_exceedance,
+                'std_exceedance_curve': std_exceedance,
+                'ice_load_bins': ice_load_bins
+            }
+        
+        # Print summary statistics
+        print(f"\n5. Summary Statistics:")
+        print(f"   Processed {len(results['exceedance_curves'])} grid cells")
+        
+        if results['statistics']:
+            all_stats = list(results['statistics'].values())
+            mean_ice_occurrence = np.mean([s['ice_occurrence_percentage'] for s in all_stats])
+            max_ice_occurrence = np.max([s['ice_occurrence_percentage'] for s in all_stats])
+            min_ice_occurrence = np.min([s['ice_occurrence_percentage'] for s in all_stats])
+            mean_p95 = np.mean([s['percentile_95'] for s in all_stats])
+            mean_p99 = np.mean([s['percentile_99'] for s in all_stats])
+            
+            print(f"   Ice occurrence across domain:")
+            print(f"     Mean: {mean_ice_occurrence:.1f}% of time")
+            print(f"     Range: {min_ice_occurrence:.1f}% to {max_ice_occurrence:.1f}%")
+            print(f"   Domain average percentiles:")
+            print(f"     95th percentile: {mean_p95:.3f} kg/m")
+            print(f"     99th percentile: {mean_p99:.3f} kg/m")
+        
+        # Create spatial gradient analysis using Earth Mover's Distance
+        print(f"\n6. Spatial Gradient Analysis (Earth Mover's Distance)...")
+        
+        try:
+            from scipy.stats import wasserstein_distance
+            
+            # Initialize gradient matrices
+            n_south_north, n_west_east = ice_load_data.shape[1], ice_load_data.shape[2]
+            
+            # East-West gradients (comparing adjacent cells horizontally)
+            ew_gradients = np.full((n_south_north, n_west_east-1), np.nan)
+            
+            # South-North gradients (comparing adjacent cells vertically)
+            sn_gradients = np.full((n_south_north-1, n_west_east), np.nan)
+            
+            # Combined gradients (for each cell, average of all neighbor comparisons)
+            combined_gradients = np.full((n_south_north, n_west_east), np.nan)
+            
+            print(f"   Computing Earth Mover's distances between neighboring cells...")
+            
+            # Calculate East-West gradients
+            for i in range(n_south_north):
+                for j in range(n_west_east-1):
+                    cell1_key = f'cell_{i}_{j}'
+                    cell2_key = f'cell_{i}_{j+1}'
+                    
+                    if cell1_key in results['exceedance_curves'] and cell2_key in results['exceedance_curves']:
+                        exc1 = results['exceedance_curves'][cell1_key]['exceedance_values']
+                        exc2 = results['exceedance_curves'][cell2_key]['exceedance_values']
+                        bins1 = results['exceedance_curves'][cell1_key]['ice_load_bins']
+                        bins2 = results['exceedance_curves'][cell2_key]['ice_load_bins']
+                        
+                        # For exceedance curves, Earth Mover's distance can be calculated using the L1 distance
+                        # between exceedance curves, which is mathematically equivalent
+                        try:
+                            distance = np.trapz(np.abs(exc1 - exc2), bins1)
+                            ew_gradients[i, j] = distance
+                        except:
+                            # Fallback to simple mean absolute difference
+                            distance = np.mean(np.abs(exc1 - exc2))
+                            ew_gradients[i, j] = distance
+            
+            # Calculate South-North gradients
+            for i in range(n_south_north-1):
+                for j in range(n_west_east):
+                    cell1_key = f'cell_{i}_{j}'
+                    cell2_key = f'cell_{i+1}_{j}'
+                    
+                    if cell1_key in results['exceedance_curves'] and cell2_key in results['exceedance_curves']:
+                        exc1 = results['exceedance_curves'][cell1_key]['exceedance_values']
+                        exc2 = results['exceedance_curves'][cell2_key]['exceedance_values']
+                        bins1 = results['exceedance_curves'][cell1_key]['ice_load_bins']
+                        bins2 = results['exceedance_curves'][cell2_key]['ice_load_bins']
+                        
+                        try:
+                            distance = np.trapz(np.abs(exc1 - exc2), bins1)
+                            sn_gradients[i, j] = distance
+                        except:
+                            distance = np.mean(np.abs(exc1 - exc2))
+                            sn_gradients[i, j] = distance
+            
+            # Calculate combined gradients (average of all valid neighbor distances)
+            for i in range(n_south_north):
+                for j in range(n_west_east):
+                    distances = []
+                    
+                    # Check East neighbor
+                    if j < n_west_east-1 and not np.isnan(ew_gradients[i, j]):
+                        distances.append(ew_gradients[i, j])
+                    
+                    # Check West neighbor
+                    if j > 0 and not np.isnan(ew_gradients[i, j-1]):
+                        distances.append(ew_gradients[i, j-1])
+                    
+                    # Check North neighbor
+                    if i < n_south_north-1 and not np.isnan(sn_gradients[i, j]):
+                        distances.append(sn_gradients[i, j])
+                    
+                    # Check South neighbor
+                    if i > 0 and not np.isnan(sn_gradients[i-1, j]):
+                        distances.append(sn_gradients[i-1, j])
+                    
+                    if distances:
+                        combined_gradients[i, j] = np.mean(distances)
+            
+            # Create the spatial gradient plots
+            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+            
+            # Plot 1: East-West gradients
+            im1 = axes[0, 0].imshow(ew_gradients, cmap='viridis', origin='lower', 
+                                   interpolation='nearest', aspect='auto')
+            axes[0, 0].set_title('East-West Gradient\n(Exceedance L1 Distance)')
+            axes[0, 0].set_xlabel('West-East Grid Points')
+            axes[0, 0].set_ylabel('South-North Grid Points')
+            cbar1 = plt.colorbar(im1, ax=axes[0, 0], shrink=0.8)
+            cbar1.set_label('L1 Distance')
+            
+            # Add grid lines
+            axes[0, 0].set_xticks(range(n_west_east-1))
+            axes[0, 0].set_yticks(range(n_south_north))
+            axes[0, 0].grid(True, alpha=0.3)
+            
+            # Plot 2: South-North gradients
+            im2 = axes[0, 1].imshow(sn_gradients, cmap='viridis', origin='lower', 
+                                   interpolation='nearest', aspect='auto')
+            axes[0, 1].set_title('South-North Gradient\n(Exceedance L1 Distance)')
+            axes[0, 1].set_xlabel('West-East Grid Points')
+            axes[0, 1].set_ylabel('South-North Grid Points')
+            cbar2 = plt.colorbar(im2, ax=axes[0, 1], shrink=0.8)
+            cbar2.set_label('L1 Distance')
+            
+            axes[0, 1].set_xticks(range(n_west_east))
+            axes[0, 1].set_yticks(range(n_south_north-1))
+            axes[0, 1].grid(True, alpha=0.3)
+            
+            # Plot 3: Combined gradients
+            im3 = axes[1, 0].imshow(combined_gradients, cmap='viridis', origin='lower', 
+                                   interpolation='nearest', aspect='auto')
+            axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)')
+            axes[1, 0].set_xlabel('West-East Grid Points')
+            axes[1, 0].set_ylabel('South-North Grid Points')
+            cbar3 = plt.colorbar(im3, ax=axes[1, 0], shrink=0.8)
+            cbar3.set_label('Average L1 Distance')
+            
+            axes[1, 0].set_xticks(range(n_west_east))
+            axes[1, 0].set_yticks(range(n_south_north))
+            axes[1, 0].grid(True, alpha=0.3)
+            
+            # Plot 4: Gradient magnitude (combining EW and SN)
+            # Create a full-size gradient magnitude matrix
+            gradient_magnitude = np.full((n_south_north, n_west_east), np.nan)
+            
+            for i in range(n_south_north):
+                for j in range(n_west_east):
+                    magnitudes = []
+                    
+                    # East-West component
+                    if j < n_west_east-1 and not np.isnan(ew_gradients[i, j]):
+                        magnitudes.append(ew_gradients[i, j]**2)
+                    if j > 0 and not np.isnan(ew_gradients[i, j-1]):
+                        magnitudes.append(ew_gradients[i, j-1]**2)
+                    
+                    # South-North component  
+                    if i < n_south_north-1 and not np.isnan(sn_gradients[i, j]):
+                        magnitudes.append(sn_gradients[i, j]**2)
+                    if i > 0 and not np.isnan(sn_gradients[i-1, j]):
+                        magnitudes.append(sn_gradients[i-1, j]**2)
+                    
+                    if magnitudes:
+                        gradient_magnitude[i, j] = np.sqrt(np.mean(magnitudes))
+            
+            im4 = axes[1, 1].imshow(gradient_magnitude, cmap='plasma', origin='lower', 
+                                   interpolation='nearest', aspect='auto')
+            axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)')
+            axes[1, 1].set_xlabel('West-East Grid Points')
+            axes[1, 1].set_ylabel('South-North Grid Points')
+            cbar4 = plt.colorbar(im4, ax=axes[1, 1], shrink=0.8)
+            cbar4.set_label('RMS Gradient Magnitude')
+            
+            axes[1, 1].set_xticks(range(n_west_east))
+            axes[1, 1].set_yticks(range(n_south_north))
+            axes[1, 1].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Save spatial gradient plots
+            if save_plots:
+                gradient_path = f"{ice_load_plots_dir}/ice_load_exceedance_spatial_gradients.png"
+                plt.savefig(gradient_path, dpi=300, bbox_inches='tight')
+                print(f"   Spatial gradient plots saved to: {gradient_path}")
+            
+            # Store gradient results
+            results['spatial_gradients'] = {
+                'east_west_gradients': ew_gradients,
+                'south_north_gradients': sn_gradients,
+                'combined_gradients': combined_gradients,
+                'gradient_magnitude': gradient_magnitude,
+                'ew_mean': np.nanmean(ew_gradients),
+                'ew_std': np.nanstd(ew_gradients),
+                'sn_mean': np.nanmean(sn_gradients),
+                'sn_std': np.nanstd(sn_gradients),
+                'combined_mean': np.nanmean(combined_gradients),
+                'combined_std': np.nanstd(combined_gradients)
+            }
+            
+            # Print gradient statistics
+            print(f"   Gradient Statistics:")
+            print(f"     East-West: Mean = {results['spatial_gradients']['ew_mean']:.3f}, Std = {results['spatial_gradients']['ew_std']:.3f}")
+            print(f"     South-North: Mean = {results['spatial_gradients']['sn_mean']:.3f}, Std = {results['spatial_gradients']['sn_std']:.3f}")
+            print(f"     Combined: Mean = {results['spatial_gradients']['combined_mean']:.3f}, Std = {results['spatial_gradients']['combined_std']:.3f}")
+            
+        except ImportError:
+            print("   Warning: scipy not available, skipping Earth Mover's distance calculation")
+            print("   Install scipy with: conda install scipy")
+        except Exception as e:
+            print(f"   Error in spatial gradient analysis: {e}")
+        
+        print(f"\n✓ Ice load exceedance probability analysis completed successfully!")
+        return results
+        
+    except Exception as e:
+        print(f"Error in ice load exceedance probability analysis: {e}")
         import traceback
         traceback.print_exc()
         return None
