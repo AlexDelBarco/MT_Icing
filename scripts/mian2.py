@@ -35,14 +35,19 @@ print(f"Exploring dataset at height level: {height_level} m")
 
 # CALCULATIONS AND PLOTS
 
-
 # Period
 start_date = '1989-01-01T00:00:00.000000000'
 end_date = '2022-12-31T23:30:00.000000000'
 dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 
+
+# ACCERATION
+
 # Accreation for winter and time period + plot
 #fn.accreation_per_winter(dataset, start_date, end_date, height_level=height)
+
+
+# ICE LOAD
 
 # ice load data: load/calculate 
 if calculate_new_ice_load:
@@ -55,19 +60,70 @@ else:
 
     print(f"Loaded ice load data from: {filename}")
     print(f"Loaded ice load data with shape: {ice_load_data.shape}")
-    
-# Analyze ice load duration curves for all grid cells
+
+
+# SPATIAL GRADIENTS
+
+# Analyze ice load mean gradient for all grid cells
+# print("\n=== ICE LOAD MEAN GRADIENT ANALYSIS ===")
+# mean_gradient_results = fn.create_spatial_gradient_mean_plots(ice_load_data)
+   
+# Analyze ice load load duration curves for all grid cells
 # print("\n=== ICE LOAD DURATION CURVE ANALYSIS ===")
 # duration_results = fn.plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_threshold=0.1)
+
+# Analyze ice load PDF curves for all grid cells
 # print("\n=== ICE LOAD PDF CURVE ANALYSIS ===")
 # pdf_results = fn.plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_threshold=0.1)
-print("\n=== ICE LOAD CDF CURVE ANALYSIS ===")
-cdf_results = fn.plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_threshold=0.1)
+
+# Analyze ice load CDF curves for all grid cells
+# print("\n=== ICE LOAD CDF CURVE ANALYSIS ===")
+# cdf_results = fn.plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_threshold=0.1)
+
+# Analyze ice load 1-CDF curves for all grid cells
 #print("\n=== ICE LOAD 1-CDF CURVE ANALYSIS ===")
 #exceedance_cdf_results = fn.plot_ice_load_1_minus_cdf_curves(ice_load_data, save_plots=True, ice_load_threshold=0, months=[1,2,12])
+
+# Analyze ice load CDF log curves for all grid cells
 #print("\n=== ICE LOAD CDF LOG CURVE ANALYSIS ===")
 #cdf_log_results = fn.plot_ice_load_cdf_curves_log_scale(ice_load_data, save_plots=True, ice_load_threshold=0, months=[1,2,12])
 
+# Analyze ice load CDF curves for all grid cells after meteorological filtering
+print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ===")
+filtered_ds, results = fn.filter_dataset_by_thresholds(
+    dataset=dataset,
+    # Meteorological filters
+    PBLH_min=None,      # PBL Height
+    PBLH_max=None,      # PBL Height
+    PRECIP_min=None,    # Precipitation
+    PRECIP_max=None,    # Precipitation
+    QVAPOR_min=None,    # Specific Humidity
+    QVAPOR_max=None,    # Specific Humidity
+    RMOL_min=None,      # Relative Moisture
+    RMOL_max=None,      # Relative Moisture
+    T_min=None,      # Temperature
+    T_max=None,      # Temperature
+    WS_min=10,        # Wind Speed
+    WS_max=None,       # Wind Speed
+    
+    height_level=height,
+    
+    # Enable automatic ice load CDF analysis
+    calculate_ice_load_cdf=True,
+    dates=dates,
+    ice_load_method=ice_load_method,
+    ice_load_threshold=0.1,
+    months=None,  # Winter season if wanted
+    percentile=None,     # Remove extreme outliers if wanted
+    verbose=True   # Whether to print filtering information
+)
+
 # Analyze threshold exceedance spatial patterns
 #print("\n=== ICE LOAD THRESHOLD EXCEEDANCE ANALYSIS ===")
-#threshold_results = fn.plot_ice_load_threshold_exceedance_map(ice_load_data, ice_load_threshold=0.4, save_plots=True, units='hours')
+#threshold_results = fn.plot_ice_load_threshold_exceedance_map(ice_load_data, ice_load_threshold=0.1, save_plots=True, units='hours')
+
+
+# TEMPORAL GRADIENTS
+
+# Example: Enhanced filtering with automatic ice load CDF analysis
+
