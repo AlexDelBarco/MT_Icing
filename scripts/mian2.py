@@ -5,6 +5,12 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 
+# Set working directory to project root if running from scripts folder
+current_dir = os.getcwd()
+if current_dir.endswith('scripts'):
+    os.chdir('..')
+    print(f"Changed working directory from {current_dir} to {os.getcwd()}")
+
 # PARAMTERES
 height = 2  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
 ice_load_method = 5  # Method for ice load calculation
@@ -12,9 +18,14 @@ calculate_new_ice_load = False  # Whether to calculate ice load or load existing
 
 
 # IMPORT DATA
-# Import data and first look
+#Import NEWEA meteorological data
 data1 = "data/newa_wrf_for_jana_mstudent_extended.nc"
 dataset = fn.load_netcdf_data(data1)
+
+# Import EMD data
+# data2 = "data/EMD_data/EmdWrf_N59.600_E019.960.txt"
+# emd_data = fn.import_emd_data(data2)
+# print(emd_data.head())
 
 
 # EXPLORE DATASET
@@ -85,26 +96,26 @@ else:
 #exceedance_cdf_results = fn.plot_ice_load_1_minus_cdf_curves(ice_load_data, save_plots=True, ice_load_threshold=0, months=[1,2,12])
 
 # Analyze ice load CDF log curves for all grid cells
-#print("\n=== ICE LOAD CDF LOG CURVE ANALYSIS ===")
-#cdf_log_results = fn.plot_ice_load_cdf_curves_log_scale(ice_load_data, save_plots=True, ice_load_threshold=0, months=[1,2,12])
+# print("\n=== ICE LOAD CDF LOG CURVE ANALYSIS ===")
+# cdf_log_results = fn.plot_ice_load_cdf_curves_log_scale(ice_load_data, save_plots=True, ice_load_threshold=0, months=[1,2,12])
 
 # Analyze ice load CDF curves for all grid cells after meteorological filtering
 print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ===")
 filtered_ds, results = fn.filter_dataset_by_thresholds(
     dataset=dataset,
     # Meteorological filters
-    PBLH_min=None,      # PBL Height
-    PBLH_max=None,      # PBL Height
-    PRECIP_min=None,    # Precipitation
-    PRECIP_max=None,    # Precipitation
-    QVAPOR_min=None,    # Specific Humidity
-    QVAPOR_max=None,    # Specific Humidity
-    RMOL_min=None,      # Relative Moisture
-    RMOL_max=None,      # Relative Moisture
-    T_min=None,      # Temperature
-    T_max=None,      # Temperature
-    WS_min=10,        # Wind Speed
-    WS_max=None,       # Wind Speed
+    PBLH_min=None,      # PBL Height (m)
+    PBLH_max=None,      # PBL Height (m)
+    PRECIP_min=None,    # Precipitation (mm/h)
+    PRECIP_max=None,    # Precipitation (mm/h)
+    QVAPOR_min=None,    # Water Vapor Mixing Ratio (kg/kg)
+    QVAPOR_max=None,    # Water Vapor Mixing Ratio (kg/kg)
+    RMOL_min=None,      # Monin-Obukhov Length (m)
+    RMOL_max=None,      # Monin-Obukhov Length (m)
+    T_min=None,         # Temperature (K)
+    T_max=None,         # Temperature (K)
+    WS_min=8.5,          # Wind Speed (m/s)
+    WS_max=None,        # Wind Speed (m/s)
     
     height_level=height,
     

@@ -2436,7 +2436,8 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             ew_gradients = np.full((n_south_north, n_west_east-1), np.nan)
             
             # South-North gradients (comparing adjacent cells vertically)
-            sn_gradients = np.full((n_south_north-1, n_west_east), np.nan)
+            s
+            
             
             # Combined gradients (for each cell, average of all neighbor comparisons)
             combined_gradients = np.full((n_south_north, n_west_east), np.nan)
@@ -4200,7 +4201,7 @@ def filter_dataset_by_thresholds(dataset, PBLH_min=None, PBLH_max=None, PRECIP_m
                 height_info = f" (at height level {height_level})" if has_height else ""
                 lower_str = f"{lower}" if lower != -np.inf else "No limit"
                 upper_str = f"{upper}" if upper != np.inf else "No limit"
-                print(f"   {var_name}{height_info}: {lower_str} ≤ value ≤ {upper_str}")
+                print(f"   {var_name}{height_info}: {lower_str} <= value <= {upper_str}")
         
         # Create combined mask for all variables
         if verbose:
@@ -4396,7 +4397,7 @@ def filter_dataset_by_thresholds(dataset, PBLH_min=None, PBLH_max=None, PRECIP_m
                             
                             # Create filter documentation file
                             doc_file_path = os.path.join(filter_specific_dir, "filter_documentation.txt")
-                            with open(doc_file_path, 'w') as f:
+                            with open(doc_file_path, 'w', encoding='utf-8') as f:
                                 f.write("METEOROLOGICAL FILTERING DOCUMENTATION\n")
                                 f.write("=" * 50 + "\n\n")
                                 f.write(f"Generated on: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
@@ -4428,7 +4429,7 @@ def filter_dataset_by_thresholds(dataset, PBLH_min=None, PBLH_max=None, PRECIP_m
                                 f.write("-" * 20 + "\n")
                                 for var_name, stats in filter_stats.items():
                                     f.write(f"\n{var_name}:\n")
-                                    f.write(f"  Threshold: {stats['threshold_lower']} ≤ value ≤ {stats['threshold_upper']}\n")
+                                    f.write(f"  Threshold: {stats['threshold_lower']} <= value <= {stats['threshold_upper']}\n")
                                     f.write(f"  Original range: [{stats['original_range'][0]:.3f}, {stats['original_range'][1]:.3f}]\n")
                                     f.write(f"  Original mean: {stats['original_mean']:.3f}\n")
                                     f.write(f"  Removed timesteps: {stats['removed_timesteps']:,} ({stats['removal_percentage']:.1f}%)\n")
@@ -4786,6 +4787,180 @@ def create_temporal_gradient_plots(ice_load_data):
         'max_temporal_gradient': all_temp_gradients.max(),
         'min_temporal_gradient': all_temp_gradients.min()
     }
+
+
+# EMD DATA IMPORT
+
+def import_emd_data(file_path):
+    """
+    Import EMD text data with metadata extraction and proper formatting
+    
+    Parameters:
+    -----------
+    file_path : str
+        Path to the EMD text file
+    
+    Returns:
+    --------
+    pandas.DataFrame
+        DataFrame with time as index, meteorological variables as columns,
+        and metadata stored in .attrs['metadata']
+    
+    Expected file format:
+    --------------------
+    - Metadata lines with format "key: value" (e.g., "Orography: -0.002")
+    - Column headers line starting with "time"
+    - Time-series data with tab-separated values
+    
+    Example:
+    --------
+    >>> emd_df = import_emd_data('data/EMD_data/station_data.txt')
+    >>> print(emd_df.shape)
+    >>> print(emd_df.attrs['metadata'])
+    >>> wind_speed = emd_df['wSpeed.10']  # Wind speed at 10m
+    """
+    
+    metadata = {}
+    data_start_line = 0
+    
+    try:
+        # Read file and extract metadata
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        # Parse metadata section
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if ':' in line and not line.startswith('time'):
+                # Extract metadata (Orography, Latitude, Longitude, etc.)
+                key, value = line.split(':', 1)
+                try:
+                    metadata[key.strip()] = float(value.strip())
+                except ValueError:
+                    metadata[key.strip()] = value.strip()
+            elif line.startswith('time'):
+                # Found the header line
+                data_start_line = i
+                break
+        
+        # Read the data starting from header line
+        try:
+            # Try tab-separated first (most common for EMD data)
+            df = pd.read_csv(file_path, delimiter='\t', skiprows=data_start_line, 
+                            parse_dates=[0], index_col=0)
+            
+            # If tab doesn't work well, try other delimiters
+            if len(df.columns) < 10:  # Expect many columns for EMD data
+                for delimiter in [' ', ',', ';']:
+                    try:
+                        df = pd.read_csv(file_path, delimiter=delimiter, skiprows=data_start_line,
+                                       parse_dates=[0], index_col=0)
+                        if len(df.columns) >= 10:
+                            break
+                    except:
+                        continue
+            
+            # Add metadata as attributes
+            df.attrs['metadata'] = metadata
+            
+            print(f"Successfully imported EMD data from: {file_path}")
+            print(f"- Data shape: {df.shape}")
+            print(f"- Time range: {df.index[0]} to {df.index[-1]}")
+            print(f"- Number of variables: {len(df.columns)}")
+            if metadata:
+                print(f"- Metadata extracted: {list(metadata.keys())}")
+            print(f"- Sample columns: {list(df.columns[:10])}")
+            
+            return df
+            
+        except Exception as e:
+            print(f"Error parsing EMD data: {e}")
+            print("Attempting fallback import methods...")
+            
+            # Fallback method 1: Basic tab-separated
+            try:
+                df = pd.read_csv(file_path, delimiter='\t', skiprows=data_start_line)
+                # Manually set time column as index
+                if 'time' in df.columns:
+                    df['time'] = pd.to_datetime(df['time'])
+                    df.set_index('time', inplace=True)
+                df.attrs['metadata'] = metadata
+                print("Fallback import successful (tab-separated)")
+                return df
+            except Exception as e2:
+                print(f"Fallback method 1 failed: {e2}")
+            
+            # Fallback method 2: Space-separated
+            try:
+                df = pd.read_csv(file_path, delimiter=' ', skiprows=data_start_line)
+                if 'time' in df.columns:
+                    df['time'] = pd.to_datetime(df['time'])
+                    df.set_index('time', inplace=True)
+                df.attrs['metadata'] = metadata
+                print("Fallback import successful (space-separated)")
+                return df
+            except Exception as e3:
+                print(f"Fallback method 2 failed: {e3}")
+                raise Exception(f"All import methods failed. Original error: {e}")
+                
+    except Exception as e:
+        print(f"Error reading EMD file: {e}")
+        raise
+
+
+def explore_emd_data(emd_df):
+    """
+    Explore and summarize EMD DataFrame structure and content
+    
+    Parameters:
+    -----------
+    emd_df : pandas.DataFrame
+        EMD DataFrame from import_emd_data()
+    """
+    
+    print("\n=== EMD Data Summary ===")
+    print(f"Data shape: {emd_df.shape}")
+    print(f"Time range: {emd_df.index[0]} to {emd_df.index[-1]}")
+    print(f"Time frequency: {emd_df.index[1] - emd_df.index[0]}")
+    
+    # Metadata
+    if hasattr(emd_df, 'attrs') and 'metadata' in emd_df.attrs:
+        print(f"\nMetadata:")
+        for key, value in emd_df.attrs['metadata'].items():
+            print(f"  {key}: {value}")
+    
+    # Variable categories
+    wind_vars = [col for col in emd_df.columns if 'wSpeed' in col or 'wDir' in col]
+    temp_vars = [col for col in emd_df.columns if 'temp' in col]
+    pressure_vars = [col for col in emd_df.columns if 'press' in col]
+    humidity_vars = [col for col in emd_df.columns if 'rh' in col]
+    ice_vars = [col for col in emd_df.columns if 'ice' in col.lower() or 'Ice' in col]
+    
+    print(f"\nVariable categories:")
+    print(f"  Wind variables: {len(wind_vars)} (e.g., {wind_vars[:3]})")
+    print(f"  Temperature variables: {len(temp_vars)} (e.g., {temp_vars[:3]})")
+    print(f"  Pressure variables: {len(pressure_vars)} (e.g., {pressure_vars[:3]})")
+    print(f"  Humidity variables: {len(humidity_vars)} (e.g., {humidity_vars[:3]})")
+    print(f"  Ice-related variables: {len(ice_vars)} (e.g., {ice_vars[:3]})")
+    
+    # Height levels
+    height_levels = set()
+    for col in emd_df.columns:
+        if '.' in col:
+            try:
+                height = col.split('.')[-1]
+                if height.replace('hpa', '').replace('mb', '').replace('cm', '').isdigit():
+                    height_levels.add(height)
+            except:
+                pass
+    
+    if height_levels:
+        print(f"\nHeight levels detected: {sorted(height_levels)}")
+    
+    # Basic statistics
+    print(f"\nData quality:")
+    print(f"  Missing values: {emd_df.isnull().sum().sum()} total")
+    print(f"  Complete time series: {emd_df.isnull().sum() == 0}.sum() variables")
 
 
 
