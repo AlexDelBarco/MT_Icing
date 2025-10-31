@@ -2436,8 +2436,7 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             ew_gradients = np.full((n_south_north, n_west_east-1), np.nan)
             
             # South-North gradients (comparing adjacent cells vertically)
-            s
-            
+            sn_gradients = np.full((n_south_north-1, n_west_east), np.nan)
             
             # Combined gradients (for each cell, average of all neighbor comparisons)
             combined_gradients = np.full((n_south_north, n_west_east), np.nan)
@@ -2606,6 +2605,8 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                 plt.savefig(gradient_path, dpi=300, bbox_inches='tight')
                 print(f"   Absolute spatial gradient plots saved to: {gradient_path}")
             
+            plt.close()  # Close the absolute gradient figure
+            
             # Calculate dimensionless values (relative to domain mean)
             print(f"   Creating dimensionless gradient plots...")
             
@@ -2701,6 +2702,8 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                 dimensionless_path = f"{ice_load_plots_dir}/{dimensionless_filename}"
                 plt.savefig(dimensionless_path, dpi=300, bbox_inches='tight')
                 print(f"   Dimensionless spatial gradient plots saved to: {dimensionless_path}")
+            
+            plt.close()  # Close the dimensionless gradient figure
             
             # Store gradient results (including both absolute and dimensionless)
             results['spatial_gradients'] = {
@@ -4492,6 +4495,463 @@ def filter_dataset_by_thresholds(dataset, PBLH_min=None, PBLH_max=None, PRECIP_m
         traceback.print_exc()
         return None, None
 
+def systematic_meteorological_filtering(dataset, 
+                                       PBLH_range=None, PRECIP_range=None, QVAPOR_range=None,
+                                       RMOL_range=None, T_range=None, WS_range=None,
+                                       height_level=0, verbose=True, max_combinations=None,
+                                       calculate_ice_load_cdf=False, dates=None, ice_load_method=None,
+                                       ice_load_threshold=0.0, months=None, percentile=None,
+                                       save_results=True, results_summary_file="systematic_filtering_results.txt"):
+    """
+    Systematically filter dataset using all possible combinations of meteorological parameter ranges.
+    Each parameter range is defined as (min_val, max_val, step) and creates a grid search across
+    all specified parameter combinations.
+    
+    Parameters:
+    -----------
+    dataset : xarray.Dataset
+        Input dataset containing meteorological variables
+    PBLH_range : tuple (min, max, step), optional
+        Range for Planetary Boundary Layer Height (m)
+        Example: (100, 1000, 200) creates values [100, 300, 500, 700, 900]
+    PRECIP_range : tuple (min, max, step), optional
+        Range for Precipitation (mm/h)
+    QVAPOR_range : tuple (min, max, step), optional
+        Range for Water vapor mixing ratio (kg/kg)
+    RMOL_range : tuple (min, max, step), optional
+        Range for Monin-Obukhov length (m)
+    T_range : tuple (min, max, step), optional
+        Range for Temperature (K)
+    WS_range : tuple (min, max, step), optional
+        Range for Wind speed (m/s)
+    height_level : int, optional
+        Height level index for variables with height dimension (default: 0)
+    verbose : bool, optional
+        Whether to print detailed progress information (default: True)
+    max_combinations : int, optional
+        Maximum number of combinations to process (for testing/limiting computation)
+    calculate_ice_load_cdf : bool, optional
+        Whether to calculate ice load and create CDF plots for each combination (default: False)
+    dates : list or pd.DatetimeIndex, optional
+        Date range for ice load calculation (required if calculate_ice_load_cdf=True)
+    ice_load_method : int, optional
+        Method for ice load calculation (required if calculate_ice_load_cdf=True)
+    ice_load_threshold : float, optional
+        Minimum ice load value for CDF analysis (default: 0.0)
+    months : list of int, optional
+        List of months to include in CDF analysis (1-12)
+    percentile : float, optional
+        Percentile value for filtering extreme values in CDF
+    save_results : bool, optional
+        Whether to save results summary to file (default: True)
+    results_summary_file : str, optional
+        Filename for results summary (default: "systematic_filtering_results.txt")
+        
+    Returns:
+    --------
+    dict
+        Dictionary containing all combination results, statistics, and summary information
+        
+    Example:
+    --------
+    >>> # Test with small ranges
+    >>> results = systematic_meteorological_filtering(
+    ...     dataset, 
+    ...     WS_range=(5, 15, 5),  # Wind speed: [5, 10, 15] m/s
+    ...     T_range=(270, 280, 5),  # Temperature: [270, 275, 280] K
+    ...     max_combinations=10,
+    ...     calculate_ice_load_cdf=True,
+    ...     dates=date_range,
+    ...     ice_load_method=5
+    ... )
+    """
+    
+    if verbose:
+        print("=== SYSTEMATIC METEOROLOGICAL FILTERING ===")
+        print("Grid search across multiple parameter combinations")
+    
+    try:
+        import itertools
+        
+        # Validate input dataset
+        if dataset is None:
+            raise ValueError("Dataset is None")
+        
+        # Initialize parameter ranges dictionary
+        param_ranges = {}
+        
+        # Process each parameter range
+        if PBLH_range is not None:
+            if len(PBLH_range) != 3:
+                raise ValueError("PBLH_range must be tuple (min, max, step)")
+            min_val, max_val, step = PBLH_range
+            param_ranges['PBLH'] = list(np.arange(min_val, max_val + step, step))
+        
+        if PRECIP_range is not None:
+            if len(PRECIP_range) != 3:
+                raise ValueError("PRECIP_range must be tuple (min, max, step)")
+            min_val, max_val, step = PRECIP_range
+            param_ranges['PRECIP'] = list(np.arange(min_val, max_val + step, step))
+        
+        if QVAPOR_range is not None:
+            if len(QVAPOR_range) != 3:
+                raise ValueError("QVAPOR_range must be tuple (min, max, step)")
+            min_val, max_val, step = QVAPOR_range
+            param_ranges['QVAPOR'] = list(np.arange(min_val, max_val + step, step))
+        
+        if RMOL_range is not None:
+            if len(RMOL_range) != 3:
+                raise ValueError("RMOL_range must be tuple (min, max, step)")
+            min_val, max_val, step = RMOL_range
+            param_ranges['RMOL'] = list(np.arange(min_val, max_val + step, step))
+        
+        if T_range is not None:
+            if len(T_range) != 3:
+                raise ValueError("T_range must be tuple (min, max, step)")
+            min_val, max_val, step = T_range
+            param_ranges['T'] = list(np.arange(min_val, max_val + step, step))
+        
+        if WS_range is not None:
+            if len(WS_range) != 3:
+                raise ValueError("WS_range must be tuple (min, max, step)")
+            min_val, max_val, step = WS_range
+            param_ranges['WS'] = list(np.arange(min_val, max_val + step, step))
+        
+        if not param_ranges:
+            raise ValueError("At least one parameter range must be specified")
+        
+        if verbose:
+            print(f"\n1. Parameter Ranges Defined:")
+            for param, values in param_ranges.items():
+                print(f"   {param}: {len(values)} values [{min(values):.3f} to {max(values):.3f}, step {values[1]-values[0]:.3f}]")
+        
+        # Generate all combinations
+        param_names = list(param_ranges.keys())
+        param_values = list(param_ranges.values())
+        all_combinations = list(itertools.product(*param_values))
+        
+        total_combinations = len(all_combinations)
+        
+        if verbose:
+            print(f"\n2. Combination Generation:")
+            print(f"   Total possible combinations: {total_combinations:,}")
+        
+        # Limit combinations if specified
+        if max_combinations is not None and total_combinations > max_combinations:
+            if verbose:
+                print(f"   Limiting to first {max_combinations:,} combinations")
+            all_combinations = all_combinations[:max_combinations]
+            total_combinations = len(all_combinations)
+        
+        # Initialize results storage
+        results = {
+            'parameter_ranges': param_ranges,
+            'total_combinations': total_combinations,
+            'completed_combinations': 0,
+            'failed_combinations': 0,
+            'combination_results': {},
+            'summary_statistics': {},
+            'best_combinations': {},
+            'execution_info': {
+                'start_time': pd.Timestamp.now(),
+                'height_level': height_level,
+                'ice_load_cdf_enabled': calculate_ice_load_cdf,
+                'ice_load_method': ice_load_method,
+                'ice_load_threshold': ice_load_threshold,
+                'months_filter': months,
+                'percentile_filter': percentile
+            }
+        }
+        
+        # Process each combination
+        if verbose:
+            print(f"\n3. Processing {total_combinations:,} combinations...")
+            print("   Progress: ", end="")
+        
+        successful_results = []
+        
+        for combo_idx, combination in enumerate(all_combinations):
+            try:
+                # Create parameter dictionary for this combination
+                combo_params = dict(zip(param_names, combination))
+                
+                # Prepare parameters for filter_dataset_by_thresholds
+                filter_params = {
+                    'dataset': dataset,
+                    'height_level': height_level,
+                    'verbose': combo_idx < 3 if verbose else False,  # Show details for first few combinations
+                    'calculate_ice_load_cdf': calculate_ice_load_cdf,
+                    'dates': dates,
+                    'ice_load_method': ice_load_method,
+                    'ice_load_threshold': ice_load_threshold,
+                    'months': months,
+                    'percentile': percentile
+                }
+                
+                # Set parameter thresholds (using values as both min and max for exact filtering)
+                # Note: This creates filters where values must be >= threshold
+                for param_name, threshold_value in combo_params.items():
+                    if param_name == 'PBLH':
+                        filter_params['PBLH_min'] = threshold_value
+                    elif param_name == 'PRECIP':
+                        filter_params['PRECIP_min'] = threshold_value
+                    elif param_name == 'QVAPOR':
+                        filter_params['QVAPOR_min'] = threshold_value
+                    elif param_name == 'RMOL':
+                        filter_params['RMOL_min'] = threshold_value
+                    elif param_name == 'T':
+                        filter_params['T_min'] = threshold_value
+                    elif param_name == 'WS':
+                        filter_params['WS_min'] = threshold_value
+                
+                # Apply filtering
+                filtered_dataset, filter_results = filter_dataset_by_thresholds(**filter_params)
+                
+                if filtered_dataset is not None and filter_results is not None and 'error' not in filter_results:
+                    # Store successful result
+                    combo_key = f"combo_{combo_idx:04d}"
+                    
+                    # Create a compact result summary
+                    combo_result = {
+                        'combination_index': combo_idx,
+                        'parameters': combo_params,
+                        'initial_timesteps': filter_results['initial_timesteps'],
+                        'final_timesteps': filter_results['final_timesteps'],
+                        'removal_percentage': filter_results['removal_percentage'],
+                        'data_retention_percentage': 100 - filter_results['removal_percentage'],
+                        'filtered_timespan': filter_results['filtered_timespan']
+                    }
+                    
+                    # Add ice load results if available
+                    if calculate_ice_load_cdf and 'cdf_results' in filter_results and filter_results['cdf_results']:
+                        cdf_results = filter_results['cdf_results']
+                        if 'statistics' in cdf_results and cdf_results['statistics']:
+                            # Calculate domain-wide ice load statistics
+                            all_stats = list(cdf_results['statistics'].values())
+                            combo_result['ice_load_stats'] = {
+                                'max_ice_load_domain': max([s['max_ice_load'] for s in all_stats]),
+                                'mean_ice_load_domain': np.mean([s['mean_ice_load'] for s in all_stats]),
+                                'mean_ice_occurrence': np.mean([s['ice_occurrence_percentage'] for s in all_stats]),
+                                'processed_cells': len(all_stats)
+                            }
+                        
+                        # Store information about where plots were saved
+                        if 'filter_directory' in filter_results:
+                            combo_result['plot_directory'] = filter_results['filter_directory']
+                            if verbose and combo_idx < 3:  # Show directory info for first few combinations
+                                print(f"   Combo {combo_idx:04d}: CDF plots saved to {filter_results['filter_directory']}")
+                    
+                    results['combination_results'][combo_key] = combo_result
+                    successful_results.append(combo_result)
+                    results['completed_combinations'] += 1
+                    
+                else:
+                    results['failed_combinations'] += 1
+                
+                # Progress indicator
+                if verbose and (combo_idx + 1) % max(1, total_combinations // 20) == 0:
+                    progress_pct = ((combo_idx + 1) / total_combinations) * 100
+                    print(f"{progress_pct:.0f}%...", end="")
+                
+            except Exception as e:
+                if verbose and combo_idx < 5:  # Only show first few errors
+                    print(f"\n   Error in combination {combo_idx}: {e}")
+                results['failed_combinations'] += 1
+                continue
+        
+        if verbose:
+            print(" Done!")
+        
+        # Calculate summary statistics
+        if successful_results:
+            if verbose:
+                print(f"\n4. Calculating Summary Statistics...")
+            
+            # Data retention statistics
+            retention_percentages = [r['data_retention_percentage'] for r in successful_results]
+            final_timesteps = [r['final_timesteps'] for r in successful_results]
+            
+            results['summary_statistics'] = {
+                'successful_combinations': len(successful_results),
+                'failed_combinations': results['failed_combinations'],
+                'success_rate': (len(successful_results) / total_combinations) * 100,
+                'data_retention': {
+                    'mean': np.mean(retention_percentages),
+                    'std': np.std(retention_percentages),
+                    'min': np.min(retention_percentages),
+                    'max': np.max(retention_percentages),
+                    'median': np.median(retention_percentages)
+                },
+                'final_timesteps': {
+                    'mean': np.mean(final_timesteps),
+                    'std': np.std(final_timesteps),
+                    'min': np.min(final_timesteps),
+                    'max': np.max(final_timesteps),
+                    'median': np.median(final_timesteps)
+                }
+            }
+            
+            # Ice load statistics (if available)
+            if calculate_ice_load_cdf:
+                ice_results = [r for r in successful_results if 'ice_load_stats' in r]
+                if ice_results:
+                    max_ice_loads = [r['ice_load_stats']['max_ice_load_domain'] for r in ice_results]
+                    mean_ice_loads = [r['ice_load_stats']['mean_ice_load_domain'] for r in ice_results]
+                    ice_occurrences = [r['ice_load_stats']['mean_ice_occurrence'] for r in ice_results]
+                    
+                    results['summary_statistics']['ice_load'] = {
+                        'combinations_with_ice_data': len(ice_results),
+                        'max_ice_load_domain': {
+                            'mean': np.mean(max_ice_loads),
+                            'std': np.std(max_ice_loads),
+                            'min': np.min(max_ice_loads),
+                            'max': np.max(max_ice_loads)
+                        },
+                        'mean_ice_load_domain': {
+                            'mean': np.mean(mean_ice_loads),
+                            'std': np.std(mean_ice_loads),
+                            'min': np.min(mean_ice_loads),
+                            'max': np.max(mean_ice_loads)
+                        },
+                        'ice_occurrence': {
+                            'mean': np.mean(ice_occurrences),
+                            'std': np.std(ice_occurrences),
+                            'min': np.min(ice_occurrences),
+                            'max': np.max(ice_occurrences)
+                        }
+                    }
+            
+            # Find best combinations based on different criteria
+            results['best_combinations'] = {
+                'highest_data_retention': max(successful_results, key=lambda x: x['data_retention_percentage']),
+                'lowest_data_retention': min(successful_results, key=lambda x: x['data_retention_percentage']),
+                'most_final_timesteps': max(successful_results, key=lambda x: x['final_timesteps']),
+                'least_final_timesteps': min(successful_results, key=lambda x: x['final_timesteps'])
+            }
+            
+            if calculate_ice_load_cdf and ice_results:
+                results['best_combinations']['highest_max_ice_load'] = max(ice_results, key=lambda x: x['ice_load_stats']['max_ice_load_domain'])
+                results['best_combinations']['lowest_max_ice_load'] = min(ice_results, key=lambda x: x['ice_load_stats']['max_ice_load_domain'])
+                results['best_combinations']['highest_ice_occurrence'] = max(ice_results, key=lambda x: x['ice_load_stats']['mean_ice_occurrence'])
+                results['best_combinations']['lowest_ice_occurrence'] = min(ice_results, key=lambda x: x['ice_load_stats']['mean_ice_occurrence'])
+        
+        # Complete execution info
+        results['execution_info']['end_time'] = pd.Timestamp.now()
+        results['execution_info']['total_duration'] = results['execution_info']['end_time'] - results['execution_info']['start_time']
+        
+        # Print summary
+        if verbose:
+            print(f"\n5. Results Summary:")
+            print(f"   Total combinations processed: {total_combinations:,}")
+            print(f"   Successful combinations: {results['completed_combinations']:,}")
+            print(f"   Failed combinations: {results['failed_combinations']:,}")
+            print(f"   Success rate: {results['summary_statistics']['success_rate']:.1f}%" if successful_results else "   Success rate: 0%")
+            print(f"   Total execution time: {results['execution_info']['total_duration']}")
+            
+            if successful_results:
+                print(f"\n   Data Retention Statistics:")
+                print(f"     Mean: {results['summary_statistics']['data_retention']['mean']:.1f}%")
+                print(f"     Range: {results['summary_statistics']['data_retention']['min']:.1f}% to {results['summary_statistics']['data_retention']['max']:.1f}%")
+                
+                # Show where plots were saved if ice load CDF was calculated
+                if calculate_ice_load_cdf:
+                    plot_dirs = [r.get('plot_directory') for r in successful_results if 'plot_directory' in r]
+                    unique_plot_dirs = list(set([d for d in plot_dirs if d is not None]))
+                    if unique_plot_dirs:
+                        print(f"\n   CDF Plots Created:")
+                        print(f"     Number of combinations with plots: {len(plot_dirs)}")
+                        print(f"     Plot directories created: {len(unique_plot_dirs)}")
+                        print(f"     Base directory: results/figures/spatial_gradient/filtered/")
+                        if len(unique_plot_dirs) <= 5:  # Show directories if not too many
+                            for i, plot_dir in enumerate(unique_plot_dirs[:5]):
+                                folder_name = plot_dir.split('/')[-1] if '/' in plot_dir else plot_dir.split('\\')[-1]
+                                print(f"       {i+1}. {folder_name}")
+                        else:
+                            print(f"       (Too many directories to list - check base directory)")
+                
+                print(f"\n   Best Combination (Highest Data Retention):")
+                best_retention = results['best_combinations']['highest_data_retention']
+                print(f"     Parameters: {best_retention['parameters']}")
+                print(f"     Data retention: {best_retention['data_retention_percentage']:.1f}%")
+                print(f"     Final timesteps: {best_retention['final_timesteps']:,}")
+                if 'plot_directory' in best_retention:
+                    print(f"     Plots saved in: {best_retention['plot_directory']}")
+        
+        # Save results to file
+        if save_results:
+            if verbose:
+                print(f"\n6. Saving Results...")
+            
+            results_path = os.path.join(results_dir, results_summary_file)
+            
+            with open(results_path, 'w', encoding='utf-8') as f:
+                f.write("SYSTEMATIC METEOROLOGICAL FILTERING RESULTS\n")
+                f.write("=" * 60 + "\n\n")
+                f.write(f"Generated: {results['execution_info']['start_time'].strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Duration: {results['execution_info']['total_duration']}\n\n")
+                
+                f.write("PARAMETER RANGES:\n")
+                f.write("-" * 20 + "\n")
+                for param, values in param_ranges.items():
+                    f.write(f"{param}: {len(values)} values [{min(values):.3f} to {max(values):.3f}]\n")
+                
+                f.write(f"\nEXECUTION SUMMARY:\n")
+                f.write("-" * 20 + "\n")
+                f.write(f"Total combinations: {total_combinations:,}\n")
+                f.write(f"Successful: {results['completed_combinations']:,}\n")
+                f.write(f"Failed: {results['failed_combinations']:,}\n")
+                f.write(f"Success rate: {results['summary_statistics']['success_rate']:.1f}%\n" if successful_results else "Success rate: 0%\n")
+                f.write(f"Height level: {height_level}\n")
+                f.write(f"Ice load CDF: {calculate_ice_load_cdf}\n")
+                
+                if successful_results:
+                    f.write(f"\nDATA RETENTION STATISTICS:\n")
+                    f.write("-" * 30 + "\n")
+                    stats = results['summary_statistics']['data_retention']
+                    f.write(f"Mean retention: {stats['mean']:.1f}%\n")
+                    f.write(f"Std deviation: {stats['std']:.1f}%\n")
+                    f.write(f"Min retention: {stats['min']:.1f}%\n")
+                    f.write(f"Max retention: {stats['max']:.1f}%\n")
+                    f.write(f"Median retention: {stats['median']:.1f}%\n")
+                    
+                    f.write(f"\nBEST COMBINATIONS:\n")
+                    f.write("-" * 20 + "\n")
+                    for criterion, combo in results['best_combinations'].items():
+                        f.write(f"\n{criterion.replace('_', ' ').title()}:\n")
+                        f.write(f"  Parameters: {combo['parameters']}\n")
+                        f.write(f"  Data retention: {combo['data_retention_percentage']:.1f}%\n")
+                        f.write(f"  Final timesteps: {combo['final_timesteps']:,}\n")
+                        if 'ice_load_stats' in combo:
+                            f.write(f"  Max ice load: {combo['ice_load_stats']['max_ice_load_domain']:.3f} kg/m\n")
+                            f.write(f"  Mean ice occurrence: {combo['ice_load_stats']['mean_ice_occurrence']:.1f}%\n")
+                    
+                    f.write(f"\nALL SUCCESSFUL COMBINATIONS:\n")
+                    f.write("-" * 35 + "\n")
+                    f.write("Index | Parameters | Retention% | Timesteps | Timespan\n")
+                    f.write("-" * 80 + "\n")
+                    
+                    for result in successful_results[:50]:  # Limit to first 50 for readability
+                        params_str = ", ".join([f"{k}={v:.1f}" for k, v in result['parameters'].items()])
+                        f.write(f"{result['combination_index']:5d} | {params_str:30s} | {result['data_retention_percentage']:8.1f} | {result['final_timesteps']:9,d} | {result['filtered_timespan']}\n")
+                    
+                    if len(successful_results) > 50:
+                        f.write(f"... and {len(successful_results) - 50} more combinations\n")
+            
+            if verbose:
+                print(f"   Results saved to: {results_path}")
+        
+        if verbose:
+            print(f"\n✓ Systematic meteorological filtering completed successfully!")
+        
+        return results
+        
+    except Exception as e:
+        print(f"Error in systematic meteorological filtering: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
 # TEMPORAL GRADIENTS
 
 def create_spatial_gradient_time_evolution_plots(ice_load_data):
@@ -4961,6 +5421,8 @@ def explore_emd_data(emd_df):
     print(f"\nData quality:")
     print(f"  Missing values: {emd_df.isnull().sum().sum()} total")
     print(f"  Complete time series: {emd_df.isnull().sum() == 0}.sum() variables")
+
+
 
 
 
