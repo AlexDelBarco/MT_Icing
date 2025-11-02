@@ -29,6 +29,7 @@ Variables:
     RMOL
     T
     WS
+    WD
 
 Attributes: 115
     ADAPT_DT_MAX:                    15.0

@@ -35,6 +35,174 @@ def load_netcdf_data(file_path):
         print(f"Error loading NetCDF file: {e}")
         return None
     
+
+def merge_netcdf_files(main_file_path, additional_file_path, output_file_path, verbose=True):
+    """
+    Merge two NetCDF files by combining their data variables.
+    The main file provides the structure and most variables, while additional variables
+    are added from the additional file.
+    
+    Parameters:
+    -----------
+    main_file_path : str
+        Path to the main NetCDF file (contains most variables)
+    additional_file_path : str
+        Path to the additional NetCDF file (contains variables to be added)
+    output_file_path : str
+        Path where the merged NetCDF file will be saved
+    verbose : bool, optional
+        Whether to print detailed information during the merge process (default: True)
+        
+    Returns:
+    --------
+    bool
+        True if merge was successful, False otherwise
+        
+    Example:
+    --------
+    >>> success = merge_netcdf_files(
+    ...     "data/newa_wrf_for_jana_mstudent_extended.nc",
+    ...     "data/newa_wrf_for_jana_mstudent_extended_WD.nc", 
+    ...     "data/newa_wrf_for_jana_mstudent_extended_merged.nc"
+    ... )
+    """
+    
+    if verbose:
+        print("=== NETCDF FILE MERGING ===")
+        print(f"Main file: {main_file_path}")
+        print(f"Additional file: {additional_file_path}")
+        print(f"Output file: {output_file_path}")
+    
+    try:
+        import xarray as xr
+        import os
+        
+        # Load both datasets
+        if verbose:
+            print(f"\n1. Loading datasets...")
+        
+        main_ds = xr.open_dataset(main_file_path)
+        additional_ds = xr.open_dataset(additional_file_path)
+        
+        if verbose:
+            print(f"   Main dataset variables: {list(main_ds.data_vars.keys())}")
+            print(f"   Additional dataset variables: {list(additional_ds.data_vars.keys())}")
+            print(f"   Main dataset shape: {main_ds.dims}")
+            print(f"   Additional dataset shape: {additional_ds.dims}")
+        
+        # Check if dimensions are compatible
+        if verbose:
+            print(f"\n2. Checking dimension compatibility...")
+        
+        # Get dimensions that matter for data variables (excluding potential differences in coords)
+        main_dims = dict(main_ds.dims)
+        additional_dims = dict(additional_ds.dims)
+        
+        # Check critical dimensions
+        critical_dims = ['time', 'south_north', 'west_east']
+        if 'height' in main_dims:
+            critical_dims.append('height')
+            
+        dimension_compatible = True
+        for dim in critical_dims:
+            if dim in main_dims and dim in additional_dims:
+                if main_dims[dim] != additional_dims[dim]:
+                    print(f"   Warning: Dimension mismatch for '{dim}': {main_dims[dim]} vs {additional_dims[dim]}")
+                    dimension_compatible = False
+                else:
+                    if verbose:
+                        print(f"   ✓ {dim}: {main_dims[dim]} (compatible)")
+            elif dim in main_dims:
+                if verbose:
+                    print(f"   ✓ {dim}: {main_dims[dim]} (only in main file)")
+            elif dim in additional_dims:
+                if verbose:
+                    print(f"   ✓ {dim}: {additional_dims[dim]} (only in additional file)")
+        
+        if not dimension_compatible:
+            print("   Error: Incompatible dimensions between files")
+            return False
+        
+        # Check for variable conflicts
+        if verbose:
+            print(f"\n3. Checking for variable conflicts...")
+        
+        main_vars = set(main_ds.data_vars.keys())
+        additional_vars = set(additional_ds.data_vars.keys())
+        
+        conflicts = main_vars.intersection(additional_vars)
+        if conflicts:
+            print(f"   Warning: Variable conflicts found: {conflicts}")
+            print(f"   Variables from main file will be kept, additional file variables will be skipped")
+        
+        new_vars = additional_vars - conflicts
+        if verbose:
+            print(f"   Variables to be added: {list(new_vars)}")
+        
+        # Merge datasets
+        if verbose:
+            print(f"\n4. Merging datasets...")
+        
+        # Start with the main dataset
+        merged_ds = main_ds.copy(deep=True)
+        
+        # Add new variables from additional dataset
+        for var_name in new_vars:
+            if verbose:
+                print(f"   Adding variable: {var_name}")
+            
+            # Get the variable from additional dataset
+            var_data = additional_ds[var_name]
+            
+            # Add to merged dataset
+            merged_ds[var_name] = var_data
+        
+        # Verify the merge
+        if verbose:
+            print(f"\n5. Verifying merged dataset...")
+            print(f"   Original main variables: {len(main_vars)}")
+            print(f"   Added variables: {len(new_vars)}")
+            print(f"   Total variables in merged dataset: {len(merged_ds.data_vars)}")
+            print(f"   Final variables: {list(merged_ds.data_vars.keys())}")
+        
+        # Save the merged dataset
+        if verbose:
+            print(f"\n6. Saving merged dataset...")
+        
+        # Create output directory if it doesn't exist
+        output_dir = os.path.dirname(output_file_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+        
+        # Save with compression to reduce file size
+        encoding = {}
+        for var in merged_ds.data_vars:
+            if merged_ds[var].dtype in ['float32', 'float64']:
+                encoding[var] = {'zlib': True, 'complevel': 4}
+        
+        merged_ds.to_netcdf(output_file_path, encoding=encoding)
+        
+        if verbose:
+            file_size_mb = os.path.getsize(output_file_path) / (1024 * 1024)
+            print(f"   Merged file saved: {output_file_path}")
+            print(f"   File size: {file_size_mb:.1f} MB")
+        
+        # Clean up
+        main_ds.close()
+        additional_ds.close()
+        merged_ds.close()
+        
+        if verbose:
+            print(f"\n✓ NetCDF file merging completed successfully!")
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error merging NetCDF files: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 # EXPLORE DATASET
 
 def explore_variables(ds):
@@ -4046,6 +4214,7 @@ def plot_ice_load_threshold_exceedance_map(ice_load_data, ice_load_threshold, sa
 def filter_dataset_by_thresholds(dataset, PBLH_min=None, PBLH_max=None, PRECIP_min=None, PRECIP_max=None, 
                                  QVAPOR_min=None, QVAPOR_max=None, RMOL_min=None, RMOL_max=None, 
                                  T_min=None, T_max=None, WS_min=None, WS_max=None, 
+                                 WD_min=None, WD_max=None,
                                  height_level=0, verbose=True, 
                                  calculate_ice_load_cdf=False, dates=None, ice_load_method=None, 
                                  ice_load_threshold=0.0, months=None, percentile=None):
@@ -4069,6 +4238,8 @@ def filter_dataset_by_thresholds(dataset, PBLH_min=None, PBLH_max=None, PRECIP_m
         Minimum and maximum Temperature (K)
     WS_min, WS_max : float, optional
         Minimum and maximum Wind speed (m/s)
+    WD_min, WD_max : float, optional
+        Minimum and maximum Wind direction (degrees, 0-360)
     height_level : int, optional
         Height level index for variables with height dimension (default: 0)
     verbose : bool, optional
@@ -4148,6 +4319,11 @@ def filter_dataset_by_thresholds(dataset, PBLH_min=None, PBLH_max=None, PRECIP_m
                 variable_thresholds['WS'] = (WS_min if WS_min is not None else -np.inf, 
                                              WS_max if WS_max is not None else np.inf)
         
+        if WD_min is not None or WD_max is not None:
+            if 'WD' in available_vars:
+                variable_thresholds['WD'] = (WD_min if WD_min is not None else -np.inf, 
+                                             WD_max if WD_max is not None else np.inf)
+        
         # Check for variables not in dataset
         requested_vars = []
         if PBLH_min is not None or PBLH_max is not None:
@@ -4162,6 +4338,8 @@ def filter_dataset_by_thresholds(dataset, PBLH_min=None, PBLH_max=None, PRECIP_m
             requested_vars.append('T')
         if WS_min is not None or WS_max is not None:
             requested_vars.append('WS')
+        if WD_min is not None or WD_max is not None:
+            requested_vars.append('WD')
         
         missing_vars = [var for var in requested_vars if var not in available_vars]
         
@@ -4192,7 +4370,8 @@ def filter_dataset_by_thresholds(dataset, PBLH_min=None, PBLH_max=None, PRECIP_m
             'QVAPOR_min': QVAPOR_min, 'QVAPOR_max': QVAPOR_max,
             'RMOL_min': RMOL_min, 'RMOL_max': RMOL_max,
             'T_min': T_min, 'T_max': T_max,
-            'WS_min': WS_min, 'WS_max': WS_max
+            'WS_min': WS_min, 'WS_max': WS_max,
+            'WD_min': WD_min, 'WD_max': WD_max
         }
         active_filters = {k: v for k, v in filtering_params.items() if v is not None}
         
@@ -4497,7 +4676,7 @@ def filter_dataset_by_thresholds(dataset, PBLH_min=None, PBLH_max=None, PRECIP_m
 
 def systematic_meteorological_filtering(dataset, 
                                        PBLH_range=None, PRECIP_range=None, QVAPOR_range=None,
-                                       RMOL_range=None, T_range=None, WS_range=None,
+                                       RMOL_range=None, T_range=None, WS_range=None, WD_range=None,
                                        height_level=0, verbose=True, max_combinations=None,
                                        calculate_ice_load_cdf=False, dates=None, ice_load_method=None,
                                        ice_load_threshold=0.0, months=None, percentile=None,
@@ -4524,6 +4703,8 @@ def systematic_meteorological_filtering(dataset,
         Range for Temperature (K)
     WS_range : tuple (min, max, step), optional
         Range for Wind speed (m/s)
+    WD_range : tuple (min, max, step), optional
+        Range for Wind direction (degrees, 0-360)
     height_level : int, optional
         Height level index for variables with height dimension (default: 0)
     verbose : bool, optional
@@ -4617,6 +4798,12 @@ def systematic_meteorological_filtering(dataset,
             min_val, max_val, step = WS_range
             param_ranges['WS'] = list(np.arange(min_val, max_val + step, step))
         
+        if WD_range is not None:
+            if len(WD_range) != 3:
+                raise ValueError("WD_range must be tuple (min, max, step)")
+            min_val, max_val, step = WD_range
+            param_ranges['WD'] = list(np.arange(min_val, max_val + step, step))
+        
         if not param_ranges:
             raise ValueError("At least one parameter range must be specified")
         
@@ -4703,6 +4890,8 @@ def systematic_meteorological_filtering(dataset,
                         filter_params['T_min'] = threshold_value
                     elif param_name == 'WS':
                         filter_params['WS_min'] = threshold_value
+                    elif param_name == 'WD':
+                        filter_params['WD_min'] = threshold_value
                 
                 # Apply filtering
                 filtered_dataset, filter_results = filter_dataset_by_thresholds(**filter_params)
@@ -5251,6 +5440,7 @@ def create_temporal_gradient_plots(ice_load_data):
 
 # EMD DATA IMPORT
 
+
 def import_emd_data(file_path):
     """
     Import EMD text data with metadata extraction and proper formatting
@@ -5366,7 +5556,6 @@ def import_emd_data(file_path):
     except Exception as e:
         print(f"Error reading EMD file: {e}")
         raise
-
 
 def explore_emd_data(emd_df):
     """

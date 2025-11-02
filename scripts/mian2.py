@@ -18,8 +18,26 @@ calculate_new_ice_load = False  # Whether to calculate ice load or load existing
 
 
 # IMPORT DATA
-#Import NEWEA meteorological data
-data1 = "data/newa_wrf_for_jana_mstudent_extended.nc"
+# Merge NetCDF files to combine all meteorological variables
+print("=== MERGING NETCDF FILES ===")
+main_file = "data/newa_wrf_for_jana_mstudent_extended.nc"
+wd_file = "data/newa_wrf_for_jana_mstudent_extended_WD.nc"
+merged_file = "data/newa_wrf_for_jana_mstudent_extended_merged.nc"
+
+# Check if merged file already exists
+if not os.path.exists(merged_file):
+    print("Merged file not found. Creating merged dataset...")
+    success = fn.merge_netcdf_files(main_file, wd_file, merged_file, verbose=True)
+    if not success:
+        print("Failed to merge files. Using main file only.")
+        data1 = main_file
+    else:
+        data1 = merged_file
+else:
+    print("Merged file already exists. Using existing merged dataset...")
+    data1 = merged_file
+
+# Import merged NEWEA meteorological data
 dataset = fn.load_netcdf_data(data1)
 
 # Import EMD data
@@ -32,10 +50,10 @@ dataset = fn.load_netcdf_data(data1)
 height_level = dataset.height.values[height]  # Height level in meters
 print(f"Exploring dataset at height level: {height_level} m")
 # explore the variables
-#fn.explore_variables(dataset)
+# fn.explore_variables(dataset)
 
 # explore one variable in detail in a chosen period
-#fn.explore_variable_detail(dataset, 'LANDMASK')
+# fn.explore_variable_detail(dataset, 'WD')
 
 # Plot grid location on map
 #fn.plot_grid_points_cartopy_map(dataset, margin_degrees=1.5, zoom_level=8, title="Grid Points - Terrain Map")
@@ -61,16 +79,16 @@ dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 # ICE LOAD
 
 # ice load data: load/calculate 
-if calculate_new_ice_load:
-    print("Calculating ice load...")
-    #ice_load_data = fn.calculate_ice_load(dataset, dates, ice_load_method, height_level=height, create_figures=True)
-else:
-    print("Loading existing ice load data...")
-    filename = f"results/iceload_19890701_to_20220701_h150m.nc"
-    ice_load_data = xr.open_dataarray(filename)
+# if calculate_new_ice_load:
+#     print("Calculating ice load...")
+#     #ice_load_data = fn.calculate_ice_load(dataset, dates, ice_load_method, height_level=height, create_figures=True)
+# else:
+#     print("Loading existing ice load data...")
+#     filename = f"results/iceload_19890701_to_20220701_h150m.nc"
+#     ice_load_data = xr.open_dataarray(filename)
 
-    print(f"Loaded ice load data from: {filename}")
-    print(f"Loaded ice load data with shape: {ice_load_data.shape}")
+#     print(f"Loaded ice load data from: {filename}")
+#     print(f"Loaded ice load data with shape: {ice_load_data.shape}")
 
 
 # SPATIAL GRADIENTS
@@ -100,7 +118,7 @@ else:
 # cdf_log_results = fn.plot_ice_load_cdf_curves_log_scale(ice_load_data, save_plots=True, ice_load_threshold=0, months=[1,2,12])
 
 # Analyze ice load CDF curves for all grid cells after meteorological filtering
-print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ===")
+#print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ===")
 # filtered_ds, results = fn.filter_dataset_by_thresholds(
 #     dataset=dataset,
 #     # Meteorological filters
@@ -131,7 +149,8 @@ print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ===")
 print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ; SYSTEMATIC ===")
 results_sys_filter = fn.systematic_meteorological_filtering(
     dataset,
-    WS_range=(10, 12, 1),           # Wind speed range: min=5, max=15, step=5 -> [5, 10, 15]
+    WD_range=(0, 360, 10),           # Wind direction range: min=0, max=360, step=10 -> [0, 10, 20, ..., 360]
+    WS_range=None,           # Wind speed range: min=5, max=15, step=5 -> [5, 10, 15]
     T_range=None,        # Temperature range  
     PBLH_range=None,    # Boundary layer height
     PRECIP_range=None,      # Precipitation
