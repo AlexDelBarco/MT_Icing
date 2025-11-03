@@ -761,7 +761,8 @@ def ice_load(accre,ablat,method):
         acm = np.zeros_like(accre.isel(time=0))
         
         for i in range(1, len(accre.time)):
-            #print(i,len(accre.time))
+            if i % 1000 == 0:  # Progress indicator every 1000 steps
+                print(f"  Ice load progress: {i}/{len(accre.time)} ({i/len(accre.time)*100:.1f}%)")
             # Calculate change in ice load
             #delta = xr.where(accre.isel(time=i) > 0.0005, accre.isel(time=i), 0) + xr.where(ablat.isel(time=i) < 0, ablat.isel(time=i), 0)
             delta = xr.where(accre.isel(time=i) > 0.0005, accre.isel(time=i), xr.where(ablat.isel(time=i) < 0, ablat.isel(time=i), 0))
@@ -832,8 +833,9 @@ def calculate_ice_load(ds1, dates, method, height_level=0, create_figures=True):
         print(f"Processing winter {idate+1}/{len(dates)-1}: {date} to {dates[idate+1]-pd.to_timedelta('30min')}")
         
         # Get data for this winter period at specified height level
-        winter_accre = ds1['ACCRE_CYL'].isel(height=height_level).sel(time=slice(date,dates[idate+1]-pd.to_timedelta('30min'))).load()
-        winter_ablat = ds1['ABLAT_CYL'].isel(height=height_level).sel(time=slice(date,dates[idate+1]-pd.to_timedelta('30min'))).load()
+        # Avoid .load() on sliced data for better performance with filtered datasets
+        winter_accre = ds1['ACCRE_CYL'].isel(height=height_level).sel(time=slice(date,dates[idate+1]-pd.to_timedelta('30min')))
+        winter_ablat = ds1['ABLAT_CYL'].isel(height=height_level).sel(time=slice(date,dates[idate+1]-pd.to_timedelta('30min')))
         
         # Check if there's data for this winter
         if len(winter_accre.time) == 0:
@@ -4406,7 +4408,6 @@ def filter_dataset_by_thresholds(dataset, PBLH_min=None, PBLH_max=None, PRECIP_m
                 var_values = var_data
             
             # Create mask for this variable (True where values are within bounds)
-            # For spatial variables, we need all grid points to be within bounds for a timestep to be valid
             var_mask = (var_values >= lower) & (var_values <= upper)
             
             # For variables with spatial dimensions, require ALL grid points to satisfy the condition
@@ -4422,14 +4423,20 @@ def filter_dataset_by_thresholds(dataset, PBLH_min=None, PBLH_max=None, PRECIP_m
             removed_timesteps = total_timesteps - valid_timesteps
             removal_percentage = (removed_timesteps / total_timesteps) * 100
             
+            # Use appropriate values for statistics calculation
+            if var_name == 'WD' and 'south_north' in var_values.dims and 'west_east' in var_values.dims:
+                stats_values = var_values.mean(dim=['south_north', 'west_east'])
+            else:
+                stats_values = var_values
+            
             filter_stats[var_name] = {
                 'threshold_lower': lower,
                 'threshold_upper': upper,
                 'valid_timesteps': valid_timesteps,
                 'removed_timesteps': removed_timesteps,
                 'removal_percentage': removal_percentage,
-                'original_range': (float(var_values.min()), float(var_values.max())),
-                'original_mean': float(var_values.mean())
+                'original_range': (float(stats_values.min()), float(stats_values.max())),
+                'original_mean': float(stats_values.mean())
             }
             
             if verbose:
@@ -4469,6 +4476,18 @@ def filter_dataset_by_thresholds(dataset, PBLH_min=None, PBLH_max=None, PRECIP_m
             try:
                 # Method 1: Use sel with boolean indexing
                 filtered_dataset = dataset.isel(time=mask_values)
+                
+                # Fix coordinate inconsistencies after filtering
+                # This prevents xarray dimension/coordinate mismatch errors
+                filtered_dataset = filtered_dataset.copy()
+                
+                # Ensure time coordinate is properly aligned
+                if 'time' in filtered_dataset.coords:
+                    # Reset time coordinate to prevent dimension mismatches
+                    time_coord = filtered_dataset.coords['time']
+                    if hasattr(time_coord, 'values'):
+                        filtered_dataset = filtered_dataset.assign_coords(time=time_coord.values)
+                
             except Exception as e:
                 if verbose:
                     print(f"   Warning: Standard filtering failed, trying alternative method...")
