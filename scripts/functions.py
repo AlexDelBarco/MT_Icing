@@ -5269,752 +5269,6 @@ def systematic_meteorological_filtering(dataset,
         traceback.print_exc()
         return None
 
-
-# TEMPORAL GRADIENTS
-
-def create_spatial_gradient_time_evolution_plots(ice_load_data):
-    """
-    Create spatial gradient analysis showing how gradients evolve over time
-    
-    Parameters:
-    -----------
-    ice_load_data : xarray.DataArray
-        Raw ice load data (may contain NaN values)
-    
-    Returns:
-    --------
-    dict
-        Dictionary containing gradient evolution statistics
-    """
-    print("Creating spatial gradient time evolution analysis...")
-    
-    # Create spatial_gradient subfolder if it doesn't exist
-    spatial_gradient_dir = os.path.join(figures_dir, "spatial_gradient")
-    os.makedirs(spatial_gradient_dir, exist_ok=True)
-    
-    # Clean the data by removing NaN values
-    ice_load_clean = ice_load_data.where(~np.isnan(ice_load_data), drop=True)
-    
-    if len(ice_load_clean.time) == 0:
-        print("No valid ice load data found!")
-        return None
-    
-    print("Computing spatial gradients for all time steps...")
-    
-    # Initialize arrays to store gradient statistics over time
-    time_values = ice_load_clean.time.values
-    gradient_magnitude_mean = np.zeros(len(time_values))
-    gradient_magnitude_max = np.zeros(len(time_values))
-    gradient_magnitude_std = np.zeros(len(time_values))
-    gradient_x_mean = np.zeros(len(time_values))
-    gradient_y_mean = np.zeros(len(time_values))
-    
-    # Calculate spatial gradients for each time step
-    for i, time_step in enumerate(time_values):
-        ice_2d_t = ice_load_clean.sel(time=time_step).values
-        
-        # Skip if all NaN
-        if not np.all(np.isnan(ice_2d_t)):
-            grad_y_t, grad_x_t = np.gradient(ice_2d_t)
-            gradient_magnitude_t = np.sqrt(grad_x_t**2 + grad_y_t**2)
-            
-            # Store statistics for this time step
-            gradient_magnitude_mean[i] = np.nanmean(gradient_magnitude_t)
-            gradient_magnitude_max[i] = np.nanmax(gradient_magnitude_t)
-            gradient_magnitude_std[i] = np.nanstd(gradient_magnitude_t)
-            gradient_x_mean[i] = np.nanmean(grad_x_t)
-            gradient_y_mean[i] = np.nanmean(grad_y_t)
-        else:
-            gradient_magnitude_mean[i] = np.nan
-            gradient_magnitude_max[i] = np.nan
-            gradient_magnitude_std[i] = np.nan
-            gradient_x_mean[i] = np.nan
-            gradient_y_mean[i] = np.nan
-    
-    # Create the time evolution plots
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    
-    # Convert time to pandas datetime for better plotting
-    time_pd = pd.to_datetime(time_values)
-    
-    # Plot 1: Gradient magnitude statistics over time
-    axes[0,0].plot(time_pd, gradient_magnitude_mean, label='Mean', color='blue', alpha=0.8)
-    axes[0,0].plot(time_pd, gradient_magnitude_max, label='Maximum', color='red', alpha=0.8)
-    axes[0,0].fill_between(time_pd, 
-                          gradient_magnitude_mean - gradient_magnitude_std, 
-                          gradient_magnitude_mean + gradient_magnitude_std, 
-                          alpha=0.3, color='blue', label='±1 Std Dev')
-    axes[0,0].set_title('Spatial Gradient Magnitude Evolution')
-    axes[0,0].set_xlabel('Time')
-    axes[0,0].set_ylabel('Gradient Magnitude (kg/m per grid)')
-    axes[0,0].legend()
-    axes[0,0].grid(True, alpha=0.3)
-    
-    # Plot 2: Directional gradient evolution (West-East)
-    axes[0,1].plot(time_pd, gradient_x_mean, color='orange', alpha=0.8)
-    axes[0,1].set_title('Mean West-East Gradient Evolution')
-    axes[0,1].set_xlabel('Time')
-    axes[0,1].set_ylabel('West-East Gradient (kg/m per grid)')
-    axes[0,1].axhline(y=0, color='black', linestyle='--', alpha=0.5)
-    axes[0,1].grid(True, alpha=0.3)
-    
-    # Plot 3: Directional gradient evolution (South-North)
-    axes[1,0].plot(time_pd, gradient_y_mean, color='green', alpha=0.8)
-    axes[1,0].set_title('Mean South-North Gradient Evolution')
-    axes[1,0].set_xlabel('Time')
-    axes[1,0].set_ylabel('South-North Gradient (kg/m per grid)')
-    axes[1,0].axhline(y=0, color='black', linestyle='--', alpha=0.5)
-    axes[1,0].grid(True, alpha=0.3)
-    
-    # Plot 4: Gradient variability over time
-    axes[1,1].plot(time_pd, gradient_magnitude_std, color='purple', alpha=0.8)
-    axes[1,1].set_title('Spatial Gradient Variability Over Time')
-    axes[1,1].set_xlabel('Time')
-    axes[1,1].set_ylabel('Gradient Std Dev (kg/m per grid)')
-    axes[1,1].grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    
-    # Save the figure
-    time_evolution_filename = os.path.join(spatial_gradient_dir, 'spatial_gradient_time_evolution.png')
-    plt.savefig(time_evolution_filename, dpi=300, bbox_inches='tight')
-    print(f"Saved: {time_evolution_filename}")
-    plt.close()
-    
-    # Create a second figure showing seasonal patterns if multiple years of data
-    print("Creating seasonal gradient analysis...")
-    
-    # Extract hour of day and month for seasonal analysis
-    hours = pd.to_datetime(time_values).hour
-    months = pd.to_datetime(time_values).month
-    
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    
-    # Plot 1: Gradient magnitude by hour of day
-    hourly_grad_mean = []
-    hourly_grad_std = []
-    for hour in range(24):
-        hour_mask = hours == hour
-        if np.any(hour_mask):
-            hourly_grad_mean.append(np.nanmean(gradient_magnitude_mean[hour_mask]))
-            hourly_grad_std.append(np.nanstd(gradient_magnitude_mean[hour_mask]))
-        else:
-            hourly_grad_mean.append(np.nan)
-            hourly_grad_std.append(np.nan)
-    
-    axes[0,0].plot(range(24), hourly_grad_mean, marker='o', color='blue')
-    axes[0,0].fill_between(range(24), 
-                          np.array(hourly_grad_mean) - np.array(hourly_grad_std),
-                          np.array(hourly_grad_mean) + np.array(hourly_grad_std),
-                          alpha=0.3, color='blue')
-    axes[0,0].set_title('Average Gradient Magnitude by Hour of Day')
-    axes[0,0].set_xlabel('Hour of Day')
-    axes[0,0].set_ylabel('Mean Gradient Magnitude')
-    axes[0,0].set_xticks(range(0, 24, 3))
-    axes[0,0].grid(True, alpha=0.3)
-    
-    # Plot 2: Gradient magnitude by month
-    monthly_grad_mean = []
-    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    for month in range(1, 13):
-        month_mask = months == month
-        if np.any(month_mask):
-            monthly_grad_mean.append(np.nanmean(gradient_magnitude_mean[month_mask]))
-        else:
-            monthly_grad_mean.append(np.nan)
-    
-    axes[0,1].bar(month_names, monthly_grad_mean, color='orange', alpha=0.7)
-    axes[0,1].set_title('Average Gradient Magnitude by Month')
-    axes[0,1].set_xlabel('Month')
-    axes[0,1].set_ylabel('Mean Gradient Magnitude')
-    axes[0,1].tick_params(axis='x', rotation=45)
-    axes[0,1].grid(True, alpha=0.3)
-    
-    # Plot 3: West-East gradient by hour
-    hourly_grad_x = []
-    for hour in range(24):
-        hour_mask = hours == hour
-        if np.any(hour_mask):
-            hourly_grad_x.append(np.nanmean(gradient_x_mean[hour_mask]))
-        else:
-            hourly_grad_x.append(np.nan)
-    
-    axes[1,0].plot(range(24), hourly_grad_x, marker='s', color='red')
-    axes[1,0].set_title('Average West-East Gradient by Hour of Day')
-    axes[1,0].set_xlabel('Hour of Day')
-    axes[1,0].set_ylabel('Mean West-East Gradient')
-    axes[1,0].set_xticks(range(0, 24, 3))
-    axes[1,0].axhline(y=0, color='black', linestyle='--', alpha=0.5)
-    axes[1,0].grid(True, alpha=0.3)
-    
-    # Plot 4: South-North gradient by hour
-    hourly_grad_y = []
-    for hour in range(24):
-        hour_mask = hours == hour
-        if np.any(hour_mask):
-            hourly_grad_y.append(np.nanmean(gradient_y_mean[hour_mask]))
-        else:
-            hourly_grad_y.append(np.nan)
-    
-    axes[1,1].plot(range(24), hourly_grad_y, marker='^', color='green')
-    axes[1,1].set_title('Average South-North Gradient by Hour of Day')
-    axes[1,1].set_xlabel('Hour of Day')
-    axes[1,1].set_ylabel('Mean South-North Gradient')
-    axes[1,1].set_xticks(range(0, 24, 3))
-    axes[1,1].axhline(y=0, color='black', linestyle='--', alpha=0.5)
-    axes[1,1].grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    
-    # Save the seasonal figure
-    seasonal_filename = os.path.join(spatial_gradient_dir, 'spatial_gradient_seasonal_patterns.png')
-    plt.savefig(seasonal_filename, dpi=300, bbox_inches='tight')
-    print(f"Saved: {seasonal_filename}")
-    plt.close()
-    
-    # Return statistics
-    return {
-        'max_gradient_evolution': np.nanmax(gradient_magnitude_mean),
-        'mean_gradient_evolution': np.nanmean(gradient_magnitude_mean),
-        'gradient_temporal_variability': np.nanstd(gradient_magnitude_mean),
-        'peak_hour_gradient': int(np.nanargmax(hourly_grad_mean)),
-        'min_hour_gradient': int(np.nanargmin(hourly_grad_mean))
-    }
-
-def create_temporal_gradient_plots(ice_load_data):
-
-    """
-    Create temporal gradient analysis plots for ice load data
-    
-    Parameters:
-    -----------
-    ice_load_data : xarray.DataArray
-        Raw ice load data (may contain NaN values)
-    
-    Returns:
-    --------
-    dict
-        Dictionary containing temporal gradient statistics
-    """
-    print("Creating temporal gradient analysis...")
-    
-    # Create temporal_gradient subfolder if it doesn't exist
-    temporal_gradient_dir = os.path.join(figures_dir, "temporal_gradient")
-    os.makedirs(temporal_gradient_dir, exist_ok=True)
-    
-    # Clean the data by removing NaN values
-    ice_load_clean = ice_load_data.where(~np.isnan(ice_load_data), drop=True)
-    
-    # Calculate temporal gradient (rate of change over time)
-    temporal_gradient = ice_load_clean.diff(dim='time')
-    
-    # Get statistics of temporal changes
-    temp_grad_mean = temporal_gradient.mean(dim=['south_north', 'west_east'])
-    temp_grad_std = temporal_gradient.std(dim=['south_north', 'west_east'])
-    temp_grad_max = temporal_gradient.max(dim=['south_north', 'west_east'])
-    temp_grad_min = temporal_gradient.min(dim=['south_north', 'west_east'])
-    
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-    
-    # Mean temporal gradient over time
-    axes[0,0].plot(temp_grad_mean.time, temp_grad_mean.values)
-    axes[0,0].set_title('Mean Temporal Gradient (Rate of Change)')
-    axes[0,0].set_xlabel('Time')
-    axes[0,0].set_ylabel('Mean Rate of Change (kg/m per 30min)')
-    axes[0,0].grid(True, alpha=0.3)
-    axes[0,0].axhline(y=0, color='red', linestyle='--', alpha=0.5)
-    
-    # Standard deviation of temporal gradient
-    axes[0,1].plot(temp_grad_std.time, temp_grad_std.values, color='orange')
-    axes[0,1].set_title('Temporal Gradient Variability')
-    axes[0,1].set_xlabel('Time')
-    axes[0,1].set_ylabel('Std Dev of Rate of Change (kg/m per 30min)')
-    axes[0,1].grid(True, alpha=0.3)
-    
-    # Maximum and minimum temporal gradients
-    axes[1,0].plot(temp_grad_max.time, temp_grad_max.values, label='Maximum', color='red')
-    axes[1,0].plot(temp_grad_min.time, temp_grad_min.values, label='Minimum', color='blue')
-    axes[1,0].set_title('Extreme Temporal Gradients')
-    axes[1,0].set_xlabel('Time')
-    axes[1,0].set_ylabel('Rate of Change (kg/m per 30min)')
-    axes[1,0].legend()
-    axes[1,0].grid(True, alpha=0.3)
-    axes[1,0].axhline(y=0, color='black', linestyle='--', alpha=0.5)
-    
-    # Histogram of all temporal gradients
-    all_temp_gradients = temporal_gradient.values.flatten()
-    all_temp_gradients = all_temp_gradients[~np.isnan(all_temp_gradients)]
-    
-    axes[1,1].hist(all_temp_gradients, bins=50, alpha=0.7, edgecolor='black')
-    axes[1,1].set_title('Distribution of Temporal Gradients')
-    axes[1,1].set_xlabel('Rate of Change (kg/m per 30min)')
-    axes[1,1].set_ylabel('Frequency')
-    axes[1,1].axvline(x=0, color='red', linestyle='--', alpha=0.7)
-    axes[1,1].grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    
-    temporal_grad_filename = os.path.join(temporal_gradient_dir, 'ice_load_temporal_gradients.png')
-    plt.savefig(temporal_grad_filename, dpi=300, bbox_inches='tight')
-    print(f"Saved: {temporal_grad_filename}")
-    plt.close()
-    
-    # Return statistics for use in summary
-    return {
-        'max_temporal_gradient': all_temp_gradients.max(),
-        'min_temporal_gradient': all_temp_gradients.min()
-    }
-
-
-# EMD DATA IMPORT
-
-def systematic_meteorological_filtering_with_ice_load(
-    dataset_with_ice_load,
-    ice_load_variable='ICE_LOAD',
-    WD_range=None,
-    WS_range=None,
-    T_range=None,
-    PBLH_range=None,
-    PRECIP_range=None,
-    QVAPOR_range=None,
-    RMOL_range=None,
-    ice_load_threshold=0.1,
-    months=None,
-    percentile=None,
-    save_results=True,
-    height_level=0,
-    results_subdir="systematic_filtering_with_ice_load"
-):
-    """
-    Systematic meteorological filtering using a dataset that already contains ice load data
-    
-    This function is more efficient than systematic_meteorological_filtering because it uses
-    pre-calculated ice load data instead of recalculating it for each filter combination.
-    
-    Parameters:
-    -----------
-    dataset_with_ice_load : xarray.Dataset
-        Dataset that already contains ice load as a variable (from add_ice_load_to_dataset)
-    ice_load_variable : str, optional
-        Name of the ice load variable in the dataset (default: 'ICE_LOAD')
-    WD_range : tuple, optional
-        Wind direction filtering range: (min, max, step)
-        Example: (0, 360, 30) for [0, 30, 60, ..., 360] degrees
-    WS_range : tuple, optional
-        Wind speed filtering range: (min, max, step)
-        Example: (5, 20, 5) for [5, 10, 15, 20] m/s
-    T_range : tuple, optional
-        Temperature filtering range: (min, max, step)
-        Example: (250, 280, 10) for [250, 260, 270, 280] K
-    PBLH_range : tuple, optional
-        Boundary layer height filtering range: (min, max, step)
-    PRECIP_range : tuple, optional
-        Precipitation filtering range: (min, max, step)
-    QVAPOR_range : tuple, optional
-        Water vapor mixing ratio filtering range: (min, max, step)
-    RMOL_range : tuple, optional
-        Monin-Obukhov length filtering range: (min, max, step)
-    ice_load_threshold : float, optional
-        Minimum ice load threshold for CDF analysis (default: 0.1)
-    months : list, optional
-        List of months to include in analysis (e.g., [1,2,12] for winter)
-    percentile : float, optional
-        Remove extreme outliers above this percentile (e.g., 99.5)
-    save_results : bool, optional
-        Whether to save results to files (default: True)
-    height_level : int, optional
-        Height level index to use for filtering (default: 0)
-    results_subdir : str, optional
-        Subdirectory name for saving results (default: "systematic_filtering_with_ice_load")
-        
-    Returns:
-    --------
-    dict
-        Dictionary containing results for each filter combination
-    """
-    
-    print("=== SYSTEMATIC METEOROLOGICAL FILTERING WITH EXISTING ICE LOAD ===")
-    print(f"Using pre-calculated ice load variable: {ice_load_variable}")
-    
-    # Check if ice load variable exists
-    if ice_load_variable not in dataset_with_ice_load.data_vars:
-        raise ValueError(f"Ice load variable '{ice_load_variable}' not found in dataset. "
-                        f"Available variables: {list(dataset_with_ice_load.data_vars.keys())}")
-    
-    # Get ice load data
-    ice_load_data = dataset_with_ice_load[ice_load_variable].isel(height=height_level)
-    print(f"Ice load data shape: {ice_load_data.shape}")
-    print(f"Using height level {height_level}: {dataset_with_ice_load.height.values[height_level]} m")
-    
-    # Create results directory
-    if save_results:
-        base_results_dir = os.path.join(results_dir, results_subdir)
-        os.makedirs(base_results_dir, exist_ok=True)
-        print(f"Results will be saved to: {base_results_dir}")
-    
-    # Define parameter ranges
-    filter_params = {}
-    
-    if WD_range is not None:
-        min_val, max_val, step = WD_range
-        filter_params['WD'] = list(range(int(min_val), int(max_val) + 1, int(step)))
-    
-    if WS_range is not None:
-        min_val, max_val, step = WS_range
-        filter_params['WS'] = list(np.arange(min_val, max_val + step, step))
-    
-    if T_range is not None:
-        min_val, max_val, step = T_range
-        filter_params['T'] = list(np.arange(min_val, max_val + step, step))
-    
-    if PBLH_range is not None:
-        min_val, max_val, step = PBLH_range
-        filter_params['PBLH'] = list(np.arange(min_val, max_val + step, step))
-    
-    if PRECIP_range is not None:
-        min_val, max_val, step = PRECIP_range
-        filter_params['PRECIP'] = list(np.arange(min_val, max_val + step, step))
-    
-    if QVAPOR_range is not None:
-        min_val, max_val, step = QVAPOR_range
-        filter_params['QVAPOR'] = list(np.arange(min_val, max_val + step, step))
-    
-    if RMOL_range is not None:
-        min_val, max_val, step = RMOL_range
-        filter_params['RMOL'] = list(np.arange(min_val, max_val + step, step))
-    
-    print(f"\nFilter parameters defined:")
-    for param, values in filter_params.items():
-        print(f"  {param}: {len(values)} values from {min(values)} to {max(values)}")
-    
-    # Generate all combinations
-    from itertools import product
-    
-    param_names = list(filter_params.keys())
-    param_values = list(filter_params.values())
-    
-    if not param_names:
-        print("No filter parameters specified. Nothing to do.")
-        return {}
-    
-    combinations = list(product(*param_values))
-    total_combinations = len(combinations)
-    
-    print(f"\nTotal filter combinations to process: {total_combinations}")
-    
-    # Process each combination
-    results = {}
-    
-    for i, combination in enumerate(combinations):
-        print(f"\n--- Processing combination {i+1}/{total_combinations} ---")
-        
-        # Create filter dictionary
-        filter_dict = dict(zip(param_names, combination))
-        filter_name = "_".join([f"{k}{v}" for k, v in filter_dict.items()])
-        
-        print(f"Filter: {filter_dict}")
-        
-        try:
-            # Apply meteorological filtering
-            filtered_ds = apply_meteorological_filters_to_dataset(
-                dataset_with_ice_load,
-                height_level=height_level,
-                months=months,
-                percentile=percentile,
-                **filter_dict
-            )
-            
-            if filtered_ds is None:
-                print(f"  No data remaining after filtering. Skipping...")
-                results[filter_name] = {
-                    'filter_params': filter_dict,
-                    'data_points': 0,
-                    'error': 'No data remaining after filtering'
-                }
-                continue
-            
-            # Get filtered ice load data
-            filtered_ice_load = filtered_ds[ice_load_variable].isel(height=height_level)
-            
-            # Remove NaN values
-            ice_load_clean = filtered_ice_load.where(~np.isnan(filtered_ice_load), drop=True)
-            
-            if len(ice_load_clean.time) == 0:
-                print(f"  No valid ice load data after filtering. Skipping...")
-                results[filter_name] = {
-                    'filter_params': filter_dict,
-                    'data_points': 0,
-                    'error': 'No valid ice load data after filtering'
-                }
-                continue
-            
-            data_points = len(ice_load_clean.time)
-            print(f"  Data points after filtering: {data_points:,}")
-            
-            # Calculate CDF statistics
-            ice_values = ice_load_clean.values.flatten()
-            ice_values_clean = ice_values[ice_values >= ice_load_threshold]
-            
-            if len(ice_values_clean) == 0:
-                print(f"  No ice load values above threshold {ice_load_threshold}. Skipping CDF analysis...")
-                results[filter_name] = {
-                    'filter_params': filter_dict,
-                    'data_points': data_points,
-                    'ice_load_stats': {
-                        'max': float(ice_values.max()) if len(ice_values) > 0 else 0,
-                        'mean': float(ice_values.mean()) if len(ice_values) > 0 else 0,
-                        'above_threshold': 0
-                    },
-                    'error': f'No values above threshold {ice_load_threshold}'
-                }
-                continue
-            
-            # Calculate ice load statistics
-            ice_stats = {
-                'max': float(ice_values.max()),
-                'mean': float(ice_values.mean()),
-                'above_threshold': len(ice_values_clean),
-                'threshold_percentage': (len(ice_values_clean) / len(ice_values)) * 100
-            }
-            
-            print(f"  Ice load max: {ice_stats['max']:.3f} kg/m")
-            print(f"  Ice load mean: {ice_stats['mean']:.3f} kg/m")
-            print(f"  Values above threshold: {ice_stats['above_threshold']:,} ({ice_stats['threshold_percentage']:.1f}%)")
-            
-            # Create CDF analysis if requested
-            cdf_results = None
-            if save_results:
-                try:
-                    # Use existing CDF plotting function
-                    cdf_results = create_cdf_analysis_for_filtered_data(
-                        ice_values_clean,
-                        filter_name,
-                        filter_dict,
-                        ice_load_threshold,
-                        base_results_dir
-                    )
-                except Exception as e:
-                    print(f"  Warning: CDF analysis failed: {e}")
-            
-            # Store results
-            results[filter_name] = {
-                'filter_params': filter_dict,
-                'data_points': data_points,
-                'ice_load_stats': ice_stats,
-                'cdf_results': cdf_results
-            }
-            
-        except Exception as e:
-            print(f"  Error processing combination: {e}")
-            results[filter_name] = {
-                'filter_params': filter_dict,
-                'data_points': 0,
-                'error': str(e)
-            }
-    
-    # Save summary results
-    if save_results:
-        save_systematic_filtering_summary(results, base_results_dir)
-    
-    print(f"\n=== SYSTEMATIC FILTERING COMPLETED ===")
-    print(f"Processed {total_combinations} filter combinations")
-    print(f"Successful combinations: {sum(1 for r in results.values() if 'error' not in r)}")
-    
-    return results
-
-
-def apply_meteorological_filters_to_dataset(dataset, height_level=0, months=None, percentile=None, **filter_params):
-    """
-    Apply meteorological filters to a dataset with existing ice load
-    
-    Parameters:
-    -----------
-    dataset : xarray.Dataset
-        Dataset to filter
-    height_level : int
-        Height level to use for filtering
-    months : list, optional
-        Months to include
-    percentile : float, optional
-        Percentile threshold for outlier removal
-    **filter_params : dict
-        Filter parameters (WD, WS, T, etc.)
-        
-    Returns:
-    --------
-    xarray.Dataset or None
-        Filtered dataset or None if no data remains
-    """
-    
-    filtered_ds = dataset.copy()
-    
-    # Apply month filtering
-    if months is not None:
-        time_df = pd.to_datetime(filtered_ds.time.values)
-        month_mask = time_df.month.isin(months)
-        if not month_mask.any():
-            return None
-        filtered_ds = filtered_ds.sel(time=filtered_ds.time[month_mask])
-    
-    # Apply meteorological filters
-    mask = xr.ones_like(filtered_ds.time, dtype=bool)
-    
-    for param, value in filter_params.items():
-        if param in filtered_ds.data_vars:
-            param_data = filtered_ds[param].isel(height=height_level)
-            
-            if param == 'WD':  # Wind direction needs special handling
-                if value == 0:
-                    # North: 350-360 and 0-10 degrees
-                    wd_mask = ((param_data >= 350) & (param_data <= 360)) | ((param_data >= 0) & (param_data <= 10))
-                else:
-                    # Other directions: value ± 10 degrees
-                    wd_mask = (param_data >= value - 10) & (param_data <= value + 10)
-                mask = mask & wd_mask
-            else:
-                # For other parameters, use value as minimum threshold
-                param_mask = param_data >= value
-                mask = mask & param_mask
-    
-    # Apply the combined mask
-    if not mask.any():
-        return None
-    
-    filtered_ds = filtered_ds.sel(time=filtered_ds.time[mask])
-    
-    # Apply percentile filtering if specified
-    if percentile is not None and 'ICE_LOAD' in filtered_ds.data_vars:
-        ice_load_data = filtered_ds['ICE_LOAD'].isel(height=height_level)
-        threshold = np.nanpercentile(ice_load_data.values, percentile)
-        ice_mask = ice_load_data <= threshold
-        if ice_mask.any():
-            filtered_ds = filtered_ds.sel(time=filtered_ds.time[ice_mask])
-    
-    return filtered_ds if len(filtered_ds.time) > 0 else None
-
-
-def create_cdf_analysis_for_filtered_data(ice_values, filter_name, filter_dict, threshold, output_dir):
-    """
-    Create CDF analysis for filtered ice load data
-    
-    Parameters:
-    -----------
-    ice_values : numpy.array
-        Ice load values above threshold
-    filter_name : str
-        Name for this filter combination
-    filter_dict : dict
-        Filter parameters
-    threshold : float
-        Ice load threshold
-    output_dir : str
-        Output directory for saving plots
-        
-    Returns:
-    --------
-    dict
-        CDF analysis results
-    """
-    
-    # Calculate CDF
-    sorted_values = np.sort(ice_values)
-    n = len(sorted_values)
-    cdf = np.arange(1, n + 1) / n
-    
-    # Calculate percentiles
-    percentiles = [50, 90, 95, 99, 99.9]
-    percentile_values = {}
-    for p in percentiles:
-        percentile_values[f'p{p}'] = np.percentile(sorted_values, p)
-    
-    # Create CDF plot
-    plt.figure(figsize=(10, 6))
-    plt.plot(sorted_values, cdf, linewidth=2)
-    plt.xlabel('Ice Load (kg/m)')
-    plt.ylabel('Cumulative Probability')
-    plt.title(f'Ice Load CDF - {filter_name}')
-    plt.grid(True, alpha=0.3)
-    
-    # Add percentile lines
-    for p in [90, 95, 99]:
-        val = percentile_values[f'p{p}']
-        plt.axvline(val, color='red', linestyle='--', alpha=0.7, 
-                   label=f'P{p} = {val:.2f} kg/m')
-    
-    plt.legend()
-    plt.tight_layout()
-    
-    # Save plot
-    plot_filename = os.path.join(output_dir, f'cdf_{filter_name}.png')
-    plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    return {
-        'percentiles': percentile_values,
-        'plot_file': plot_filename,
-        'n_values': n,
-        'min_value': float(sorted_values[0]),
-        'max_value': float(sorted_values[-1])
-    }
-
-
-def save_systematic_filtering_summary(results, output_dir):
-    """
-    Save summary of systematic filtering results
-    """
-    
-    summary_file = os.path.join(output_dir, 'filtering_summary.txt')
-    
-    with open(summary_file, 'w') as f:
-        f.write("SYSTEMATIC METEOROLOGICAL FILTERING SUMMARY\n")
-        f.write("=" * 50 + "\n\n")
-        
-        successful_results = {k: v for k, v in results.items() if 'error' not in v}
-        
-        f.write(f"Total combinations: {len(results)}\n")
-        f.write(f"Successful combinations: {len(successful_results)}\n")
-        f.write(f"Failed combinations: {len(results) - len(successful_results)}\n\n")
-        
-        if successful_results:
-            f.write("SUCCESSFUL COMBINATIONS:\n")
-            f.write("-" * 30 + "\n")
-            
-            for name, result in successful_results.items():
-                f.write(f"\nFilter: {name}\n")
-                f.write(f"Parameters: {result['filter_params']}\n")
-                f.write(f"Data points: {result['data_points']:,}\n")
-                
-                if 'ice_load_stats' in result:
-                    stats = result['ice_load_stats']
-                    f.write(f"Ice load max: {stats['max']:.3f} kg/m\n")
-                    f.write(f"Ice load mean: {stats['mean']:.3f} kg/m\n")
-                    f.write(f"Above threshold: {stats['above_threshold']:,} ({stats.get('threshold_percentage', 0):.1f}%)\n")
-                
-                if 'cdf_results' in result and result['cdf_results']:
-                    cdf = result['cdf_results']
-                    f.write(f"P90: {cdf['percentiles']['p90']:.3f} kg/m\n")
-                    f.write(f"P95: {cdf['percentiles']['p95']:.3f} kg/m\n")
-                    f.write(f"P99: {cdf['percentiles']['p99']:.3f} kg/m\n")
-        
-        failed_results = {k: v for k, v in results.items() if 'error' in v}
-        if failed_results:
-            f.write(f"\n\nFAILED COMBINATIONS:\n")
-            f.write("-" * 25 + "\n")
-            
-            for name, result in failed_results.items():
-                f.write(f"\nFilter: {name}\n")
-                f.write(f"Parameters: {result['filter_params']}\n")
-                f.write(f"Error: {result['error']}\n")
-    
-    print(f"Summary saved to: {summary_file}")
-
-
-
-
-
-
-
 def analyze_ice_load_with_filtering_and_cdf(
     dataset_with_ice_load,
     ice_load_variable='ICE_LOAD',
@@ -6709,6 +5963,306 @@ def analyze_ice_load_with_filtering_and_cdf(
     print(f"   Spatial gradients: {'✓' if gradient_results else '✗'}")
     
     return results
+
+# TEMPORAL GRADIENTS
+
+def create_spatial_gradient_time_evolution_plots(ice_load_data):
+    """
+    Create spatial gradient analysis showing how gradients evolve over time
+    
+    Parameters:
+    -----------
+    ice_load_data : xarray.DataArray
+        Raw ice load data (may contain NaN values)
+    
+    Returns:
+    --------
+    dict
+        Dictionary containing gradient evolution statistics
+    """
+    print("Creating spatial gradient time evolution analysis...")
+    
+    # Create spatial_gradient subfolder if it doesn't exist
+    spatial_gradient_dir = os.path.join(figures_dir, "spatial_gradient")
+    os.makedirs(spatial_gradient_dir, exist_ok=True)
+    
+    # Clean the data by removing NaN values
+    ice_load_clean = ice_load_data.where(~np.isnan(ice_load_data), drop=True)
+    
+    if len(ice_load_clean.time) == 0:
+        print("No valid ice load data found!")
+        return None
+    
+    print("Computing spatial gradients for all time steps...")
+    
+    # Initialize arrays to store gradient statistics over time
+    time_values = ice_load_clean.time.values
+    gradient_magnitude_mean = np.zeros(len(time_values))
+    gradient_magnitude_max = np.zeros(len(time_values))
+    gradient_magnitude_std = np.zeros(len(time_values))
+    gradient_x_mean = np.zeros(len(time_values))
+    gradient_y_mean = np.zeros(len(time_values))
+    
+    # Calculate spatial gradients for each time step
+    for i, time_step in enumerate(time_values):
+        ice_2d_t = ice_load_clean.sel(time=time_step).values
+        
+        # Skip if all NaN
+        if not np.all(np.isnan(ice_2d_t)):
+            grad_y_t, grad_x_t = np.gradient(ice_2d_t)
+            gradient_magnitude_t = np.sqrt(grad_x_t**2 + grad_y_t**2)
+            
+            # Store statistics for this time step
+            gradient_magnitude_mean[i] = np.nanmean(gradient_magnitude_t)
+            gradient_magnitude_max[i] = np.nanmax(gradient_magnitude_t)
+            gradient_magnitude_std[i] = np.nanstd(gradient_magnitude_t)
+            gradient_x_mean[i] = np.nanmean(grad_x_t)
+            gradient_y_mean[i] = np.nanmean(grad_y_t)
+        else:
+            gradient_magnitude_mean[i] = np.nan
+            gradient_magnitude_max[i] = np.nan
+            gradient_magnitude_std[i] = np.nan
+            gradient_x_mean[i] = np.nan
+            gradient_y_mean[i] = np.nan
+    
+    # Create the time evolution plots
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    
+    # Convert time to pandas datetime for better plotting
+    time_pd = pd.to_datetime(time_values)
+    
+    # Plot 1: Gradient magnitude statistics over time
+    axes[0,0].plot(time_pd, gradient_magnitude_mean, label='Mean', color='blue', alpha=0.8)
+    axes[0,0].plot(time_pd, gradient_magnitude_max, label='Maximum', color='red', alpha=0.8)
+    axes[0,0].fill_between(time_pd, 
+                          gradient_magnitude_mean - gradient_magnitude_std, 
+                          gradient_magnitude_mean + gradient_magnitude_std, 
+                          alpha=0.3, color='blue', label='±1 Std Dev')
+    axes[0,0].set_title('Spatial Gradient Magnitude Evolution')
+    axes[0,0].set_xlabel('Time')
+    axes[0,0].set_ylabel('Gradient Magnitude (kg/m per grid)')
+    axes[0,0].legend()
+    axes[0,0].grid(True, alpha=0.3)
+    
+    # Plot 2: Directional gradient evolution (West-East)
+    axes[0,1].plot(time_pd, gradient_x_mean, color='orange', alpha=0.8)
+    axes[0,1].set_title('Mean West-East Gradient Evolution')
+    axes[0,1].set_xlabel('Time')
+    axes[0,1].set_ylabel('West-East Gradient (kg/m per grid)')
+    axes[0,1].axhline(y=0, color='black', linestyle='--', alpha=0.5)
+    axes[0,1].grid(True, alpha=0.3)
+    
+    # Plot 3: Directional gradient evolution (South-North)
+    axes[1,0].plot(time_pd, gradient_y_mean, color='green', alpha=0.8)
+    axes[1,0].set_title('Mean South-North Gradient Evolution')
+    axes[1,0].set_xlabel('Time')
+    axes[1,0].set_ylabel('South-North Gradient (kg/m per grid)')
+    axes[1,0].axhline(y=0, color='black', linestyle='--', alpha=0.5)
+    axes[1,0].grid(True, alpha=0.3)
+    
+    # Plot 4: Gradient variability over time
+    axes[1,1].plot(time_pd, gradient_magnitude_std, color='purple', alpha=0.8)
+    axes[1,1].set_title('Spatial Gradient Variability Over Time')
+    axes[1,1].set_xlabel('Time')
+    axes[1,1].set_ylabel('Gradient Std Dev (kg/m per grid)')
+    axes[1,1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    # Save the figure
+    time_evolution_filename = os.path.join(spatial_gradient_dir, 'spatial_gradient_time_evolution.png')
+    plt.savefig(time_evolution_filename, dpi=300, bbox_inches='tight')
+    print(f"Saved: {time_evolution_filename}")
+    plt.close()
+    
+    # Create a second figure showing seasonal patterns if multiple years of data
+    print("Creating seasonal gradient analysis...")
+    
+    # Extract hour of day and month for seasonal analysis
+    hours = pd.to_datetime(time_values).hour
+    months = pd.to_datetime(time_values).month
+    
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    
+    # Plot 1: Gradient magnitude by hour of day
+    hourly_grad_mean = []
+    hourly_grad_std = []
+    for hour in range(24):
+        hour_mask = hours == hour
+        if np.any(hour_mask):
+            hourly_grad_mean.append(np.nanmean(gradient_magnitude_mean[hour_mask]))
+            hourly_grad_std.append(np.nanstd(gradient_magnitude_mean[hour_mask]))
+        else:
+            hourly_grad_mean.append(np.nan)
+            hourly_grad_std.append(np.nan)
+    
+    axes[0,0].plot(range(24), hourly_grad_mean, marker='o', color='blue')
+    axes[0,0].fill_between(range(24), 
+                          np.array(hourly_grad_mean) - np.array(hourly_grad_std),
+                          np.array(hourly_grad_mean) + np.array(hourly_grad_std),
+                          alpha=0.3, color='blue')
+    axes[0,0].set_title('Average Gradient Magnitude by Hour of Day')
+    axes[0,0].set_xlabel('Hour of Day')
+    axes[0,0].set_ylabel('Mean Gradient Magnitude')
+    axes[0,0].set_xticks(range(0, 24, 3))
+    axes[0,0].grid(True, alpha=0.3)
+    
+    # Plot 2: Gradient magnitude by month
+    monthly_grad_mean = []
+    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    for month in range(1, 13):
+        month_mask = months == month
+        if np.any(month_mask):
+            monthly_grad_mean.append(np.nanmean(gradient_magnitude_mean[month_mask]))
+        else:
+            monthly_grad_mean.append(np.nan)
+    
+    axes[0,1].bar(month_names, monthly_grad_mean, color='orange', alpha=0.7)
+    axes[0,1].set_title('Average Gradient Magnitude by Month')
+    axes[0,1].set_xlabel('Month')
+    axes[0,1].set_ylabel('Mean Gradient Magnitude')
+    axes[0,1].tick_params(axis='x', rotation=45)
+    axes[0,1].grid(True, alpha=0.3)
+    
+    # Plot 3: West-East gradient by hour
+    hourly_grad_x = []
+    for hour in range(24):
+        hour_mask = hours == hour
+        if np.any(hour_mask):
+            hourly_grad_x.append(np.nanmean(gradient_x_mean[hour_mask]))
+        else:
+            hourly_grad_x.append(np.nan)
+    
+    axes[1,0].plot(range(24), hourly_grad_x, marker='s', color='red')
+    axes[1,0].set_title('Average West-East Gradient by Hour of Day')
+    axes[1,0].set_xlabel('Hour of Day')
+    axes[1,0].set_ylabel('Mean West-East Gradient')
+    axes[1,0].set_xticks(range(0, 24, 3))
+    axes[1,0].axhline(y=0, color='black', linestyle='--', alpha=0.5)
+    axes[1,0].grid(True, alpha=0.3)
+    
+    # Plot 4: South-North gradient by hour
+    hourly_grad_y = []
+    for hour in range(24):
+        hour_mask = hours == hour
+        if np.any(hour_mask):
+            hourly_grad_y.append(np.nanmean(gradient_y_mean[hour_mask]))
+        else:
+            hourly_grad_y.append(np.nan)
+    
+    axes[1,1].plot(range(24), hourly_grad_y, marker='^', color='green')
+    axes[1,1].set_title('Average South-North Gradient by Hour of Day')
+    axes[1,1].set_xlabel('Hour of Day')
+    axes[1,1].set_ylabel('Mean South-North Gradient')
+    axes[1,1].set_xticks(range(0, 24, 3))
+    axes[1,1].axhline(y=0, color='black', linestyle='--', alpha=0.5)
+    axes[1,1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    # Save the seasonal figure
+    seasonal_filename = os.path.join(spatial_gradient_dir, 'spatial_gradient_seasonal_patterns.png')
+    plt.savefig(seasonal_filename, dpi=300, bbox_inches='tight')
+    print(f"Saved: {seasonal_filename}")
+    plt.close()
+    
+    # Return statistics
+    return {
+        'max_gradient_evolution': np.nanmax(gradient_magnitude_mean),
+        'mean_gradient_evolution': np.nanmean(gradient_magnitude_mean),
+        'gradient_temporal_variability': np.nanstd(gradient_magnitude_mean),
+        'peak_hour_gradient': int(np.nanargmax(hourly_grad_mean)),
+        'min_hour_gradient': int(np.nanargmin(hourly_grad_mean))
+    }
+
+def create_temporal_gradient_plots(ice_load_data):
+
+    """
+    Create temporal gradient analysis plots for ice load data
+    
+    Parameters:
+    -----------
+    ice_load_data : xarray.DataArray
+        Raw ice load data (may contain NaN values)
+    
+    Returns:
+    --------
+    dict
+        Dictionary containing temporal gradient statistics
+    """
+    print("Creating temporal gradient analysis...")
+    
+    # Create temporal_gradient subfolder if it doesn't exist
+    temporal_gradient_dir = os.path.join(figures_dir, "temporal_gradient")
+    os.makedirs(temporal_gradient_dir, exist_ok=True)
+    
+    # Clean the data by removing NaN values
+    ice_load_clean = ice_load_data.where(~np.isnan(ice_load_data), drop=True)
+    
+    # Calculate temporal gradient (rate of change over time)
+    temporal_gradient = ice_load_clean.diff(dim='time')
+    
+    # Get statistics of temporal changes
+    temp_grad_mean = temporal_gradient.mean(dim=['south_north', 'west_east'])
+    temp_grad_std = temporal_gradient.std(dim=['south_north', 'west_east'])
+    temp_grad_max = temporal_gradient.max(dim=['south_north', 'west_east'])
+    temp_grad_min = temporal_gradient.min(dim=['south_north', 'west_east'])
+    
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    
+    # Mean temporal gradient over time
+    axes[0,0].plot(temp_grad_mean.time, temp_grad_mean.values)
+    axes[0,0].set_title('Mean Temporal Gradient (Rate of Change)')
+    axes[0,0].set_xlabel('Time')
+    axes[0,0].set_ylabel('Mean Rate of Change (kg/m per 30min)')
+    axes[0,0].grid(True, alpha=0.3)
+    axes[0,0].axhline(y=0, color='red', linestyle='--', alpha=0.5)
+    
+    # Standard deviation of temporal gradient
+    axes[0,1].plot(temp_grad_std.time, temp_grad_std.values, color='orange')
+    axes[0,1].set_title('Temporal Gradient Variability')
+    axes[0,1].set_xlabel('Time')
+    axes[0,1].set_ylabel('Std Dev of Rate of Change (kg/m per 30min)')
+    axes[0,1].grid(True, alpha=0.3)
+    
+    # Maximum and minimum temporal gradients
+    axes[1,0].plot(temp_grad_max.time, temp_grad_max.values, label='Maximum', color='red')
+    axes[1,0].plot(temp_grad_min.time, temp_grad_min.values, label='Minimum', color='blue')
+    axes[1,0].set_title('Extreme Temporal Gradients')
+    axes[1,0].set_xlabel('Time')
+    axes[1,0].set_ylabel('Rate of Change (kg/m per 30min)')
+    axes[1,0].legend()
+    axes[1,0].grid(True, alpha=0.3)
+    axes[1,0].axhline(y=0, color='black', linestyle='--', alpha=0.5)
+    
+    # Histogram of all temporal gradients
+    all_temp_gradients = temporal_gradient.values.flatten()
+    all_temp_gradients = all_temp_gradients[~np.isnan(all_temp_gradients)]
+    
+    axes[1,1].hist(all_temp_gradients, bins=50, alpha=0.7, edgecolor='black')
+    axes[1,1].set_title('Distribution of Temporal Gradients')
+    axes[1,1].set_xlabel('Rate of Change (kg/m per 30min)')
+    axes[1,1].set_ylabel('Frequency')
+    axes[1,1].axvline(x=0, color='red', linestyle='--', alpha=0.7)
+    axes[1,1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    temporal_grad_filename = os.path.join(temporal_gradient_dir, 'ice_load_temporal_gradients.png')
+    plt.savefig(temporal_grad_filename, dpi=300, bbox_inches='tight')
+    print(f"Saved: {temporal_grad_filename}")
+    plt.close()
+    
+    # Return statistics for use in summary
+    return {
+        'max_temporal_gradient': all_temp_gradients.max(),
+        'min_temporal_gradient': all_temp_gradients.min()
+    }
+
+
+# EMD DATA IMPORT
+
 
 def import_emd_data(file_path):
     """
