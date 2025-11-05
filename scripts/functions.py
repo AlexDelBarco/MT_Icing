@@ -958,6 +958,116 @@ def calculate_ice_load(ds1, dates, method, height_level=0, create_figures=True):
     
     return dsiceload
 
+def add_ice_load_to_dataset(ds, dates, method=5, height_level=0, variable_name='ICE_LOAD'):
+    """
+    Calculate ice load and add it as a new variable to the xarray Dataset
+    
+    Parameters:
+    -----------
+    ds : xarray.Dataset
+        Dataset containing ice accretion and ablation data
+    dates : pandas.DatetimeIndex
+        Date range for winter seasons
+    method : int, optional
+        Ice load calculation method (1-5) (default: 5)
+    height_level : int, optional
+        Height level index to analyze (default: 0)
+        Use 0, 1, or 2 for the three available height levels
+    variable_name : str, optional
+        Name for the new ice load variable in the dataset (default: 'ICE_LOAD')
+    
+    Returns:
+    --------
+    xarray.Dataset
+        Original dataset with added ice load variable
+    """
+    
+    print(f"Adding ice load calculation to dataset using method {method}...")
+    
+    # Check if height level is valid and get height information
+    if 'height' in ds.dims:
+        max_height_idx = ds.dims['height'] - 1
+        if height_level > max_height_idx:
+            print(f"Warning: height_level {height_level} is out of range. Maximum available: {max_height_idx}")
+            print(f"Available height values: {ds.height.values}")
+            height_level = 0
+            print(f"Using height_level {height_level} instead")
+        
+        height_value = ds.height.values[height_level]
+        height_units = ds.height.attrs.get('units', 'units')
+        print(f"Calculating ice load at height level {height_level} ({height_value} {height_units})")
+    else:
+        print("No height dimension found in dataset")
+        height_level = 0
+        height_value = "unknown"
+        height_units = ""
+    
+    print(f"Calculating ice load at {height_value} {height_units}...")
+    
+    # Create ice load array with same structure as accretion data
+    dsiceload = xr.zeros_like(ds['ACCRE_CYL'].isel(height=height_level)) * np.nan
+    
+    # Calculate ice load for each winter period
+    for idate, date in enumerate(dates[:-1]):
+        print(f"Processing winter {idate+1}/{len(dates)-1}: {date} to {dates[idate+1]-pd.to_timedelta('30min')}")
+        
+        # Get data for this winter period at specified height level
+        winter_accre = ds['ACCRE_CYL'].isel(height=height_level).sel(time=slice(date, dates[idate+1]-pd.to_timedelta('30min')))
+        winter_ablat = ds['ABLAT_CYL'].isel(height=height_level).sel(time=slice(date, dates[idate+1]-pd.to_timedelta('30min')))
+        
+        # Check if there's data for this winter
+        if len(winter_accre.time) == 0:
+            print(f"  No data available for winter {idate+1}. Skipping...")
+            continue
+            
+        load = ice_load(winter_accre, winter_ablat, method)
+        
+        # Only assign if load calculation was successful
+        if load is not None:
+            dsiceload.loc[{'time': load.time}] = load
+            print(f"Winter {idate+1} completed")
+        else:
+            print(f"Winter {idate+1} skipped due to insufficient data")
+    
+    # Create a copy of the original dataset
+    ds_with_ice_load = ds.copy()
+    
+    # Add ice load as a new variable to the dataset
+    # We need to expand the ice load data to include the height dimension
+    # Create a new DataArray with the height dimension
+    ice_load_expanded = xr.zeros_like(ds['ACCRE_CYL']) * np.nan
+    ice_load_expanded.loc[dict(height=height_level)] = dsiceload
+    
+    # Add the ice load variable to the dataset
+    ds_with_ice_load[variable_name] = ice_load_expanded
+    
+    # Add attributes to the new variable
+    ds_with_ice_load[variable_name].attrs = {
+        'long_name': f'Ice Load calculated using method {method}',
+        'units': 'kg/m',
+        'description': f'Ice load calculated at height level {height_level} ({height_value} {height_units}) using ice accumulation method {method}',
+        'calculation_method': method,
+        'height_level_used': height_level,
+        'height_value': height_value,
+        'height_units': height_units,
+        'valid_range': [0.0, 5.0],
+        'missing_value': np.nan
+    }
+    
+    print(f"\n=== Ice Load Integration Summary ===")
+    print(f"Successfully added '{variable_name}' variable to dataset")
+    print(f"Ice load shape: {dsiceload.shape}")
+    print(f"Height level used: {height_level} ({height_value} {height_units})")
+    print(f"Calculation method: {method}")
+    print(f"Valid data points: {np.sum(~np.isnan(dsiceload.values)):,}")
+    
+    # Print dataset info after adding ice load
+    print(f"\nDataset now contains {len(ds_with_ice_load.data_vars)} variables:")
+    for var in ds_with_ice_load.data_vars:
+        print(f"  - {var}: {ds_with_ice_load[var].shape}")
+    
+    return ds_with_ice_load
+
 def save_ice_load_data(dsiceload, start_date, end_date, height_label="h0"):
     """
     Save calculated ice load data to disk with height information
@@ -5459,6 +5569,1146 @@ def create_temporal_gradient_plots(ice_load_data):
 
 # EMD DATA IMPORT
 
+def systematic_meteorological_filtering_with_ice_load(
+    dataset_with_ice_load,
+    ice_load_variable='ICE_LOAD',
+    WD_range=None,
+    WS_range=None,
+    T_range=None,
+    PBLH_range=None,
+    PRECIP_range=None,
+    QVAPOR_range=None,
+    RMOL_range=None,
+    ice_load_threshold=0.1,
+    months=None,
+    percentile=None,
+    save_results=True,
+    height_level=0,
+    results_subdir="systematic_filtering_with_ice_load"
+):
+    """
+    Systematic meteorological filtering using a dataset that already contains ice load data
+    
+    This function is more efficient than systematic_meteorological_filtering because it uses
+    pre-calculated ice load data instead of recalculating it for each filter combination.
+    
+    Parameters:
+    -----------
+    dataset_with_ice_load : xarray.Dataset
+        Dataset that already contains ice load as a variable (from add_ice_load_to_dataset)
+    ice_load_variable : str, optional
+        Name of the ice load variable in the dataset (default: 'ICE_LOAD')
+    WD_range : tuple, optional
+        Wind direction filtering range: (min, max, step)
+        Example: (0, 360, 30) for [0, 30, 60, ..., 360] degrees
+    WS_range : tuple, optional
+        Wind speed filtering range: (min, max, step)
+        Example: (5, 20, 5) for [5, 10, 15, 20] m/s
+    T_range : tuple, optional
+        Temperature filtering range: (min, max, step)
+        Example: (250, 280, 10) for [250, 260, 270, 280] K
+    PBLH_range : tuple, optional
+        Boundary layer height filtering range: (min, max, step)
+    PRECIP_range : tuple, optional
+        Precipitation filtering range: (min, max, step)
+    QVAPOR_range : tuple, optional
+        Water vapor mixing ratio filtering range: (min, max, step)
+    RMOL_range : tuple, optional
+        Monin-Obukhov length filtering range: (min, max, step)
+    ice_load_threshold : float, optional
+        Minimum ice load threshold for CDF analysis (default: 0.1)
+    months : list, optional
+        List of months to include in analysis (e.g., [1,2,12] for winter)
+    percentile : float, optional
+        Remove extreme outliers above this percentile (e.g., 99.5)
+    save_results : bool, optional
+        Whether to save results to files (default: True)
+    height_level : int, optional
+        Height level index to use for filtering (default: 0)
+    results_subdir : str, optional
+        Subdirectory name for saving results (default: "systematic_filtering_with_ice_load")
+        
+    Returns:
+    --------
+    dict
+        Dictionary containing results for each filter combination
+    """
+    
+    print("=== SYSTEMATIC METEOROLOGICAL FILTERING WITH EXISTING ICE LOAD ===")
+    print(f"Using pre-calculated ice load variable: {ice_load_variable}")
+    
+    # Check if ice load variable exists
+    if ice_load_variable not in dataset_with_ice_load.data_vars:
+        raise ValueError(f"Ice load variable '{ice_load_variable}' not found in dataset. "
+                        f"Available variables: {list(dataset_with_ice_load.data_vars.keys())}")
+    
+    # Get ice load data
+    ice_load_data = dataset_with_ice_load[ice_load_variable].isel(height=height_level)
+    print(f"Ice load data shape: {ice_load_data.shape}")
+    print(f"Using height level {height_level}: {dataset_with_ice_load.height.values[height_level]} m")
+    
+    # Create results directory
+    if save_results:
+        base_results_dir = os.path.join(results_dir, results_subdir)
+        os.makedirs(base_results_dir, exist_ok=True)
+        print(f"Results will be saved to: {base_results_dir}")
+    
+    # Define parameter ranges
+    filter_params = {}
+    
+    if WD_range is not None:
+        min_val, max_val, step = WD_range
+        filter_params['WD'] = list(range(int(min_val), int(max_val) + 1, int(step)))
+    
+    if WS_range is not None:
+        min_val, max_val, step = WS_range
+        filter_params['WS'] = list(np.arange(min_val, max_val + step, step))
+    
+    if T_range is not None:
+        min_val, max_val, step = T_range
+        filter_params['T'] = list(np.arange(min_val, max_val + step, step))
+    
+    if PBLH_range is not None:
+        min_val, max_val, step = PBLH_range
+        filter_params['PBLH'] = list(np.arange(min_val, max_val + step, step))
+    
+    if PRECIP_range is not None:
+        min_val, max_val, step = PRECIP_range
+        filter_params['PRECIP'] = list(np.arange(min_val, max_val + step, step))
+    
+    if QVAPOR_range is not None:
+        min_val, max_val, step = QVAPOR_range
+        filter_params['QVAPOR'] = list(np.arange(min_val, max_val + step, step))
+    
+    if RMOL_range is not None:
+        min_val, max_val, step = RMOL_range
+        filter_params['RMOL'] = list(np.arange(min_val, max_val + step, step))
+    
+    print(f"\nFilter parameters defined:")
+    for param, values in filter_params.items():
+        print(f"  {param}: {len(values)} values from {min(values)} to {max(values)}")
+    
+    # Generate all combinations
+    from itertools import product
+    
+    param_names = list(filter_params.keys())
+    param_values = list(filter_params.values())
+    
+    if not param_names:
+        print("No filter parameters specified. Nothing to do.")
+        return {}
+    
+    combinations = list(product(*param_values))
+    total_combinations = len(combinations)
+    
+    print(f"\nTotal filter combinations to process: {total_combinations}")
+    
+    # Process each combination
+    results = {}
+    
+    for i, combination in enumerate(combinations):
+        print(f"\n--- Processing combination {i+1}/{total_combinations} ---")
+        
+        # Create filter dictionary
+        filter_dict = dict(zip(param_names, combination))
+        filter_name = "_".join([f"{k}{v}" for k, v in filter_dict.items()])
+        
+        print(f"Filter: {filter_dict}")
+        
+        try:
+            # Apply meteorological filtering
+            filtered_ds = apply_meteorological_filters_to_dataset(
+                dataset_with_ice_load,
+                height_level=height_level,
+                months=months,
+                percentile=percentile,
+                **filter_dict
+            )
+            
+            if filtered_ds is None:
+                print(f"  No data remaining after filtering. Skipping...")
+                results[filter_name] = {
+                    'filter_params': filter_dict,
+                    'data_points': 0,
+                    'error': 'No data remaining after filtering'
+                }
+                continue
+            
+            # Get filtered ice load data
+            filtered_ice_load = filtered_ds[ice_load_variable].isel(height=height_level)
+            
+            # Remove NaN values
+            ice_load_clean = filtered_ice_load.where(~np.isnan(filtered_ice_load), drop=True)
+            
+            if len(ice_load_clean.time) == 0:
+                print(f"  No valid ice load data after filtering. Skipping...")
+                results[filter_name] = {
+                    'filter_params': filter_dict,
+                    'data_points': 0,
+                    'error': 'No valid ice load data after filtering'
+                }
+                continue
+            
+            data_points = len(ice_load_clean.time)
+            print(f"  Data points after filtering: {data_points:,}")
+            
+            # Calculate CDF statistics
+            ice_values = ice_load_clean.values.flatten()
+            ice_values_clean = ice_values[ice_values >= ice_load_threshold]
+            
+            if len(ice_values_clean) == 0:
+                print(f"  No ice load values above threshold {ice_load_threshold}. Skipping CDF analysis...")
+                results[filter_name] = {
+                    'filter_params': filter_dict,
+                    'data_points': data_points,
+                    'ice_load_stats': {
+                        'max': float(ice_values.max()) if len(ice_values) > 0 else 0,
+                        'mean': float(ice_values.mean()) if len(ice_values) > 0 else 0,
+                        'above_threshold': 0
+                    },
+                    'error': f'No values above threshold {ice_load_threshold}'
+                }
+                continue
+            
+            # Calculate ice load statistics
+            ice_stats = {
+                'max': float(ice_values.max()),
+                'mean': float(ice_values.mean()),
+                'above_threshold': len(ice_values_clean),
+                'threshold_percentage': (len(ice_values_clean) / len(ice_values)) * 100
+            }
+            
+            print(f"  Ice load max: {ice_stats['max']:.3f} kg/m")
+            print(f"  Ice load mean: {ice_stats['mean']:.3f} kg/m")
+            print(f"  Values above threshold: {ice_stats['above_threshold']:,} ({ice_stats['threshold_percentage']:.1f}%)")
+            
+            # Create CDF analysis if requested
+            cdf_results = None
+            if save_results:
+                try:
+                    # Use existing CDF plotting function
+                    cdf_results = create_cdf_analysis_for_filtered_data(
+                        ice_values_clean,
+                        filter_name,
+                        filter_dict,
+                        ice_load_threshold,
+                        base_results_dir
+                    )
+                except Exception as e:
+                    print(f"  Warning: CDF analysis failed: {e}")
+            
+            # Store results
+            results[filter_name] = {
+                'filter_params': filter_dict,
+                'data_points': data_points,
+                'ice_load_stats': ice_stats,
+                'cdf_results': cdf_results
+            }
+            
+        except Exception as e:
+            print(f"  Error processing combination: {e}")
+            results[filter_name] = {
+                'filter_params': filter_dict,
+                'data_points': 0,
+                'error': str(e)
+            }
+    
+    # Save summary results
+    if save_results:
+        save_systematic_filtering_summary(results, base_results_dir)
+    
+    print(f"\n=== SYSTEMATIC FILTERING COMPLETED ===")
+    print(f"Processed {total_combinations} filter combinations")
+    print(f"Successful combinations: {sum(1 for r in results.values() if 'error' not in r)}")
+    
+    return results
+
+
+def apply_meteorological_filters_to_dataset(dataset, height_level=0, months=None, percentile=None, **filter_params):
+    """
+    Apply meteorological filters to a dataset with existing ice load
+    
+    Parameters:
+    -----------
+    dataset : xarray.Dataset
+        Dataset to filter
+    height_level : int
+        Height level to use for filtering
+    months : list, optional
+        Months to include
+    percentile : float, optional
+        Percentile threshold for outlier removal
+    **filter_params : dict
+        Filter parameters (WD, WS, T, etc.)
+        
+    Returns:
+    --------
+    xarray.Dataset or None
+        Filtered dataset or None if no data remains
+    """
+    
+    filtered_ds = dataset.copy()
+    
+    # Apply month filtering
+    if months is not None:
+        time_df = pd.to_datetime(filtered_ds.time.values)
+        month_mask = time_df.month.isin(months)
+        if not month_mask.any():
+            return None
+        filtered_ds = filtered_ds.sel(time=filtered_ds.time[month_mask])
+    
+    # Apply meteorological filters
+    mask = xr.ones_like(filtered_ds.time, dtype=bool)
+    
+    for param, value in filter_params.items():
+        if param in filtered_ds.data_vars:
+            param_data = filtered_ds[param].isel(height=height_level)
+            
+            if param == 'WD':  # Wind direction needs special handling
+                if value == 0:
+                    # North: 350-360 and 0-10 degrees
+                    wd_mask = ((param_data >= 350) & (param_data <= 360)) | ((param_data >= 0) & (param_data <= 10))
+                else:
+                    # Other directions: value ± 10 degrees
+                    wd_mask = (param_data >= value - 10) & (param_data <= value + 10)
+                mask = mask & wd_mask
+            else:
+                # For other parameters, use value as minimum threshold
+                param_mask = param_data >= value
+                mask = mask & param_mask
+    
+    # Apply the combined mask
+    if not mask.any():
+        return None
+    
+    filtered_ds = filtered_ds.sel(time=filtered_ds.time[mask])
+    
+    # Apply percentile filtering if specified
+    if percentile is not None and 'ICE_LOAD' in filtered_ds.data_vars:
+        ice_load_data = filtered_ds['ICE_LOAD'].isel(height=height_level)
+        threshold = np.nanpercentile(ice_load_data.values, percentile)
+        ice_mask = ice_load_data <= threshold
+        if ice_mask.any():
+            filtered_ds = filtered_ds.sel(time=filtered_ds.time[ice_mask])
+    
+    return filtered_ds if len(filtered_ds.time) > 0 else None
+
+
+def create_cdf_analysis_for_filtered_data(ice_values, filter_name, filter_dict, threshold, output_dir):
+    """
+    Create CDF analysis for filtered ice load data
+    
+    Parameters:
+    -----------
+    ice_values : numpy.array
+        Ice load values above threshold
+    filter_name : str
+        Name for this filter combination
+    filter_dict : dict
+        Filter parameters
+    threshold : float
+        Ice load threshold
+    output_dir : str
+        Output directory for saving plots
+        
+    Returns:
+    --------
+    dict
+        CDF analysis results
+    """
+    
+    # Calculate CDF
+    sorted_values = np.sort(ice_values)
+    n = len(sorted_values)
+    cdf = np.arange(1, n + 1) / n
+    
+    # Calculate percentiles
+    percentiles = [50, 90, 95, 99, 99.9]
+    percentile_values = {}
+    for p in percentiles:
+        percentile_values[f'p{p}'] = np.percentile(sorted_values, p)
+    
+    # Create CDF plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(sorted_values, cdf, linewidth=2)
+    plt.xlabel('Ice Load (kg/m)')
+    plt.ylabel('Cumulative Probability')
+    plt.title(f'Ice Load CDF - {filter_name}')
+    plt.grid(True, alpha=0.3)
+    
+    # Add percentile lines
+    for p in [90, 95, 99]:
+        val = percentile_values[f'p{p}']
+        plt.axvline(val, color='red', linestyle='--', alpha=0.7, 
+                   label=f'P{p} = {val:.2f} kg/m')
+    
+    plt.legend()
+    plt.tight_layout()
+    
+    # Save plot
+    plot_filename = os.path.join(output_dir, f'cdf_{filter_name}.png')
+    plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    return {
+        'percentiles': percentile_values,
+        'plot_file': plot_filename,
+        'n_values': n,
+        'min_value': float(sorted_values[0]),
+        'max_value': float(sorted_values[-1])
+    }
+
+
+def save_systematic_filtering_summary(results, output_dir):
+    """
+    Save summary of systematic filtering results
+    """
+    
+    summary_file = os.path.join(output_dir, 'filtering_summary.txt')
+    
+    with open(summary_file, 'w') as f:
+        f.write("SYSTEMATIC METEOROLOGICAL FILTERING SUMMARY\n")
+        f.write("=" * 50 + "\n\n")
+        
+        successful_results = {k: v for k, v in results.items() if 'error' not in v}
+        
+        f.write(f"Total combinations: {len(results)}\n")
+        f.write(f"Successful combinations: {len(successful_results)}\n")
+        f.write(f"Failed combinations: {len(results) - len(successful_results)}\n\n")
+        
+        if successful_results:
+            f.write("SUCCESSFUL COMBINATIONS:\n")
+            f.write("-" * 30 + "\n")
+            
+            for name, result in successful_results.items():
+                f.write(f"\nFilter: {name}\n")
+                f.write(f"Parameters: {result['filter_params']}\n")
+                f.write(f"Data points: {result['data_points']:,}\n")
+                
+                if 'ice_load_stats' in result:
+                    stats = result['ice_load_stats']
+                    f.write(f"Ice load max: {stats['max']:.3f} kg/m\n")
+                    f.write(f"Ice load mean: {stats['mean']:.3f} kg/m\n")
+                    f.write(f"Above threshold: {stats['above_threshold']:,} ({stats.get('threshold_percentage', 0):.1f}%)\n")
+                
+                if 'cdf_results' in result and result['cdf_results']:
+                    cdf = result['cdf_results']
+                    f.write(f"P90: {cdf['percentiles']['p90']:.3f} kg/m\n")
+                    f.write(f"P95: {cdf['percentiles']['p95']:.3f} kg/m\n")
+                    f.write(f"P99: {cdf['percentiles']['p99']:.3f} kg/m\n")
+        
+        failed_results = {k: v for k, v in results.items() if 'error' in v}
+        if failed_results:
+            f.write(f"\n\nFAILED COMBINATIONS:\n")
+            f.write("-" * 25 + "\n")
+            
+            for name, result in failed_results.items():
+                f.write(f"\nFilter: {name}\n")
+                f.write(f"Parameters: {result['filter_params']}\n")
+                f.write(f"Error: {result['error']}\n")
+    
+    print(f"Summary saved to: {summary_file}")
+
+
+
+
+
+
+
+def analyze_ice_load_with_filtering_and_cdf(
+    dataset_with_ice_load,
+    ice_load_variable='ICE_LOAD',
+    height_level=0,
+    save_plots=True,
+    results_subdir="filtered_ice_load_cdf_analysis",
+    # Filtering parameters (min, max for each variable)
+    WD_range=None,        # (min, max) for Wind Direction
+    WS_range=None,        # (min, max) for Wind Speed
+    T_range=None,         # (min, max) for Temperature
+    PBLH_range=None,      # (min, max) for Boundary Layer Height
+    PRECIP_range=None,    # (min, max) for Precipitation
+    QVAPOR_range=None,    # (min, max) for Water Vapor
+    RMOL_range=None,      # (min, max) for Monin-Obukhov Length
+    # CDF analysis parameters
+    ice_load_threshold=0.0,
+    ice_load_bins=None,
+    months=None,
+    percentile=None
+):
+    """
+    Comprehensive function that filters a dataset with ice load by meteorological variables
+    and performs CDF analysis with spatial gradient visualization.
+    
+    This function combines meteorological filtering with detailed CDF analysis and creates
+    spatial gradient plots showing Earth Mover's distance between neighboring grid cells.
+    
+    Parameters:
+    -----------
+    dataset_with_ice_load : xarray.Dataset
+        Dataset that already contains ice load as a variable (from add_ice_load_to_dataset)
+    ice_load_variable : str, optional
+        Name of the ice load variable in the dataset (default: 'ICE_LOAD')
+    height_level : int, optional
+        Height level index to use for analysis (default: 0)
+    save_plots : bool, optional
+        Whether to save plots to files (default: True)
+    results_subdir : str, optional
+        Subdirectory name for saving results (default: "filtered_ice_load_cdf_analysis")
+        
+    Filtering Parameters (all optional):
+    -----------------------------------
+    WD_range : tuple, optional
+        Wind direction range: (min, max) in degrees
+    WS_range : tuple, optional
+        Wind speed range: (min, max) in m/s
+    T_range : tuple, optional
+        Temperature range: (min, max) in K
+    PBLH_range : tuple, optional
+        Boundary layer height range: (min, max) in m
+    PRECIP_range : tuple, optional
+        Precipitation range: (min, max) in mm
+    QVAPOR_range : tuple, optional
+        Water vapor mixing ratio range: (min, max) in kg/kg
+    RMOL_range : tuple, optional
+        Monin-Obukhov length range: (min, max) in m
+        
+    CDF Analysis Parameters:
+    ------------------------
+    ice_load_threshold : float, optional
+        Minimum ice load threshold for CDF analysis (default: 0.0)
+    ice_load_bins : array-like, optional
+        Custom ice load bins for CDF analysis
+    months : list, optional
+        List of months to include (e.g., [1,2,12] for winter)
+    percentile : float, optional
+        Percentile threshold for extreme value filtering
+        
+    Returns:
+    --------
+    dict
+        Comprehensive results including filtering info, CDF data, and spatial gradients
+    """
+    
+    print("=== ICE LOAD ANALYSIS WITH FILTERING AND CDF ===")
+    
+    # Check if ice load variable exists
+    if ice_load_variable not in dataset_with_ice_load.data_vars:
+        raise ValueError(f"Ice load variable '{ice_load_variable}' not found in dataset. "
+                        f"Available variables: {list(dataset_with_ice_load.data_vars.keys())}")
+    
+    print(f"Using ice load variable: {ice_load_variable}")
+    print(f"Height level: {height_level} ({dataset_with_ice_load.height.values[height_level]} m)")
+    
+    # Create results directory based on filters applied
+    if save_plots:
+        # Create organized directory structure
+        filters_base_dir = os.path.join("results", "figures", "filters")
+        os.makedirs(filters_base_dir, exist_ok=True)
+        
+        # Generate folder name based on applied filters
+        folder_name_parts = []
+        
+        # Add height level info
+        folder_name_parts.append(f"h{height_level}")
+        
+        # Add filter information to folder name
+        filter_params = {
+            'WD': WD_range,
+            'WS': WS_range, 
+            'T': T_range,
+            'PBLH': PBLH_range,
+            'PRECIP': PRECIP_range,
+            'QVAPOR': QVAPOR_range,
+            'RMOL': RMOL_range
+        }
+        
+        for param, value_range in filter_params.items():
+            if value_range is not None:
+                min_val, max_val = value_range
+                folder_name_parts.append(f"{param}_{min_val}to{max_val}")
+        
+        # Add month filtering if specified
+        if months is not None:
+            months_str = "_".join(map(str, sorted(months)))
+            folder_name_parts.append(f"months_{months_str}")
+        
+        # Add percentile filtering if specified
+        if percentile is not None:
+            folder_name_parts.append(f"p{percentile}")
+        
+        # Add ice load threshold if specified
+        if ice_load_threshold > 0:
+            folder_name_parts.append(f"min_{ice_load_threshold:.1f}")
+        
+        # Create unique folder name
+        if folder_name_parts:
+            folder_name = "_".join(folder_name_parts)
+        else:
+            folder_name = "no_filters"
+        
+        # Add timestamp to ensure uniqueness
+        timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+        folder_name = f"{folder_name}_{timestamp}"
+        
+        base_results_dir = os.path.join(filters_base_dir, folder_name)
+        os.makedirs(base_results_dir, exist_ok=True)
+        print(f"Results will be saved to: {base_results_dir}")
+    
+    # Apply meteorological filtering
+    print(f"\n1. APPLYING METEOROLOGICAL FILTERS")
+    print(f"=" * 40)
+    
+    filtered_ds = dataset_with_ice_load.copy()
+    filter_info = {}
+    
+    # Apply time filtering first (months)
+    if months is not None:
+        print(f"   Filtering by months: {months}")
+        time_df = pd.to_datetime(filtered_ds.time.values)
+        month_mask = time_df.month.isin(months)
+        if month_mask.any():
+            filtered_ds = filtered_ds.sel(time=filtered_ds.time[month_mask])
+            filter_info['months'] = months
+            print(f"   → Time steps after month filtering: {len(filtered_ds.time)}")
+        else:
+            print(f"   Warning: No data found for specified months")
+            return None
+    
+    # Apply meteorological variable filters
+    filter_params = {
+        'WD': WD_range,
+        'WS': WS_range, 
+        'T': T_range,
+        'PBLH': PBLH_range,
+        'PRECIP': PRECIP_range,
+        'QVAPOR': QVAPOR_range,
+        'RMOL': RMOL_range
+    }
+    
+    mask = xr.ones_like(filtered_ds.time, dtype=bool)
+    
+    for param, value_range in filter_params.items():
+        if value_range is not None and param in filtered_ds.data_vars:
+            min_val, max_val = value_range
+            param_data = filtered_ds[param].isel(height=height_level)
+            
+            if param == 'WD':  # Special handling for wind direction
+                if min_val <= max_val:
+                    # Normal case: e.g., 90° to 180°
+                    param_mask = (param_data >= min_val) & (param_data <= max_val)
+                else:
+                    # Wrap-around case: e.g., 350° to 10° (crossing 0°)
+                    param_mask = (param_data >= min_val) | (param_data <= max_val)
+            else:
+                # For other parameters, simple range filtering
+                param_mask = (param_data >= min_val) & (param_data <= max_val)
+            
+            mask = mask & param_mask
+            filter_info[param] = value_range
+            
+            # Count remaining data points
+            remaining_points = mask.sum().values
+            print(f"   {param} filter [{min_val}, {max_val}]: {remaining_points} time steps remaining")
+    
+    # Apply the combined mask
+    if not mask.any():
+        print(f"   ERROR: No data remaining after filtering!")
+        return None
+    
+    filtered_ds = filtered_ds.sel(time=filtered_ds.time[mask])
+    print(f"   Final filtered dataset: {len(filtered_ds.time)} time steps")
+    
+    # Get ice load data after filtering
+    ice_load_data = filtered_ds[ice_load_variable].isel(height=height_level)
+    
+    # Apply percentile filtering if specified
+    if percentile is not None:
+        print(f"   Applying {percentile}th percentile threshold...")
+        percentile_value = float(np.nanpercentile(ice_load_data.values, percentile))
+        ice_load_data = ice_load_data.where(ice_load_data <= percentile_value, np.nan)
+        filter_info['percentile'] = percentile
+        print(f"   → Percentile threshold: {percentile_value:.3f} kg/m")
+    
+    # Data statistics after filtering
+    print(f"\n2. FILTERED DATA STATISTICS")
+    print(f"=" * 30)
+    
+    ice_data_clean = ice_load_data.where(ice_load_data >= ice_load_threshold, np.nan)
+    max_ice_load = float(ice_data_clean.max())
+    mean_ice_load = float(ice_data_clean.mean())
+    
+    n_south_north = ice_load_data.sizes['south_north']
+    n_west_east = ice_load_data.sizes['west_east']
+    n_time = ice_load_data.sizes['time']
+    
+    print(f"   Grid size: {n_south_north} × {n_west_east}")
+    print(f"   Time steps: {n_time}")
+    print(f"   Ice load range: {ice_load_threshold:.3f} to {max_ice_load:.3f} kg/m")
+    print(f"   Ice load mean: {mean_ice_load:.3f} kg/m")
+    
+    # Define ice load bins for CDF analysis
+    if ice_load_bins is None:
+        if max_ice_load > ice_load_threshold:
+            ice_load_bins = np.linspace(0.0, max_ice_load, 100)
+        else:
+            ice_load_bins = np.array([0.0, ice_load_threshold + 0.01])
+    
+    # Perform CDF analysis for each grid cell
+    print(f"\n3. CDF ANALYSIS")
+    print(f"=" * 15)
+    print(f"   Processing {n_south_north * n_west_east} grid cells...")
+    
+    cdf_results = {}
+    cell_statistics = {}
+    
+    for i in range(n_south_north):
+        for j in range(n_west_east):
+            # Extract time series for this grid cell
+            cell_data = ice_data_clean.isel(south_north=i, west_east=j)
+            cell_values = cell_data.values
+            
+            # Remove NaN values
+            valid_mask = ~np.isnan(cell_values)
+            cell_values_clean = cell_values[valid_mask]
+            
+            if len(cell_values_clean) == 0:
+                continue
+            
+            # Filter values to be >= threshold
+            cell_values_filtered = cell_values_clean[cell_values_clean >= ice_load_threshold]
+            
+            if len(cell_values_filtered) == 0:
+                continue
+            
+            # Calculate CDF
+            cdf_values = []
+            for ice_threshold in ice_load_bins:
+                prob = np.sum(cell_values_filtered <= ice_threshold) / len(cell_values_filtered)
+                cdf_values.append(prob)
+            
+            cdf_values = np.array(cdf_values)
+            
+            # Store results
+            cell_key = f'cell_{i}_{j}'
+            cdf_results[cell_key] = {
+                'ice_load_bins': ice_load_bins,
+                'cdf_values': cdf_values,
+                'position': (i, j)
+            }
+            
+            # Calculate statistics
+            cell_statistics[cell_key] = {
+                'max_ice_load': float(np.max(cell_values_filtered)),
+                'mean_ice_load': float(np.mean(cell_values_filtered)),
+                'std_ice_load': float(np.std(cell_values_filtered)),
+                'median_ice_load': float(np.median(cell_values_filtered)),
+                'percentile_95': float(np.percentile(cell_values_filtered, 95)),
+                'percentile_99': float(np.percentile(cell_values_filtered, 99)),
+                'n_valid_points': len(cell_values_filtered)
+            }
+    
+    print(f"   Processed {len(cdf_results)} valid grid cells")
+    
+    # Calculate spatial gradients using Earth Mover's Distance
+    print(f"\n4. SPATIAL GRADIENT ANALYSIS")
+    print(f"=" * 30)
+    
+    try:
+        from scipy.stats import wasserstein_distance
+        
+        print(f"   Computing Earth Mover's distances between neighboring cells...")
+        
+        # Initialize gradient matrices
+        ew_gradients = np.full((n_south_north, n_west_east-1), np.nan)
+        sn_gradients = np.full((n_south_north-1, n_west_east), np.nan)
+        combined_gradients = np.full((n_south_north, n_west_east), np.nan)
+        
+        # Calculate East-West gradients
+        for i in range(n_south_north):
+            for j in range(n_west_east-1):
+                cell1_key = f'cell_{i}_{j}'
+                cell2_key = f'cell_{i}_{j+1}'
+                
+                if cell1_key in cdf_results and cell2_key in cdf_results:
+                    cdf1 = cdf_results[cell1_key]['cdf_values']
+                    cdf2 = cdf_results[cell2_key]['cdf_values']
+                    bins1 = cdf_results[cell1_key]['ice_load_bins']
+                    
+                    # Calculate Earth Mover's distance using L1 distance between CDFs
+                    try:
+                        distance = np.trapz(np.abs(cdf1 - cdf2), bins1)
+                        ew_gradients[i, j] = distance
+                    except:
+                        distance = np.mean(np.abs(cdf1 - cdf2))
+                        ew_gradients[i, j] = distance
+        
+        # Calculate South-North gradients
+        for i in range(n_south_north-1):
+            for j in range(n_west_east):
+                cell1_key = f'cell_{i}_{j}'
+                cell2_key = f'cell_{i+1}_{j}'
+                
+                if cell1_key in cdf_results and cell2_key in cdf_results:
+                    cdf1 = cdf_results[cell1_key]['cdf_values']
+                    cdf2 = cdf_results[cell2_key]['cdf_values']
+                    bins1 = cdf_results[cell1_key]['ice_load_bins']
+                    
+                    try:
+                        distance = np.trapz(np.abs(cdf1 - cdf2), bins1)
+                        sn_gradients[i, j] = distance
+                    except:
+                        distance = np.mean(np.abs(cdf1 - cdf2))
+                        sn_gradients[i, j] = distance
+        
+        # Calculate combined gradients (average of all valid neighbor distances)
+        for i in range(n_south_north):
+            for j in range(n_west_east):
+                distances = []
+                
+                # Check all four neighbors
+                if j < n_west_east-1 and not np.isnan(ew_gradients[i, j]):
+                    distances.append(ew_gradients[i, j])
+                if j > 0 and not np.isnan(ew_gradients[i, j-1]):
+                    distances.append(ew_gradients[i, j-1])
+                if i < n_south_north-1 and not np.isnan(sn_gradients[i, j]):
+                    distances.append(sn_gradients[i, j])
+                if i > 0 and not np.isnan(sn_gradients[i-1, j]):
+                    distances.append(sn_gradients[i-1, j])
+                
+                if distances:
+                    combined_gradients[i, j] = np.mean(distances)
+        
+        print(f"   Computed gradients for {np.sum(~np.isnan(ew_gradients))} EW and {np.sum(~np.isnan(sn_gradients))} SN pairs")
+        
+        # Create spatial gradient plots
+        print(f"\n5. CREATING SPATIAL GRADIENT PLOTS")
+        print(f"=" * 35)
+        
+        # ABSOLUTE GRADIENT PLOTS
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        
+        # Plot 1: East-West gradients
+        im1 = axes[0, 0].imshow(ew_gradients, cmap='viridis', origin='lower', 
+                               interpolation='nearest', aspect='auto')
+        axes[0, 0].set_title('East-West Gradient\n(CDF Earth Mover\'s Distance)')
+        axes[0, 0].set_xlabel('West-East Grid Points')
+        axes[0, 0].set_ylabel('South-North Grid Points')
+        cbar1 = plt.colorbar(im1, ax=axes[0, 0], shrink=0.8)
+        cbar1.set_label('Earth Mover\'s Distance (kg/m)')
+        
+        # Add grid lines
+        axes[0, 0].set_xticks(range(n_west_east-1))
+        axes[0, 0].set_yticks(range(n_south_north))
+        axes[0, 0].grid(True, alpha=0.3)
+        
+        # Plot 2: South-North gradients
+        im2 = axes[0, 1].imshow(sn_gradients, cmap='viridis', origin='lower', 
+                               interpolation='nearest', aspect='auto')
+        axes[0, 1].set_title('South-North Gradient\n(CDF Earth Mover\'s Distance)')
+        axes[0, 1].set_xlabel('West-East Grid Points')
+        axes[0, 1].set_ylabel('South-North Grid Points')
+        cbar2 = plt.colorbar(im2, ax=axes[0, 1], shrink=0.8)
+        cbar2.set_label('Earth Mover\'s Distance (kg/m)')
+        
+        axes[0, 1].set_xticks(range(n_west_east))
+        axes[0, 1].set_yticks(range(n_south_north-1))
+        axes[0, 1].grid(True, alpha=0.3)
+        
+        # Plot 3: Combined gradients
+        im3 = axes[1, 0].imshow(combined_gradients, cmap='viridis', origin='lower', 
+                               interpolation='nearest', aspect='auto')
+        axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)')
+        axes[1, 0].set_xlabel('West-East Grid Points')
+        axes[1, 0].set_ylabel('South-North Grid Points')
+        cbar3 = plt.colorbar(im3, ax=axes[1, 0], shrink=0.8)
+        cbar3.set_label('Average Earth Mover\'s Distance (kg/m)')
+        
+        axes[1, 0].set_xticks(range(n_west_east))
+        axes[1, 0].set_yticks(range(n_south_north))
+        axes[1, 0].grid(True, alpha=0.3)
+        
+        # Plot 4: Gradient magnitude (combining EW and SN)
+        gradient_magnitude = np.full((n_south_north, n_west_east), np.nan)
+        
+        for i in range(n_south_north):
+            for j in range(n_west_east):
+                magnitudes = []
+                
+                # East-West component
+                if j < n_west_east-1 and not np.isnan(ew_gradients[i, j]):
+                    magnitudes.append(ew_gradients[i, j]**2)
+                if j > 0 and not np.isnan(ew_gradients[i, j-1]):
+                    magnitudes.append(ew_gradients[i, j-1]**2)
+                
+                # South-North component  
+                if i < n_south_north-1 and not np.isnan(sn_gradients[i, j]):
+                    magnitudes.append(sn_gradients[i, j]**2)
+                if i > 0 and not np.isnan(sn_gradients[i-1, j]):
+                    magnitudes.append(sn_gradients[i-1, j]**2)
+                
+                if magnitudes:
+                    gradient_magnitude[i, j] = np.sqrt(np.mean(magnitudes))
+        
+        im4 = axes[1, 1].imshow(gradient_magnitude, cmap='plasma', origin='lower', 
+                               interpolation='nearest', aspect='auto')
+        axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)')
+        axes[1, 1].set_xlabel('West-East Grid Points')
+        axes[1, 1].set_ylabel('South-North Grid Points')
+        cbar4 = plt.colorbar(im4, ax=axes[1, 1], shrink=0.8)
+        cbar4.set_label('RMS Gradient Magnitude')
+        
+        axes[1, 1].set_xticks(range(n_west_east))
+        axes[1, 1].set_yticks(range(n_south_north))
+        axes[1, 1].grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        
+        # Save absolute spatial gradient plots
+        if save_plots:
+            # Create gradient filename with filtering information (simplified for file system)
+            gradient_filename = "ice_load_cdf_spatial_gradients_absolute.png"
+            gradient_path = os.path.join(base_results_dir, gradient_filename)
+            plt.savefig(gradient_path, dpi=300, bbox_inches='tight')
+            print(f"   Absolute spatial gradient plots saved to: {gradient_path}")
+        
+        plt.close()  # Close the absolute gradient figure
+        
+        # DIMENSIONLESS GRADIENT PLOTS
+        print(f"   Creating dimensionless gradient plots...")
+        
+        # Calculate domain means for normalization
+        ew_mean = np.nanmean(ew_gradients)
+        sn_mean = np.nanmean(sn_gradients)
+        combined_mean = np.nanmean(combined_gradients)
+        gradient_magnitude_mean = np.nanmean(gradient_magnitude)
+        
+        # Create dimensionless matrices
+        ew_gradients_normalized = ew_gradients / ew_mean if ew_mean > 0 else ew_gradients
+        sn_gradients_normalized = sn_gradients / sn_mean if sn_mean > 0 else sn_gradients
+        combined_gradients_normalized = combined_gradients / combined_mean if combined_mean > 0 else combined_gradients
+        gradient_magnitude_normalized = gradient_magnitude / gradient_magnitude_mean if gradient_magnitude_mean > 0 else gradient_magnitude
+        
+        print(f"     Normalization factors:")
+        print(f"       East-West mean: {ew_mean:.3f} kg/m")
+        print(f"       South-North mean: {sn_mean:.3f} kg/m")
+        print(f"       Combined mean: {combined_mean:.3f} kg/m")
+        print(f"       Gradient magnitude mean: {gradient_magnitude_mean:.3f} kg/m")
+        
+        # Create the dimensionless spatial gradient plots
+        fig_norm, axes_norm = plt.subplots(2, 2, figsize=(15, 12))
+        
+        # Plot 1: East-West gradients (normalized)
+        im1_norm = axes_norm[0, 0].imshow(ew_gradients_normalized, cmap='RdBu_r', origin='lower', 
+                                         interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
+        axes_norm[0, 0].set_title('East-West Gradient\n(Dimensionless, Relative to Domain Mean)')
+        axes_norm[0, 0].set_xlabel('West-East Grid Points')
+        axes_norm[0, 0].set_ylabel('South-North Grid Points')
+        cbar1_norm = plt.colorbar(im1_norm, ax=axes_norm[0, 0], shrink=0.8)
+        cbar1_norm.set_label('Gradient / Domain Mean')
+        
+        # Add grid lines
+        axes_norm[0, 0].set_xticks(range(n_west_east-1))
+        axes_norm[0, 0].set_yticks(range(n_south_north))
+        axes_norm[0, 0].grid(True, alpha=0.3)
+        
+        # Plot 2: South-North gradients (normalized)
+        im2_norm = axes_norm[0, 1].imshow(sn_gradients_normalized, cmap='RdBu_r', origin='lower', 
+                                         interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
+        axes_norm[0, 1].set_title('South-North Gradient\n(Dimensionless, Relative to Domain Mean)')
+        axes_norm[0, 1].set_xlabel('West-East Grid Points')
+        axes_norm[0, 1].set_ylabel('South-North Grid Points')
+        cbar2_norm = plt.colorbar(im2_norm, ax=axes_norm[0, 1], shrink=0.8)
+        cbar2_norm.set_label('Gradient / Domain Mean')
+        
+        axes_norm[0, 1].set_xticks(range(n_west_east))
+        axes_norm[0, 1].set_yticks(range(n_south_north-1))
+        axes_norm[0, 1].grid(True, alpha=0.3)
+        
+        # Plot 3: Combined gradients (normalized)
+        im3_norm = axes_norm[1, 0].imshow(combined_gradients_normalized, cmap='RdBu_r', origin='lower', 
+                                         interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
+        axes_norm[1, 0].set_title('Combined Spatial Gradient\n(Dimensionless, Relative to Domain Mean)')
+        axes_norm[1, 0].set_xlabel('West-East Grid Points')
+        axes_norm[1, 0].set_ylabel('South-North Grid Points')
+        cbar3_norm = plt.colorbar(im3_norm, ax=axes_norm[1, 0], shrink=0.8)
+        cbar3_norm.set_label('Gradient / Domain Mean')
+        
+        axes_norm[1, 0].set_xticks(range(n_west_east))
+        axes_norm[1, 0].set_yticks(range(n_south_north))
+        axes_norm[1, 0].grid(True, alpha=0.3)
+        
+        # Plot 4: Gradient magnitude (normalized)
+        im4_norm = axes_norm[1, 1].imshow(gradient_magnitude_normalized, cmap='RdBu_r', origin='lower', 
+                                         interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
+        axes_norm[1, 1].set_title('Gradient Magnitude\n(Dimensionless, Relative to Domain Mean)')
+        axes_norm[1, 1].set_xlabel('West-East Grid Points')
+        axes_norm[1, 1].set_ylabel('South-North Grid Points')
+        cbar4_norm = plt.colorbar(im4_norm, ax=axes_norm[1, 1], shrink=0.8)
+        cbar4_norm.set_label('Gradient / Domain Mean')
+        
+        axes_norm[1, 1].set_xticks(range(n_west_east))
+        axes_norm[1, 1].set_yticks(range(n_south_north))
+        axes_norm[1, 1].grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        
+        # Save dimensionless spatial gradient plots
+        if save_plots:
+            # Create dimensionless gradient filename (simplified for file system)
+            dimensionless_filename = "ice_load_cdf_spatial_gradients_dimensionless.png"
+            dimensionless_path = os.path.join(base_results_dir, dimensionless_filename)
+            plt.savefig(dimensionless_path, dpi=300, bbox_inches='tight')
+            print(f"   Dimensionless spatial gradient plots saved to: {dimensionless_path}")
+        
+        plt.close()  # Close the dimensionless gradient figure
+        
+        # Store gradient results
+        gradient_results = {
+            'east_west_gradients': ew_gradients,
+            'south_north_gradients': sn_gradients,
+            'combined_gradients': combined_gradients,
+            'gradient_magnitude': gradient_magnitude,
+            'east_west_gradients_normalized': ew_gradients_normalized,
+            'south_north_gradients_normalized': sn_gradients_normalized,
+            'combined_gradients_normalized': combined_gradients_normalized,
+            'gradient_magnitude_normalized': gradient_magnitude_normalized,
+            'normalization_factors': {
+                'ew_mean': ew_mean,
+                'sn_mean': sn_mean,
+                'combined_mean': combined_mean,
+                'gradient_magnitude_mean': gradient_magnitude_mean
+            }
+        }
+        
+        print(f"   ✓ Spatial gradient analysis completed")
+        
+    except ImportError:
+        print("   Warning: scipy not available, skipping Earth Mover's distance calculation")
+        gradient_results = None
+    except Exception as e:
+        print(f"   Error in spatial gradient analysis: {e}")
+        gradient_results = None
+    
+    # Create summary CDF plot
+    print(f"\n6. CREATING SUMMARY CDF PLOT")
+    print(f"=" * 28)
+    
+    if cdf_results:
+        # Calculate mean CDF curve across all cells
+        all_cdf_curves = []
+        for cell_data in cdf_results.values():
+            all_cdf_curves.append(cell_data['cdf_values'])
+        
+        mean_cdf = np.mean(all_cdf_curves, axis=0)
+        std_cdf = np.std(all_cdf_curves, axis=0)
+        
+        plt.figure(figsize=(10, 6))
+        plot_mask = ice_load_bins >= ice_load_threshold
+        
+        plot_bins = ice_load_bins[plot_mask]
+        plot_mean_cdf = mean_cdf[plot_mask]
+        plot_std_cdf = std_cdf[plot_mask]
+        
+        plt.plot(plot_bins, plot_mean_cdf, 'r-', linewidth=3, label='Mean across all cells')
+        plt.fill_between(plot_bins, plot_mean_cdf - plot_std_cdf, 
+                       plot_mean_cdf + plot_std_cdf, alpha=0.3, color='red', 
+                       label='±1 Standard Deviation')
+        
+        plt.xlabel('Ice Load (kg/m)')
+        plt.ylabel('Cumulative Probability')
+        plt.title('Ice Load CDF - Domain Average (Filtered Data)')
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.xlim(left=ice_load_threshold)
+        plt.ylim([0, 1])
+        
+        plt.tight_layout()
+        
+        if save_plots:
+            # Create summary filename (simplified for file system)
+            summary_filename = "ice_load_cdf_summary_filtered.png"
+            summary_path = os.path.join(base_results_dir, summary_filename)
+            plt.savefig(summary_path, dpi=300, bbox_inches='tight')
+            print(f"   Summary CDF plot saved to: {summary_path}")
+        
+        plt.close()
+    
+    # Save analysis summary file with all filter details
+    if save_plots:
+        summary_file_path = os.path.join(base_results_dir, "analysis_summary.txt")
+        with open(summary_file_path, 'w') as f:
+            f.write("ICE LOAD ANALYSIS WITH FILTERING AND CDF\n")
+            f.write("=" * 50 + "\n\n")
+            
+            f.write(f"Analysis timestamp: {pd.Timestamp.now()}\n")
+            f.write(f"Ice load variable: {ice_load_variable}\n")
+            f.write(f"Height level: {height_level} ({dataset_with_ice_load.height.values[height_level]} m)\n\n")
+            
+            f.write("FILTERS APPLIED:\n")
+            f.write("-" * 20 + "\n")
+            if not filter_info:
+                f.write("No meteorological filters applied\n")
+            else:
+                for param, value_range in filter_info.items():
+                    if param == 'months':
+                        f.write(f"Months: {value_range}\n")
+                    elif param == 'percentile':
+                        f.write(f"Percentile threshold: {value_range}%\n")
+                    else:
+                        f.write(f"{param}: {value_range[0]} to {value_range[1]}\n")
+            
+            if ice_load_threshold > 0:
+                f.write(f"Ice load threshold: {ice_load_threshold} kg/m\n")
+            
+            f.write(f"\nDATA STATISTICS:\n")
+            f.write("-" * 20 + "\n")
+            f.write(f"Grid size: {n_south_north} × {n_west_east}\n")
+            f.write(f"Time steps after filtering: {n_time}\n")
+            f.write(f"Valid grid cells: {len(cdf_results)}\n")
+            f.write(f"Ice load range: {ice_load_threshold:.3f} to {max_ice_load:.3f} kg/m\n")
+            f.write(f"Ice load mean: {mean_ice_load:.3f} kg/m\n")
+            
+            f.write(f"\nFILES GENERATED:\n")
+            f.write("-" * 20 + "\n")
+            f.write("- ice_load_cdf_spatial_gradients_absolute.png\n")
+            f.write("- ice_load_cdf_spatial_gradients_dimensionless.png\n")
+            f.write("- ice_load_cdf_summary_filtered.png\n")
+            f.write("- analysis_summary.txt (this file)\n")
+            
+            if gradient_results:
+                f.write(f"\nSPATIAL GRADIENT STATISTICS:\n")
+                f.write("-" * 30 + "\n")
+                norms = gradient_results['normalization_factors']
+                f.write(f"East-West gradient mean: {norms['ew_mean']:.3f} kg/m\n")
+                f.write(f"South-North gradient mean: {norms['sn_mean']:.3f} kg/m\n")
+                f.write(f"Combined gradient mean: {norms['combined_mean']:.3f} kg/m\n")
+                f.write(f"Gradient magnitude mean: {norms['gradient_magnitude_mean']:.3f} kg/m\n")
+        
+        print(f"   Analysis summary saved to: {summary_file_path}")
+    
+    # Compile final results
+    results = {
+        'filter_info': filter_info,
+        'data_statistics': {
+            'n_time_steps': n_time,
+            'n_grid_cells': n_south_north * n_west_east,
+            'n_valid_cells': len(cdf_results),
+            'max_ice_load': max_ice_load,
+            'mean_ice_load': mean_ice_load,
+            'ice_load_threshold': ice_load_threshold
+        },
+        'cdf_results': cdf_results,
+        'cell_statistics': cell_statistics,
+        'spatial_gradients': gradient_results,
+        'ice_load_bins': ice_load_bins
+    }
+    
+    print(f"\n=== ANALYSIS COMPLETED SUCCESSFULLY ===")
+    print(f"   Filters applied: {len(filter_info)}")
+    print(f"   Valid grid cells: {len(cdf_results)}")
+    print(f"   Spatial gradients: {'✓' if gradient_results else '✗'}")
+    
+    return results
 
 def import_emd_data(file_path):
     """

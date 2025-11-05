@@ -81,6 +81,21 @@ dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 
 # ICE LOAD
 
+# Add ice load directly to the dataset
+print("=== ADDING ICE LOAD TO DATASET ===")
+dataset_with_ice_load = fn.add_ice_load_to_dataset(
+    ds=dataset,
+    dates=dates,
+    method=ice_load_method,
+    height_level=height,
+    variable_name='ICE_LOAD'
+)
+
+# Now you can access ice load directly from the dataset
+ice_load_data = dataset_with_ice_load['ICE_LOAD']
+print(f"Ice load data shape: {ice_load_data.shape}")
+print(f"Ice load available at height level {height}: {dataset.height.values[height]} m")
+
 # ice load data: load/calculate 
 # if calculate_new_ice_load:
 #     print("Calculating ice load...")
@@ -122,39 +137,40 @@ dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 
 # Analyze ice load CDF curves for all grid cells after meteorological filtering
 #print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ===")
-filtered_ds, results = fn.filter_dataset_by_thresholds(
-    dataset=dataset,
-    # Meteorological filters
-    PBLH_min=None,      # PBL Height (m)
-    PBLH_max=None,      # PBL Height (m)
-    PRECIP_min=None,    # Precipitation (mm/h)
-    PRECIP_max=None,    # Precipitation (mm/h)
-    QVAPOR_min=None,    # Water Vapor Mixing Ratio (kg/kg)
-    QVAPOR_max=None,    # Water Vapor Mixing Ratio (kg/kg)
-    RMOL_min=None,      # Monin-Obukhov Length (m)
-    RMOL_max=None,      # Monin-Obukhov Length (m)
-    T_min=None,         # Temperature (K)
-    T_max=None,         # Temperature (K)
-    WS_min=None,         # Wind Speed (m/s) - Disable for WD testing
-    WS_max=None,        # Wind Speed (m/s)
-    WD_max=5,        # Wind Direction (degrees) - Less aggressive: North to South  
-    WD_min=0,        # Wind Direction (degrees) - This should leave more data
+# filtered_ds, results = fn.filter_dataset_by_thresholds(
+#     dataset=dataset,
+#     # Meteorological filters
+#     PBLH_min=None,      # PBL Height (m)
+#     PBLH_max=None,      # PBL Height (m)
+#     PRECIP_min=None,    # Precipitation (mm/h)
+#     PRECIP_max=None,    # Precipitation (mm/h)
+#     QVAPOR_min=None,    # Water Vapor Mixing Ratio (kg/kg)
+#     QVAPOR_max=None,    # Water Vapor Mixing Ratio (kg/kg)
+#     RMOL_min=None,      # Monin-Obukhov Length (m)
+#     RMOL_max=None,      # Monin-Obukhov Length (m)
+#     T_min=None,         # Temperature (K)
+#     T_max=None,         # Temperature (K)
+#     WS_min=None,         # Wind Speed (m/s) - Disable for WD testing
+#     WS_max=None,        # Wind Speed (m/s)
+#     WD_max=5,        # Wind Direction (degrees) - Less aggressive: North to South  
+#     WD_min=0,        # Wind Direction (degrees) - This should leave more data
     
-    height_level=height,
+#     height_level=height,
 
 
 
 
     
-    # Enable automatic ice load CDF analysis
-    calculate_ice_load_cdf=True,    # Disable ice load calculation for faster testing
-    dates=dates,
-    ice_load_method=ice_load_method,
-    ice_load_threshold=0.1,
-    months=None,  # Winter season if wanted
-    percentile=None,     # Remove extreme outliers if wanted
-    verbose=True   # Whether to print filtering information
-)
+#     # Enable automatic ice load CDF analysis
+#     calculate_ice_load_cdf=True,    # Disable ice load calculation for faster testing
+#     dates=dates,
+#     ice_load_method=ice_load_method,
+#     ice_load_threshold=0.1,
+#     months=None,  # Winter season if wanted
+#     percentile=None,     # Remove extreme outliers if wanted
+#     verbose=True   # Whether to print filtering information
+# )
+
 # print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ; SYSTEMATIC ===")
 # results_sys_filter = fn.systematic_meteorological_filtering(
 #     dataset,
