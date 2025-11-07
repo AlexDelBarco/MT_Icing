@@ -775,6 +775,34 @@ def ice_load(accre,ablat,method):
 
         load = xr.zeros_like(accre)
         load.data = loadnp
+    if method == 51:
+        # Optimized version of method 5 using numpy operations for faster computation
+        accre_values = accre.values
+        ablat_values = ablat.values
+        
+        # Initialize arrays
+        loadnp = np.zeros_like(accre_values)
+        acm = np.zeros_like(accre_values[0])  # Shape: (south_north, west_east)
+        
+        for i in range(1, len(accre.time)):
+            if i % 1000 == 0:  # Progress indicator every 1000 steps
+                print(f"  Ice load progress (optimized): {i}/{len(accre.time)} ({i/len(accre.time)*100:.1f}%)")
+            
+            # Get current timestep data
+            accre_i = accre_values[i]
+            ablat_i = ablat_values[i]
+            
+            # Calculate change in ice load using numpy operations (much faster)
+            delta = np.where(accre_i > 0.0005, accre_i, 
+                           np.where(ablat_i < 0, ablat_i, 0))
+            
+            # Update ice load with numpy operations
+            acm += delta
+            np.clip(acm, 0, 5, out=acm)  # Efficient in-place clipping: 0 <= acm <= 5
+            loadnp[i] = acm
+
+        load = xr.zeros_like(accre)
+        load.data = loadnp
     #
     # rename data array
     load = load.rename('ice_load')
@@ -1036,7 +1064,8 @@ def add_ice_load_to_dataset(ds, dates, method=5, height_level=0, variable_name='
     # We need to expand the ice load data to include the height dimension
     # Create a new DataArray with the height dimension
     ice_load_expanded = xr.zeros_like(ds['ACCRE_CYL']) * np.nan
-    ice_load_expanded.loc[dict(height=height_level)] = dsiceload
+    # Use the actual height coordinate value, not the height_level index
+    ice_load_expanded.loc[dict(height=height_value)] = dsiceload
     
     # Add the ice load variable to the dataset
     ds_with_ice_load[variable_name] = ice_load_expanded
@@ -1065,6 +1094,35 @@ def add_ice_load_to_dataset(ds, dates, method=5, height_level=0, variable_name='
     print(f"\nDataset now contains {len(ds_with_ice_load.data_vars)} variables:")
     for var in ds_with_ice_load.data_vars:
         print(f"  - {var}: {ds_with_ice_load[var].shape}")
+    
+    # Save the complete dataset with ice load to results directory
+    try:
+        # Create results directory if it doesn't exist
+        os.makedirs(results_dir, exist_ok=True)
+        
+        # Format start and end dates for filename (safe for file names)
+        start_date = pd.to_datetime(dates[0]).strftime('%Y%m%d')
+        end_date = pd.to_datetime(dates[-1]).strftime('%Y%m%d')
+        
+        # Create filename for the dataset with ice load
+        dataset_filename = f"dataset_iceload_{start_date}_{end_date}.nc"
+        dataset_filepath = os.path.join(results_dir, dataset_filename)
+        
+        print(f"\nSaving complete dataset with ice load to: {dataset_filepath}")
+        
+        # Save the dataset
+        ds_with_ice_load.to_netcdf(dataset_filepath)
+        
+        print(f"Successfully saved dataset with ice load!")
+        print(f"  File size: {os.path.getsize(dataset_filepath) / (1024*1024):.1f} MB")
+        print(f"  Variables: {list(ds_with_ice_load.data_vars.keys())}")
+        print(f"  Time range: {start_date} to {end_date}")
+        print(f"  Ice load method: {method}")
+        print(f"  Height level: {height_level}")
+        
+    except Exception as e:
+        print(f"Warning: Could not save dataset with ice load: {e}")
+        print("Continuing without saving...")
     
     return ds_with_ice_load
 
@@ -5444,32 +5502,28 @@ def analyze_ice_load_with_filtering_and_cdf(
     for param, value_range in filter_params.items():
         if value_range is not None and param in filtered_ds.data_vars:
             min_val, max_val = value_range
-            param_data = filtered_ds[param].isel(height=height_level)
+            param_data = filtered_ds[param]
             
-            if param == 'WD':  # Special handling for wind direction
-                if min_val <= max_val:
-                    # Normal case: e.g., 90° to 180°
-                    param_mask = (param_data >= min_val) & (param_data <= max_val)
-                else:
-                    # Wrap-around case: e.g., 350° to 10° (crossing 0°)
-                    param_mask = (param_data >= min_val) | (param_data <= max_val)
-            else:
-                # For other parameters, simple range filtering
-                param_mask = (param_data >= min_val) & (param_data <= max_val)
+            # For all parameters, simple range filtering at specified height
+            param_mask = (param_data.isel(height=height_level) >= min_val) & (param_data.isel(height=height_level) <= max_val)
             
-            mask = mask & param_mask
+            # Reduce spatial dimensions - use any() to keep time steps where ANY grid point meets criteria
+            param_mask_time = param_mask.any(dim=['south_north', 'west_east'])
+            mask = mask & param_mask_time
             filter_info[param] = value_range
             
             # Count remaining data points
             remaining_points = mask.sum().values
             print(f"   {param} filter [{min_val}, {max_val}]: {remaining_points} time steps remaining")
     
-    # Apply the combined mask
+    # Apply the combined mask using integer indexing
     if not mask.any():
         print(f"   ERROR: No data remaining after filtering!")
         return None
     
-    filtered_ds = filtered_ds.sel(time=filtered_ds.time[mask])
+    # Convert boolean mask to integer indices
+    time_indices = np.where(mask.values)[0]
+    filtered_ds = filtered_ds.isel(time=time_indices)
     print(f"   Final filtered dataset: {len(filtered_ds.time)} time steps")
     
     # Get ice load data after filtering

@@ -13,7 +13,7 @@ if current_dir.endswith('scripts'):
 
 # PARAMTERES
 height = 2  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
-ice_load_method = 5  # Method for ice load calculation
+ice_load_method = 51  # Method for ice load calculation
 calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
 
 
@@ -65,11 +65,12 @@ print(f"Exploring dataset at height level: {height_level} m")
 # CALCULATIONS AND PLOTS
 
 # Period
-# start_date = '1989-01-01T00:00:00.000000000'
-# end_date = '2022-12-31T23:30:00.000000000'
-
-start_date = '2020-01-01T00:00:00.000000000'
+start_date = '1989-01-01T00:00:00.000000000'
 end_date = '2022-12-31T23:30:00.000000000'
+
+
+# start_date = '2020-01-01T00:00:00.000000000'
+# end_date = '2022-12-31T23:30:00.000000000'
 dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 
 
@@ -82,31 +83,33 @@ dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 # ICE LOAD
 
 # Add ice load directly to the dataset
-print("=== ADDING ICE LOAD TO DATASET ===")
-dataset_with_ice_load = fn.add_ice_load_to_dataset(
-    ds=dataset,
-    dates=dates,
-    method=ice_load_method,
-    height_level=height,
-    variable_name='ICE_LOAD'
-)
+# print("=== ADDING ICE LOAD TO DATASET ===")
+# dataset_with_ice_load = fn.add_ice_load_to_dataset(
+#     ds=dataset,
+#     dates=dates,
+#     method=ice_load_method,
+#     height_level=height,
+#     variable_name='ICE_LOAD'
+# )
 
-# Now you can access ice load directly from the dataset
-ice_load_data = dataset_with_ice_load['ICE_LOAD']
-print(f"Ice load data shape: {ice_load_data.shape}")
-print(f"Ice load available at height level {height}: {dataset.height.values[height]} m")
+# # Now you can access ice load directly from the dataset
+# ice_load_data = dataset_with_ice_load['ICE_LOAD']
+# print(f"Ice load data shape: {ice_load_data.shape}")
+# print(f"Ice load available at height level {height}: {dataset.height.values[height]} m")
 
-# ice load data: load/calculate 
-# if calculate_new_ice_load:
-#     print("Calculating ice load...")
-#     #ice_load_data = fn.calculate_ice_load(dataset, dates, ice_load_method, height_level=height, create_figures=True)
-# else:
-#     print("Loading existing ice load data...")
-#     filename = f"results/iceload_19890701_to_20220701_h150m.nc"
-#     ice_load_data = xr.open_dataarray(filename)
+#ice load data: load/calculate 
+if calculate_new_ice_load:
+    print("Calculating ice load...")
+    #ice_load_data = fn.calculate_ice_load(dataset, dates, ice_load_method, height_level=height, create_figures=True)
+else:
+    print("Loading existing complete dataset with ice load...")
+    filename = f"results/dataset_iceload_19890701_20220701.nc"
+    dataset_with_ice_load = xr.open_dataset(filename)  # Load complete dataset
 
-#     print(f"Loaded ice load data from: {filename}")
-#     print(f"Loaded ice load data with shape: {ice_load_data.shape}")
+    print(f"Loaded dataset from: {filename}")
+    print(f"Dataset dimensions: {dataset_with_ice_load.dims}")
+    print(f"Available variables: {list(dataset_with_ice_load.data_vars.keys())}")
+    print(f"Ice load variable 'ICE_LOAD' is ready for analysis at height level {height}: {dataset_with_ice_load.height.values[height]} m")
 
 
 # SPATIAL GRADIENTS
@@ -189,6 +192,27 @@ print(f"Ice load available at height level {height}: {dataset.height.values[heig
 #     save_results=True,
 #     height_level=height,
 # )
+
+results_filters = fn.analyze_ice_load_with_filtering_and_cdf(
+    dataset_with_ice_load = dataset_with_ice_load,
+    ice_load_variable='ICE_LOAD',
+    height_level=height,
+    save_plots=True,
+    results_subdir="filtered_ice_load_cdf_analysis",
+    # Filtering parameters (min, max for each variable)
+    WD_range=(270, 360),        # (min, max) for Wind Direction
+    WS_range=None,        # (min, max) for Wind Speed
+    T_range=None,         # (min, max) for Temperature
+    PBLH_range=None,      # (min, max) for Boundary Layer Height
+    PRECIP_range=None,    # (min, max) for Precipitation
+    QVAPOR_range=None,    # (min, max) for Water Vapor
+    RMOL_range=None,      # (min, max) for Monin-Obukhov Length
+    # CDF analysis parameters
+    ice_load_threshold=0.1,
+    ice_load_bins=None,
+    months=None,
+    percentile=None
+)
 
 
 # Analyze threshold exceedance spatial patterns
