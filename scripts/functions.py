@@ -5848,7 +5848,7 @@ def analyze_ice_load_with_filtering_and_cdf(
         # Plot 4: Gradient magnitude (normalized)
         im4_norm = axes_norm[1, 1].imshow(gradient_magnitude_normalized, cmap='RdBu_r', origin='lower', 
                                          interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
-        axes_norm[1, 1].set_title('Gradient Magnitude\n(Dimensionless, Relative to Domain Mean)')
+        axes_norm[1, 1].set_title('Gradient magnitude (RMS)')
         axes_norm[1, 1].set_xlabel('West-East Grid Points')
         axes_norm[1, 1].set_ylabel('South-North Grid Points')
         cbar4_norm = plt.colorbar(im4_norm, ax=axes_norm[1, 1], shrink=0.8)

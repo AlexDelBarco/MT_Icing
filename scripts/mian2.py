@@ -200,8 +200,8 @@ results_filters = fn.analyze_ice_load_with_filtering_and_cdf(
     save_plots=True,
     results_subdir="filtered_ice_load_cdf_analysis",
     # Filtering parameters (min, max for each variable)
-    WD_range=(270, 360),        # (min, max) for Wind Direction
-    WS_range=None,        # (min, max) for Wind Speed
+    WD_range=(210, 230),        # (min, max) for Wind Direction
+    WS_range=(8, 50),        # (min, max) for Wind Speed
     T_range=None,         # (min, max) for Temperature
     PBLH_range=None,      # (min, max) for Boundary Layer Height
     PRECIP_range=None,    # (min, max) for Precipitation
