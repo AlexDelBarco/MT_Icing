@@ -1105,7 +1105,7 @@ def add_ice_load_to_dataset(ds, dates, method=5, height_level=0, variable_name='
         end_date = pd.to_datetime(dates[-1]).strftime('%Y%m%d')
         
         # Create filename for the dataset with ice load
-        dataset_filename = f"dataset_iceload_{start_date}_{end_date}.nc"
+        dataset_filename = f"dataset_iceload_{start_date}_{end_date}_h{height_level}.nc"
         dataset_filepath = os.path.join(results_dir, dataset_filename)
         
         print(f"\nSaving complete dataset with ice load to: {dataset_filepath}")

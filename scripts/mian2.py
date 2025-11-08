@@ -12,9 +12,9 @@ if current_dir.endswith('scripts'):
     print(f"Changed working directory from {current_dir} to {os.getcwd()}")
 
 # PARAMTERES
-height = 2  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
+height = 1  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
 ice_load_method = 51  # Method for ice load calculation
-calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
+calculate_new_ice_load = True  # Whether to calculate ice load or load existing data
 
 
 # IMPORT DATA
@@ -82,28 +82,29 @@ dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 
 # ICE LOAD
 
-# Add ice load directly to the dataset
-# print("=== ADDING ICE LOAD TO DATASET ===")
-# dataset_with_ice_load = fn.add_ice_load_to_dataset(
-#     ds=dataset,
-#     dates=dates,
-#     method=ice_load_method,
-#     height_level=height,
-#     variable_name='ICE_LOAD'
-# )
-
-# # Now you can access ice load directly from the dataset
-# ice_load_data = dataset_with_ice_load['ICE_LOAD']
-# print(f"Ice load data shape: {ice_load_data.shape}")
-# print(f"Ice load available at height level {height}: {dataset.height.values[height]} m")
-
 #ice load data: load/calculate 
 if calculate_new_ice_load:
     print("Calculating ice load...")
     #ice_load_data = fn.calculate_ice_load(dataset, dates, ice_load_method, height_level=height, create_figures=True)
+
+    #Add ice load directly to the dataset
+    print("=== ADDING ICE LOAD TO DATASET ===")
+    dataset_with_ice_load = fn.add_ice_load_to_dataset(
+        ds=dataset,
+        dates=dates,
+        method=ice_load_method,
+        height_level=height,
+        variable_name='ICE_LOAD'
+    )
+
+    # # Now you can access ice load directly from the dataset
+    # ice_load_data = dataset_with_ice_load['ICE_LOAD']
+    # print(f"Ice load data shape: {ice_load_data.shape}")
+    # print(f"Ice load available at height level {height}: {dataset.height.values[height]} m")
+
 else:
     print("Loading existing complete dataset with ice load...")
-    filename = f"results/dataset_iceload_19890701_20220701.nc"
+    filename = f"results/dataset_iceload_19890701_20220701_h{height}.nc"
     dataset_with_ice_load = xr.open_dataset(filename)  # Load complete dataset
 
     print(f"Loaded dataset from: {filename}")
@@ -201,7 +202,7 @@ results_filters = fn.analyze_ice_load_with_filtering_and_cdf(
     results_subdir="filtered_ice_load_cdf_analysis",
     # Filtering parameters (min, max for each variable)
     WD_range=(210, 230),        # (min, max) for Wind Direction
-    WS_range=(8, 50),        # (min, max) for Wind Speed
+    WS_range=None,        # (min, max) for Wind Speed
     T_range=None,         # (min, max) for Temperature
     PBLH_range=None,      # (min, max) for Boundary Layer Height
     PRECIP_range=None,    # (min, max) for Precipitation
