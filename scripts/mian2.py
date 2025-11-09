@@ -12,9 +12,9 @@ if current_dir.endswith('scripts'):
     print(f"Changed working directory from {current_dir} to {os.getcwd()}")
 
 # PARAMTERES
-height = 1  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
+height = 2  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
 ice_load_method = 51  # Method for ice load calculation
-calculate_new_ice_load = True  # Whether to calculate ice load or load existing data
+calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
 
 
 # IMPORT DATA
@@ -112,6 +112,19 @@ else:
     print(f"Available variables: {list(dataset_with_ice_load.data_vars.keys())}")
     print(f"Ice load variable 'ICE_LOAD' is ready for analysis at height level {height}: {dataset_with_ice_load.height.values[height]} m")
 
+# Plot ice load values for each grid cell
+print("\n=== ICE LOAD GRID VALUES ANALYSIS ===")
+grid_results = fn.plot_grid_ice_load_values(
+    dataset_with_ice_load=dataset_with_ice_load,
+    ice_load_variable='ICE_LOAD',
+    height_level=height,
+    ice_load_threshold=0.1,
+    statistic='mean',  # Options: 'mean', 'max', 'median', 'std', 'p95', 'p99', 'occurrence_rate'
+    save_plots=True,
+    months=None,  # Can specify winter months like [12, 1, 2, 3] if desired
+    percentile=None,  # Can filter extreme values if desired
+    show_colorbar=True
+)
 
 # SPATIAL GRADIENTS
 
@@ -194,26 +207,26 @@ else:
 #     height_level=height,
 # )
 
-results_filters = fn.analyze_ice_load_with_filtering_and_cdf(
-    dataset_with_ice_load = dataset_with_ice_load,
-    ice_load_variable='ICE_LOAD',
-    height_level=height,
-    save_plots=True,
-    results_subdir="filtered_ice_load_cdf_analysis",
-    # Filtering parameters (min, max for each variable)
-    WD_range=(210, 230),        # (min, max) for Wind Direction
-    WS_range=None,        # (min, max) for Wind Speed
-    T_range=None,         # (min, max) for Temperature
-    PBLH_range=None,      # (min, max) for Boundary Layer Height
-    PRECIP_range=None,    # (min, max) for Precipitation
-    QVAPOR_range=None,    # (min, max) for Water Vapor
-    RMOL_range=None,      # (min, max) for Monin-Obukhov Length
-    # CDF analysis parameters
-    ice_load_threshold=0.1,
-    ice_load_bins=None,
-    months=None,
-    percentile=None
-)
+# results_filters = fn.analyze_ice_load_with_filtering_and_cdf(
+#     dataset_with_ice_load = dataset_with_ice_load,
+#     ice_load_variable='ICE_LOAD',
+#     height_level=height,
+#     save_plots=True,
+#     results_subdir="filtered_ice_load_cdf_analysis",
+#     # Filtering parameters (min, max for each variable)
+#     WD_range=(210, 230),        # (min, max) for Wind Direction
+#     WS_range=None,        # (min, max) for Wind Speed
+#     T_range=None,         # (min, max) for Temperature
+#     PBLH_range=None,      # (min, max) for Boundary Layer Height
+#     PRECIP_range=None,    # (min, max) for Precipitation
+#     QVAPOR_range=None,    # (min, max) for Water Vapor
+#     RMOL_range=None,      # (min, max) for Monin-Obukhov Length
+#     # CDF analysis parameters
+#     ice_load_threshold=0.1,
+#     ice_load_bins=None,
+#     months=None,
+#     percentile=None
+# )
 
 
 # Analyze threshold exceedance spatial patterns
