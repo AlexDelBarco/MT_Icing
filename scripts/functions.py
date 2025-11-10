@@ -1161,12 +1161,11 @@ def save_ice_load_data(dsiceload, start_date, end_date, height_label="h0"):
         print(f"Error saving ice load data: {e}")
 
 def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD', height_level=0, 
-                             ice_load_threshold=0.0, statistic='mean', save_plots=True, 
-                             months=None, percentile=None, show_colorbar=True):
+                             ice_load_threshold=0.0, save_plots=True, 
+                             months=None, show_colorbar=True):
     """
-    Plot ice load values for each grid cell using CDF-derived statistics.
-    Creates CDFs for each cell using all available data (entire time series) and then
-    extracts the requested statistic from the CDF rather than computing it directly.
+    Plot annual mean total ice load for each grid cell.
+    Calculates the total ice load per year for each grid cell, then computes the mean across all years.
     
     Parameters:
     -----------
@@ -1177,27 +1176,19 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
     height_level : int, default 0
         Height level index to analyze
     ice_load_threshold : float, default 0.0
-        Minimum ice load value to include in CDF analysis (kg/m)
-    statistic : str, default 'mean'
-        Statistical measure to extract from CDF for each cell:
-        'mean' - CDF-derived mean (integral of 1-CDF)
-        'median' - 50th percentile from CDF
-        'p95' - 95th percentile from CDF
-        'p99' - 99th percentile from CDF
+        Minimum ice load value to include in calculation (kg/m)
     save_plots : bool, default True
         Whether to save the plots to files
     months : list of int, optional
         List of months to include (1-12). If None, uses all months
-    percentile : float, optional
-        Percentile threshold (0-100) for filtering extreme values
     show_colorbar : bool, default True
         Whether to show colorbar in the grid plot
         
     Returns:
     --------
-    dict : Dictionary containing CDF results and CDF-derived statistics for each grid cell
+    dict : Dictionary containing annual totals and mean values for each grid cell
     """
-    print("=== ICE LOAD CDF-BASED GRID ANALYSIS ===")
+    print("=== ANNUAL MEAN ICE LOAD GRID ANALYSIS ===")
     
     try:
         # Extract ice load data
@@ -1224,11 +1215,13 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         # Convert time to pandas for easier manipulation
         time_index = pd.to_datetime(ice_load_data.time.values)
         n_years = len(time_index.year.unique())
+        years = sorted(time_index.year.unique())
         print(f"   Years covered: {n_years}")
-        print(f"   Years: {sorted(time_index.year.unique())}")
+        print(f"   Years: {years}")
         
-        # Remove NaN values and clean data
-        ice_data_clean = ice_load_data.where(ice_load_data >= 0, 0)  # Replace negative/NaN with 0
+        # Clean data and apply threshold
+        ice_data_clean = ice_load_data.where(ice_load_data >= ice_load_threshold, 0)  # Replace below threshold with 0
+        ice_data_clean = ice_data_clean.where(ice_data_clean.notnull(), 0)  # Replace NaN with 0
         
         # Filter data by months if specified
         if months is not None:
@@ -1250,126 +1243,134 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
             print(f"\n   Using all months for analysis...")
             ice_data_analysis = ice_data_clean
         
-        # Apply percentile filtering if specified
-        max_ice_load = float(ice_data_analysis.max())
-        if percentile is not None:
-            if 0 < percentile < 100:
-                percentile_value = float(np.nanpercentile(ice_data_analysis.values, percentile))
-                if percentile_value < max_ice_load:
-                    print(f"   Applying {percentile}th percentile threshold: {percentile_value:.3f} kg/m")
-                    print(f"   Original max ice load: {max_ice_load:.3f} kg/m")
-                    max_ice_load = percentile_value
-                    ice_data_analysis = ice_data_analysis.where(ice_data_analysis <= percentile_value, np.nan)
-                    print(f"   Data filtered to exclude ice loads > {percentile_value:.3f} kg/m")
-        
         print(f"\n2. Ice Load Statistics (threshold: {ice_load_threshold:.3f} kg/m):")
-        print(f"   Range: 0.0 to {max_ice_load:.3f} kg/m")
+        print(f"   Range: {float(ice_data_analysis.min()):.3f} to {float(ice_data_analysis.max()):.3f} kg/m")
         print(f"   Overall mean: {float(ice_data_analysis.mean()):.3f} kg/m")
-        print(f"   CDF-derived statistic to extract: {statistic}")
         
-        # Define ice load bins for CDF analysis
-        if max_ice_load > ice_load_threshold:
-            ice_load_bins = np.linspace(0.0, max_ice_load, 100)
-        else:
-            ice_load_bins = np.array([0.0, ice_load_threshold + 0.01, ice_load_threshold + 0.1, ice_load_threshold + 1])
+        # Calculate annual totals for each grid cell
+        print(f"\n3. Calculating annual totals for each grid cell...")
         
-        print(f"   Using {len(ice_load_bins)} ice load bins for CDF calculation")
-        print(f"   Bin range: {ice_load_bins[0]:.4f} to {ice_load_bins[-1]:.3f} kg/m")
+        # Create time coordinate for grouping by year
+        ice_data_analysis = ice_data_analysis.assign_coords(year=ice_data_analysis.time.dt.year)
+        
+        # Calculate annual sums for each grid cell
+        annual_totals = ice_data_analysis.groupby('year').sum(dim='time')
+        
+        print(f"   Annual totals calculated for {len(annual_totals.year)} years")
+        print(f"   Years in annual totals: {list(annual_totals.year.values)}")
+        
+        # Calculate mean annual total for each grid cell
+        mean_annual_totals = annual_totals.mean(dim='year')
+        
+        print(f"   Mean annual totals shape: {mean_annual_totals.shape}")
+        print(f"   Mean annual range: {float(mean_annual_totals.min()):.3f} to {float(mean_annual_totals.max()):.3f} kg/m")
         
         # Prepare results storage
         results = {
             'grid_shape': (n_south_north, n_west_east),
             'n_years': n_years,
+            'years': years,
             'ice_load_threshold': ice_load_threshold,
-            'statistic': statistic,
-            'ice_load_bins': ice_load_bins,
-            'cdf_results': {},
-            'cdf_derived_statistics': {},
-            'grid_values': np.full((n_south_north, n_west_east), np.nan)
+            'annual_totals': annual_totals,
+            'mean_annual_totals': mean_annual_totals,
+            'grid_statistics': {}
         }
         
-        print(f"\n3. Computing CDFs and extracting {statistic} for each grid cell...")
+        # Calculate statistics for each grid cell
+        print(f"\n4. Computing statistics for each grid cell...")
         
-        # Calculate CDFs and extract statistics for each grid cell
         for i in range(n_south_north):
             for j in range(n_west_east):
-                # Extract time series for this grid cell
-                cell_data = ice_data_analysis.isel(south_north=i, west_east=j)
-                cell_values = cell_data.values
+                cell_annual_totals = annual_totals.isel(south_north=i, west_east=j).values
+                cell_mean_annual = float(mean_annual_totals.isel(south_north=i, west_east=j).values)
                 
-                # Remove NaN values
-                valid_mask = ~np.isnan(cell_values)
-                cell_values_clean = cell_values[valid_mask]
-                
-                if len(cell_values_clean) == 0:
-                    continue
-                
-                # Filter values to be >= threshold
-                cell_values_filtered = cell_values_clean[cell_values_clean >= ice_load_threshold]
-                
-                if len(cell_values_filtered) == 0:
-                    continue
-                
-                # Calculate CDF using all filtered data (entire time series)
-                cdf_values = []
-                for ice_threshold in ice_load_bins:
-                    # Calculate cumulative probability P(X <= ice_threshold)
-                    prob = np.sum(cell_values_filtered <= ice_threshold) / len(cell_values_filtered)
-                    cdf_values.append(prob)
-                
-                cdf_values = np.array(cdf_values)
-                
-                # Extract the requested statistic from the CDF
-                if statistic == 'mean':
-                    # Calculate mean from CDF using trapezoidal integration: E[X] = ∫(1-F(x))dx
-                    # This is equivalent to the area under the survival function
-                    survival_function = 1 - cdf_values
-                    # Use bins as x-values and integrate
-                    cdf_mean = np.trapz(survival_function, ice_load_bins)
-                    stat_value = cdf_mean
-                    
-                elif statistic == 'median':
-                    # Find 50th percentile from CDF
-                    stat_value = np.interp(0.5, cdf_values, ice_load_bins)
-                    
-                elif statistic == 'p95':
-                    # Find 95th percentile from CDF
-                    stat_value = np.interp(0.95, cdf_values, ice_load_bins)
-                    
-                elif statistic == 'p99':
-                    # Find 99th percentile from CDF
-                    stat_value = np.interp(0.99, cdf_values, ice_load_bins)
-                    
-                else:
-                    raise ValueError(f"Unknown statistic: {statistic}. Available: 'mean', 'median', 'p95', 'p99'")
-                
-                # Store results
                 cell_key = f'cell_{i}_{j}'
-                results['cdf_results'][cell_key] = {
+                results['grid_statistics'][cell_key] = {
                     'position': (i, j),
-                    'ice_load_bins': ice_load_bins,
-                    'cdf_values': cdf_values,
-                    'n_data_points': len(cell_values_filtered)
+                    'annual_totals': cell_annual_totals.tolist(),
+                    'mean_annual_total': cell_mean_annual,
+                    'std_annual_total': float(np.std(cell_annual_totals)),
+                    'min_annual_total': float(np.min(cell_annual_totals)),
+                    'max_annual_total': float(np.max(cell_annual_totals)),
+                    'cv': float(np.std(cell_annual_totals) / cell_mean_annual) if cell_mean_annual > 0 else 0
                 }
-                
-                results['cdf_derived_statistics'][cell_key] = {
-                    'position': (i, j),
-                    f'cdf_{statistic}': stat_value,
-                    'n_valid_points': len(cell_values_filtered),
-                    'n_total_points': len(cell_values_clean),
-                    'data_availability': len(cell_values_filtered) / len(cell_values_clean) * 100
-                }
-                
-                # Store value in grid array
-                results['grid_values'][i, j] = stat_value
         
-        print(f"   Processed {len(results['cdf_results'])} grid cells with valid CDFs")
+        print(f"   Computed statistics for {len(results['grid_statistics'])} grid cells")
         
-        # Create individual cell CDF plots
-        n_cols = min(n_west_east, 5)  # Maximum 5 columns
+        # Create spatial grid visualization
+        print(f"\n5. Creating spatial grid visualization of mean annual totals...")
+        
+        fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+        
+        # Create a spatial plot showing the mean annual totals
+        plot_data = mean_annual_totals.values
+        
+        im = ax.imshow(plot_data, cmap='viridis', aspect='equal', origin='lower')
+        
+        if show_colorbar:
+            cbar = plt.colorbar(im, ax=ax)
+            cbar.set_label('Mean Annual Total Ice Load (kg/m)', rotation=270, labelpad=20)
+        
+        # Add grid lines and labels
+        ax.set_xlabel('West-East Grid Index')
+        ax.set_ylabel('South-North Grid Index')
+        ax.set_title(f'Mean Annual Total Ice Load per Grid Cell\n(Threshold: {ice_load_threshold:.1f} kg/m, Height: {dataset_with_ice_load.height.values[height_level]} m)')
+        
+        # Add grid
+        ax.set_xticks(range(n_west_east))
+        ax.set_yticks(range(n_south_north))
+        ax.grid(True, alpha=0.3)
+        
+        # Add values on each cell with one decimal place
+        for i in range(n_south_north):
+            for j in range(n_west_east):
+                value = plot_data[i, j]
+                text_color = 'white' if value > np.mean(plot_data) else 'black'
+                ax.text(j, i, f'{value:.1f}', 
+                       ha='center', va='center', color=text_color, fontweight='bold', fontsize=10)
+        
+        plt.tight_layout()
+        
+        if save_plots:
+            # Create directory structure
+            height_m = int(dataset_with_ice_load.height.values[height_level])
+            
+            # Format ice threshold with appropriate precision and replace decimal point with 'p'
+            if ice_load_threshold == int(ice_load_threshold):
+                # If it's a whole number, format as integer
+                ice_threshold_str = f"{int(ice_load_threshold)}"
+            else:
+                # For decimal values, use appropriate precision to avoid rounding
+                ice_threshold_str = f"{ice_load_threshold:.2f}".rstrip('0').rstrip('.')
+            ice_threshold_str = ice_threshold_str.replace('.', 'p')
+            
+            base_dir = os.path.join("results", "figures", "spatial_gradient", "Ice_load_grid")
+            specific_dir = f"ice_load_grid_{height_m}_{ice_threshold_str}"
+            ice_load_plots_dir = os.path.join(base_dir, specific_dir)
+            os.makedirs(ice_load_plots_dir, exist_ok=True)
+            
+            print(f"   Saving plots to: {ice_load_plots_dir}")
+            
+            # Create filename
+            filename_parts = ["mean_annual_total_ice_load"]
+            if months is not None:
+                months_str = "_".join(map(str, sorted(months)))
+                filename_parts.append(f"months_{months_str}")
+            
+            plot_filename = "_".join(filename_parts) + ".png"
+            plot_path = os.path.join(ice_load_plots_dir, plot_filename)
+            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+            print(f"   Spatial grid plot saved to: {plot_path}")
+        
+        plt.close()
+        
+        # Create time series plot for each cell
+        print(f"\n6. Creating annual time series plots for each grid cell...")
+        
+        n_cols = min(n_west_east, 3)  # Maximum 3 columns for better visibility
         n_rows = int(np.ceil((n_south_north * n_west_east) / n_cols))
         
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(4*n_cols, 3*n_rows))
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5*n_cols, 4*n_rows))
         if n_rows == 1 and n_cols == 1:
             axes = [axes]
         elif n_rows == 1 or n_cols == 1:
@@ -1377,64 +1378,34 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         else:
             axes = axes.flatten()
         
-        print(f"\n4. Creating individual cell CDF plots...")
-        
         cell_count = 0
         for i in range(n_south_north):
             for j in range(n_west_east):
-                cell_key = f'cell_{i}_{j}'
-                
-                if cell_key in results['cdf_results']:
-                    if cell_count < len(axes):
-                        ax = axes[cell_count]
-                        
-                        # Get CDF data for this cell
-                        cdf_data = results['cdf_results'][cell_key]
-                        cdf_stat = results['cdf_derived_statistics'][cell_key]
-                        
-                        # Plot CDF
-                        plot_mask = ice_load_bins >= ice_load_threshold
-                        plot_bins = ice_load_bins[plot_mask]
-                        plot_cdf = cdf_data['cdf_values'][plot_mask]
-                        
-                        ax.plot(plot_bins, plot_cdf, 'b-', linewidth=2, marker='o', markersize=2)
-                        
-                        # Mark the extracted statistic on the plot
-                        stat_val = cdf_stat[f'cdf_{statistic}']
-                        if statistic == 'mean':
-                            # For mean, show it as a vertical line
-                            ax.axvline(x=stat_val, color='red', linestyle='--', linewidth=2, 
-                                     label=f'CDF Mean: {stat_val:.2f}')
-                        else:
-                            # For percentiles, show the point on the CDF
-                            if statistic == 'median':
-                                target_prob = 0.5
-                            elif statistic == 'p95':
-                                target_prob = 0.95
-                            elif statistic == 'p99':
-                                target_prob = 0.99
-                            
-                            ax.axhline(y=target_prob, color='red', linestyle='--', alpha=0.5)
-                            ax.axvline(x=stat_val, color='red', linestyle='--', linewidth=2, 
-                                     label=f'{statistic.upper()}: {stat_val:.2f}')
-                            ax.plot(stat_val, target_prob, 'ro', markersize=6)
-                        
-                        ax.set_xlabel('Ice Load (kg/m)')
-                        ax.set_ylabel('Cumulative Probability')
-                        ax.set_title(f'Cell ({i},{j})')
-                        ax.grid(True, alpha=0.3)
-                        ax.legend(fontsize=8)
-                        ax.set_xlim(left=ice_load_threshold)
-                        ax.set_ylim([0, 1])
-                
-                else:
-                    # No valid data for this cell
-                    if cell_count < len(axes):
-                        ax = axes[cell_count]
-                        ax.text(0.5, 0.5, 'No Data', ha='center', va='center', transform=ax.transAxes)
-                        ax.set_title(f'Cell ({i},{j})')
-                        ax.set_xticks([])
-                        ax.set_yticks([])
+                if cell_count < len(axes):
+                    ax = axes[cell_count]
+                    
+                    # Get annual totals for this cell
+                    cell_data = annual_totals.isel(south_north=i, west_east=j)
+                    years_data = cell_data.year.values
+                    values_data = cell_data.values
+                    
+                    # Plot annual totals
+                    ax.plot(years_data, values_data, 'o-', linewidth=2, markersize=6)
+                    
+                    # Add mean line
+                    mean_val = results['grid_statistics'][f'cell_{i}_{j}']['mean_annual_total']
+                    ax.axhline(y=mean_val, color='red', linestyle='--', linewidth=2, 
+                             label=f'Mean: {mean_val:.1f}')
+                    
+                    ax.set_xlabel('Year')
+                    ax.set_ylabel('Annual Total Ice Load (kg/m)')
+                    ax.set_title(f'Cell ({i},{j})')
+                    ax.grid(True, alpha=0.3)
+                    ax.legend(fontsize=8)
+                    
+                    # Set reasonable y-limits
+                    if np.max(values_data) > 0:
+                        ax.set_ylim(bottom=0)
                 
                 cell_count += 1
         
@@ -1442,102 +1413,48 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         for idx in range(cell_count, len(axes)):
             axes[idx].set_visible(False)
         
-        plt.suptitle(f'Ice Load CDFs and CDF-derived {statistic.title()} (Threshold: {ice_load_threshold:.1f} kg/m)', fontsize=16)
+        plt.suptitle(f'Annual Total Ice Load Time Series\n(Threshold: {ice_load_threshold:.1f} kg/m, Height: {dataset_with_ice_load.height.values[height_level]} m)', 
+                     fontsize=16)
         plt.tight_layout()
         
         if save_plots:
-            # Create directory structure: results/figures/spatial_gradient/Ice_load_grid/ice_load_grid_{height_level}_{ice_threshold}
-            base_dir = os.path.join("results", "figures", "spatial_gradient", "Ice_load_grid")
-            ice_threshold_str = f"{ice_load_threshold:.1f}".replace('.', 'p')  # Convert 0.1 to 0p1 for filename
-            specific_dir = f"ice_load_grid_h{height_level}_ice_load_threshold{ice_threshold_str}"
-            ice_load_plots_dir = os.path.join(base_dir, specific_dir)
-            os.makedirs(ice_load_plots_dir, exist_ok=True)
-            
-            print(f"   Saving plots to: {ice_load_plots_dir}")
-            
-            # Create filename
-            filename_parts = [f"ice_load_cdf_analysis_{statistic}"]
+            timeseries_filename_parts = ["annual_totals_timeseries"]
             if months is not None:
                 months_str = "_".join(map(str, sorted(months)))
-                filename_parts.append(f"months_{months_str}")
-            if percentile is not None:
-                filename_parts.append(f"p{percentile}")
+                timeseries_filename_parts.append(f"months_{months_str}")
             
-            plot_filename = "_".join(filename_parts) + ".png"
-            plot_path = os.path.join(ice_load_plots_dir, plot_filename)
-            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-            print(f"   CDF analysis plots saved to: {plot_path}")
+            timeseries_filename = "_".join(timeseries_filename_parts) + ".png"
+            timeseries_path = os.path.join(ice_load_plots_dir, timeseries_filename)
+            plt.savefig(timeseries_path, dpi=300, bbox_inches='tight')
+            print(f"   Time series plots saved to: {timeseries_path}")
         
-        # Create spatial grid visualization
-        print(f"\n5. Creating spatial grid visualization of CDF-derived {statistic}...")
-        
-        fig, ax = plt.subplots(1, 1, figsize=(10, 8))
-        
-        # Create a spatial plot showing the CDF-derived values
-        valid_mask = ~np.isnan(results['grid_values'])
-        
-        if np.any(valid_mask):
-            im = ax.imshow(results['grid_values'], cmap='viridis', aspect='equal', origin='lower')
-            
-            if show_colorbar:
-                cbar = plt.colorbar(im, ax=ax)
-                cbar.set_label(f'CDF-derived {statistic.title()} (kg/m)', rotation=270, labelpad=20)
-            
-            # Add grid lines and labels
-            ax.set_xlabel('West-East Grid Index')
-            ax.set_ylabel('South-North Grid Index')
-            ax.set_title(f'Spatial Distribution of CDF-derived Ice Load {statistic.title()}\n(Threshold: {ice_load_threshold:.1f} kg/m)')
-            
-            # Add grid
-            ax.set_xticks(range(n_west_east))
-            ax.set_yticks(range(n_south_north))
-            ax.grid(True, alpha=0.3)
-            
-            # Optionally add values on each cell
-            if n_south_north * n_west_east <= 25:  # Only for small grids
-                for i in range(n_south_north):
-                    for j in range(n_west_east):
-                        if not np.isnan(results['grid_values'][i, j]):
-                            text_color = 'white' if results['grid_values'][i, j] > np.nanmean(results['grid_values']) else 'black'
-                            ax.text(j, i, f'{results["grid_values"][i, j]:.1f}', 
-                                   ha='center', va='center', color=text_color, fontweight='bold')
-        
-        else:
-            ax.text(0.5, 0.5, 'No valid data found', ha='center', va='center', transform=ax.transAxes)
-            ax.set_title('Spatial Distribution - No Data Available')
-        
-        plt.tight_layout()
-        
-        if save_plots:
-            # Save spatial grid plot to the same directory structure
-            spatial_filename_parts = [f"ice_load_spatial_cdf_{statistic}"]
-            if months is not None:
-                months_str = "_".join(map(str, sorted(months)))
-                spatial_filename_parts.append(f"months_{months_str}")
-            if percentile is not None:
-                spatial_filename_parts.append(f"p{percentile}")
-            
-            spatial_filename = "_".join(spatial_filename_parts) + ".png"
-            spatial_path = os.path.join(ice_load_plots_dir, spatial_filename)
-            plt.savefig(spatial_path, dpi=300, bbox_inches='tight')
-            print(f"   Spatial grid plot saved to: {spatial_path}")
+        plt.close()
         
         # Print summary statistics
-        print(f"\n6. Summary Statistics:")
-        print(f"   Processed {len(results['cdf_results'])} grid cells")
+        print(f"\n7. Summary Statistics:")
+        print(f"   Processed {n_south_north * n_west_east} grid cells")
+        print(f"   Years analyzed: {n_years}")
         
-        if results['cdf_derived_statistics']:
-            all_values = [stats[f'cdf_{statistic}'] for stats in results['cdf_derived_statistics'].values()]
-            print(f"   CDF-derived {statistic.title()} statistics across domain:")
-            print(f"     Mean: {np.mean(all_values):.3f} kg/m")
-            print(f"     Min: {np.min(all_values):.3f} kg/m")
-            print(f"     Max: {np.max(all_values):.3f} kg/m")
-            print(f"     Std: {np.std(all_values):.3f} kg/m")
+        all_means = [stats['mean_annual_total'] for stats in results['grid_statistics'].values()]
+        all_stds = [stats['std_annual_total'] for stats in results['grid_statistics'].values()]
+        all_cvs = [stats['cv'] for stats in results['grid_statistics'].values() if stats['cv'] > 0]
+        
+        print(f"   Mean annual total ice load across domain:")
+        print(f"     Mean: {np.mean(all_means):.3f} kg/m")
+        print(f"     Min: {np.min(all_means):.3f} kg/m")
+        print(f"     Max: {np.max(all_means):.3f} kg/m")
+        print(f"     Std: {np.std(all_means):.3f} kg/m")
+        
+        if all_cvs:
+            print(f"   Coefficient of variation across domain:")
+            print(f"     Mean CV: {np.mean(all_cvs):.3f}")
+            print(f"     Min CV: {np.min(all_cvs):.3f}")
+            print(f"     Max CV: {np.max(all_cvs):.3f}")
         
         return results
     
     except Exception as e:
-        print(f"\nError in CDF-based ice load grid analysis: {str(e)}")
+        print(f"\nError in annual mean ice load grid analysis: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -2816,6 +2733,7 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
     for every grid cell. The function creates a mean over all years and plots
     X-axis: Ice load (kg/m)
     Y-axis: Cumulative probability
+    It creates a CDF per cell using all data available, then compare CDFs across the domain.
     
     Parameters:
     -----------
@@ -4481,7 +4399,8 @@ def plot_ice_load_1_minus_cdf_curves(ice_load_data, save_plots=True, ice_load_bi
         traceback.print_exc()
         return None
 
-def plot_ice_load_threshold_exceedance_map(ice_load_data, ice_load_threshold, save_plots=True, 
+def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_variable='ICE_LOAD', height_level=0,
+                                         ice_load_threshold=0.1, save_plots=True, 
                                          colormap='viridis', grid_labels=True, units='hours'):
     """
     Create a spatial map showing how often each grid cell exceeds a specified ice load threshold
@@ -4489,8 +4408,12 @@ def plot_ice_load_threshold_exceedance_map(ice_load_data, ice_load_threshold, sa
     
     Parameters:
     -----------
-    ice_load_data : xarray.DataArray
-        Ice load data with dimensions (time, south_north, west_east)
+    dataset_with_ice_load : xarray.Dataset
+        Dataset containing ice load data (from add_ice_load_to_dataset)
+    ice_load_variable : str, default 'ICE_LOAD'
+        Name of the ice load variable in the dataset
+    height_level : int, default 0
+        Height level index to analyze
     ice_load_threshold : float
         Ice load threshold value (kg/m) to analyze exceedance for
     save_plots : bool, default True
@@ -4507,9 +4430,16 @@ def plot_ice_load_threshold_exceedance_map(ice_load_data, ice_load_threshold, sa
     dict : Dictionary containing exceedance analysis results and statistics
     """
     print(f"=== ICE LOAD THRESHOLD EXCEEDANCE ANALYSIS ===")
+    print(f"Height level: {height_level} ({dataset_with_ice_load.height.values[height_level]} m)")
     print(f"Threshold: {ice_load_threshold:.3f} kg/m")
     
     try:
+        # Extract ice load data
+        if ice_load_variable not in dataset_with_ice_load.data_vars:
+            raise ValueError(f"Variable '{ice_load_variable}' not found in dataset. Available variables: {list(dataset_with_ice_load.data_vars.keys())}")
+        
+        ice_load_data = dataset_with_ice_load[ice_load_variable].isel(height=height_level)
+        
         # Check data structure
         print(f"\n1. Data Information:")
         print(f"   Shape: {ice_load_data.shape}")
@@ -4651,13 +4581,27 @@ def plot_ice_load_threshold_exceedance_map(ice_load_data, ice_load_threshold, sa
         
         # Save plot if requested
         if save_plots:
-            # Create specific directory for threshold analysis
-            threshold_plots_dir = os.path.join(figures_dir, "spatial_gradient", "ice_load_grid_threshold_exceedance")
+            # Create directory structure: results/figures/spatial_gradient/ice_load_grid_hours_exceedance/ice_load_hours_{height}_{ice_threshold}
+            height_m = int(dataset_with_ice_load.height.values[height_level])
+            
+            # Format ice threshold with appropriate precision and replace decimal point with 'p'
+            if ice_load_threshold == int(ice_load_threshold):
+                # If it's a whole number, format as integer
+                ice_threshold_str = f"{int(ice_load_threshold)}"
+            else:
+                # For decimal values, use appropriate precision to avoid rounding
+                ice_threshold_str = f"{ice_load_threshold:.2f}".rstrip('0').rstrip('.')
+            ice_threshold_str = ice_threshold_str.replace('.', 'p')
+            
+            base_dir = os.path.join(figures_dir, "spatial_gradient", "ice_load_grid_hours_exceedance")
+            specific_dir = f"ice_load_hours_{height_m}_{ice_threshold_str}"
+            threshold_plots_dir = os.path.join(base_dir, specific_dir)
             os.makedirs(threshold_plots_dir, exist_ok=True)
             
+            print(f"   Saving plots to: {threshold_plots_dir}")
+            
             # Create filename with threshold value
-            threshold_str = f"{ice_load_threshold:.1f}".replace('.', 'p')
-            plot_path = f"{threshold_plots_dir}/ice_load_threshold_exceedance_{threshold_str}kgm.png"
+            plot_path = os.path.join(threshold_plots_dir, f"ice_load_threshold_exceedance_{ice_threshold_str}kgm.png")
             plt.savefig(plot_path, dpi=300, bbox_inches='tight')
             print(f"   Exceedance map saved to: {plot_path}")
         
@@ -4696,7 +4640,7 @@ def plot_ice_load_threshold_exceedance_map(ice_load_data, ice_load_threshold, sa
             plt.tight_layout()
             
             if save_plots:
-                summary_path = f"{threshold_plots_dir}/ice_load_threshold_exceedance_summary_{threshold_str}kgm.png"
+                summary_path = os.path.join(threshold_plots_dir, f"ice_load_threshold_exceedance_summary_{ice_threshold_str}kgm.png")
                 plt.savefig(summary_path, dpi=300, bbox_inches='tight')
                 print(f"   Summary statistics saved to: {summary_path}")
             
@@ -4723,7 +4667,7 @@ def plot_ice_load_threshold_exceedance_map(ice_load_data, ice_load_threshold, sa
         
         # Save detailed results to file
         if save_plots:
-            results_path = f"{results_dir}/ice_load_threshold_exceedance_{threshold_str}kgm.txt"
+            results_path = os.path.join(results_dir, f"ice_load_threshold_exceedance_{ice_threshold_str}kgm.txt")
             with open(results_path, 'w') as f:
                 f.write("ICE LOAD THRESHOLD EXCEEDANCE ANALYSIS RESULTS\n")
                 f.write("=" * 50 + "\n\n")

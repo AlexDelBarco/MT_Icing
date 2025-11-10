@@ -12,7 +12,7 @@ if current_dir.endswith('scripts'):
     print(f"Changed working directory from {current_dir} to {os.getcwd()}")
 
 # PARAMTERES
-height = 2  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
+height = 1  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
 ice_load_method = 51  # Method for ice load calculation
 calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
 
@@ -119,10 +119,8 @@ grid_results = fn.plot_grid_ice_load_values(
     ice_load_variable='ICE_LOAD',
     height_level=height,
     ice_load_threshold=0.1,
-    statistic='mean',  # Options: 'mean', 'max', 'median', 'std', 'p95', 'p99', 'occurrence_rate'
     save_plots=True,
     months=None,  # Can specify winter months like [12, 1, 2, 3] if desired
-    percentile=None,  # Can filter extreme values if desired
     show_colorbar=True
 )
 
