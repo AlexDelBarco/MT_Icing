@@ -52,8 +52,8 @@ print(f"Exploring dataset at height level: {height_level} m")
 # explore the variables
 # fn.explore_variables(dataset)
 
-# explore one variable in detail in a chosen period
-# fn.explore_variable_detail(dataset, 'WD')
+#explore one variable in detail in a chosen period
+# fn.explore_variable_detail(dataset, 'QVAPOR')
 
 # Plot grid location on map
 #fn.plot_grid_points_cartopy_map(dataset, margin_degrees=1.5, zoom_level=8, title="Grid Points - Terrain Map")
@@ -124,15 +124,25 @@ else:
 #     show_colorbar=True
 # )
 
-print("\n=== ICE LOAD GRID VALUES ANALYSIS HOURS ===")
+# print("\n=== ICE LOAD GRID VALUES ANALYSIS HOURS ===")
 
-grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
-    dataset_with_ice_load=dataset_with_ice_load,
-    ice_load_variable='ICE_LOAD',
-    height_level=height,
-    ice_load_threshold=0.1,
-    save_plots=True
-)
+# grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     ice_load_variable='ICE_LOAD',
+#     height_level=height,
+#     ice_load_threshold=0.1,
+#     save_plots=True
+# )
+
+# ICING TEMPERATURE AND HUMIDITY CRITERIA
+
+# print("\n=== ICING TEMPERATURE AND HUMIDITY CRITERIA ANALYSIS HOURS ===")
+
+# humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_with_ice_load,
+#                                                     humidity_threshold=95,  # Relative Humidity threshold (%)
+#                                                     temperature_threshold=263.15,  # Temperature threshold (K)
+#                                                     height_level=height,
+#                                                     save_plots=True)
 
 # SPATIAL GRADIENTS
 
