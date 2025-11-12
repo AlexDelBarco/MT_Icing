@@ -6954,6 +6954,470 @@ def create_temporal_gradient_plots(ice_load_data):
     }
 
 
+def ice_load_resampling_analysis(
+    dataset_with_ice_load,
+    ice_load_variable='ICE_LOAD',
+    height_level=0,
+    resampling_years=5,
+    save_plots=True,
+    results_subdir="ice_load_resampling_analysis",
+    months=None,
+    ice_load_threshold=0.0
+):
+    """
+    Perform resampling analysis of ice load data over specified year intervals.
+    
+    This function aggregates data into consistent time intervals, defines "typical" 
+    long-term averages, and expresses each year as a deviation from the average.
+    Creates comprehensive visualizations showing temporal patterns and variability.
+    
+    Parameters:
+    -----------
+    dataset_with_ice_load : xarray.Dataset
+        Dataset that already contains ice load as a variable
+    ice_load_variable : str, optional
+        Name of the ice load variable in the dataset (default: 'ICE_LOAD')
+    height_level : int, optional
+        Height level index to use for analysis (default: 0)
+    resampling_years : int, optional
+        Number of years for resampling intervals (default: 5)
+    save_plots : bool, optional
+        Whether to save plots to files (default: True)
+    results_subdir : str, optional
+        Subdirectory name for saving results (default: "ice_load_resampling_analysis")
+    months : list, optional
+        List of months to include (e.g., [12,1,2,3] for winter)
+    ice_load_threshold : float, optional
+        Minimum ice load threshold for analysis (default: 0.0)
+        
+    Returns:
+    --------
+    dict
+        Comprehensive results including time series, statistics, and deviation analysis
+    """
+    
+    print("=== ICE LOAD RESAMPLING ANALYSIS ===")
+    print(f"Resampling interval: {resampling_years} years")
+    
+    # Check if ice load variable exists
+    if ice_load_variable not in dataset_with_ice_load.data_vars:
+        raise ValueError(f"Ice load variable '{ice_load_variable}' not found in dataset. "
+                        f"Available variables: {list(dataset_with_ice_load.data_vars.keys())}")
+    
+    # Create results directory with characteristics in folder name
+    if save_plots:
+        # Create organized directory structure
+        temporal_base_dir = os.path.join("results", "figures", "Temporal_Gradients")
+        os.makedirs(temporal_base_dir, exist_ok=True)
+        
+        # Generate folder name based on analysis characteristics
+        folder_name_parts = []
+        
+        # Add resampling years
+        folder_name_parts.append(f"resample_{resampling_years}years")
+        
+        # Add height level info
+        height_value = dataset_with_ice_load.height.values[height_level]
+        folder_name_parts.append(f"h{height_level}_{height_value:.0f}m")
+        
+        # Add ice load threshold
+        folder_name_parts.append(f"threshold_{ice_load_threshold:.1f}")
+        
+        # Add month filtering if specified
+        if months is not None:
+            months_str = "_".join(map(str, sorted(months)))
+            folder_name_parts.append(f"months_{months_str}")
+        
+        # Add timestamp to ensure uniqueness
+        timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+        folder_name_parts.append(timestamp)
+        
+        # Create unique folder name
+        folder_name = "_".join(folder_name_parts)
+        
+        base_results_dir = os.path.join(temporal_base_dir, folder_name)
+        os.makedirs(base_results_dir, exist_ok=True)
+        print(f"Results will be saved to: {base_results_dir}")
+    
+    # Get ice load data
+    ice_load_data = dataset_with_ice_load[ice_load_variable].isel(height=height_level)
+    print(f"Using height level {height_level}: {dataset_with_ice_load.height.values[height_level]} m")
+    
+    # Apply month filtering if specified
+    if months is not None:
+        print(f"Filtering data to months: {months}")
+        time_df = pd.to_datetime(ice_load_data.time.values)
+        month_mask = time_df.month.isin(months)
+        if month_mask.any():
+            ice_load_data = ice_load_data.isel(time=month_mask)
+            print(f"Time steps after month filtering: {len(ice_load_data.time)}")
+        else:
+            print("Warning: No data found for specified months")
+            return None
+    
+    # Apply threshold filtering
+    ice_load_clean = ice_load_data.where(ice_load_data >= ice_load_threshold, np.nan)
+    
+    # Get time information
+    time_index = pd.to_datetime(ice_load_clean.time.values)
+    start_year = time_index.year.min()
+    end_year = time_index.year.max()
+    total_years = end_year - start_year + 1
+    
+    print(f"\nData Overview:")
+    print(f"Time range: {start_year} to {end_year} ({total_years} years)")
+    print(f"Grid size: {ice_load_clean.sizes['south_north']} × {ice_load_clean.sizes['west_east']}")
+    print(f"Ice load threshold: {ice_load_threshold} kg/m")
+    
+    # 1. YEARLY STATISTICS
+    print(f"\n1. CALCULATING YEARLY STATISTICS")
+    print("=" * 35)
+    
+    yearly_stats = {}
+    yearly_max = []
+    yearly_mean = []
+    yearly_percentiles = {'p90': [], 'p95': [], 'p99': []}
+    years_list = []
+    
+    for year in range(start_year, end_year + 1):
+        year_mask = time_index.year == year
+        if year_mask.any():
+            year_data = ice_load_clean.isel(time=year_mask)
+            
+            # Calculate spatial statistics for this year
+            year_values = year_data.values.flatten()
+            year_values_clean = year_values[~np.isnan(year_values)]
+            
+            if len(year_values_clean) > 0:
+                stats = {
+                    'max': float(np.max(year_values_clean)),
+                    'mean': float(np.mean(year_values_clean)),
+                    'std': float(np.std(year_values_clean)),
+                    'p90': float(np.percentile(year_values_clean, 90)),
+                    'p95': float(np.percentile(year_values_clean, 95)),
+                    'p99': float(np.percentile(year_values_clean, 99)),
+                    'n_points': len(year_values_clean)
+                }
+                
+                yearly_stats[year] = stats
+                years_list.append(year)
+                yearly_max.append(stats['max'])
+                yearly_mean.append(stats['mean'])
+                yearly_percentiles['p90'].append(stats['p90'])
+                yearly_percentiles['p95'].append(stats['p95'])
+                yearly_percentiles['p99'].append(stats['p99'])
+    
+    # 2. RESAMPLING ANALYSIS
+    print(f"\n2. PERFORMING {resampling_years}-YEAR RESAMPLING ANALYSIS")
+    print("=" * 50)
+    
+    # Create resampling periods
+    resampling_periods = []
+    for start in range(start_year, end_year + 1, resampling_years):
+        end = min(start + resampling_years - 1, end_year)
+        if end - start + 1 >= resampling_years:  # Only include complete periods
+            resampling_periods.append((start, end))
+    
+    print(f"Resampling periods ({len(resampling_periods)}):")
+    for start, end in resampling_periods:
+        print(f"  {start}-{end}")
+    
+    # Calculate statistics for each resampling period
+    period_stats = {}
+    period_means = []
+    period_stds = []
+    period_labels = []
+    
+    for start, end in resampling_periods:
+        period_mask = (time_index.year >= start) & (time_index.year <= end)
+        if period_mask.any():
+            period_data = ice_load_clean.isel(time=period_mask)
+            
+            # Calculate statistics for this period
+            period_values = period_data.values.flatten()
+            period_values_clean = period_values[~np.isnan(period_values)]
+            
+            if len(period_values_clean) > 0:
+                stats = {
+                    'mean': float(np.mean(period_values_clean)),
+                    'std': float(np.std(period_values_clean)),
+                    'max': float(np.max(period_values_clean)),
+                    'p95': float(np.percentile(period_values_clean, 95)),
+                    'n_points': len(period_values_clean)
+                }
+                
+                period_key = f"{start}-{end}"
+                period_stats[period_key] = stats
+                period_means.append(stats['mean'])
+                period_stds.append(stats['std'])
+                period_labels.append(period_key)
+    
+    # 3. LONG-TERM AVERAGE AND DEVIATIONS
+    print(f"\n3. CALCULATING LONG-TERM AVERAGE AND DEVIATIONS")
+    print("=" * 50)
+    
+    # Calculate overall long-term average
+    all_values = ice_load_clean.values.flatten()
+    all_values_clean = all_values[~np.isnan(all_values)]
+    
+    long_term_stats = {
+        'mean': float(np.mean(all_values_clean)),
+        'std': float(np.std(all_values_clean)),
+        'max': float(np.max(all_values_clean)),
+        'p95': float(np.percentile(all_values_clean, 95))
+    }
+    
+    print(f"Long-term average: {long_term_stats['mean']:.4f} kg/m")
+    print(f"Long-term std dev: {long_term_stats['std']:.4f} kg/m")
+    
+    # Calculate yearly deviations from long-term average
+    yearly_deviations = []
+    yearly_normalized_deviations = []
+    
+    for year in years_list:
+        if year in yearly_stats:
+            deviation = yearly_stats[year]['mean'] - long_term_stats['mean']
+            normalized_deviation = deviation / long_term_stats['std']
+            yearly_deviations.append(deviation)
+            yearly_normalized_deviations.append(normalized_deviation)
+        else:
+            yearly_deviations.append(np.nan)
+            yearly_normalized_deviations.append(np.nan)
+    
+    # 4. CREATE VISUALIZATIONS
+    print(f"\n4. CREATING VISUALIZATIONS")
+    print("=" * 30)
+    
+    # Plot 1: Yearly time series with long-term average
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    
+    # Subplot 1: Yearly mean ice load
+    axes[0, 0].plot(years_list, yearly_mean, 'b-o', linewidth=2, markersize=4, label='Yearly Mean')
+    axes[0, 0].axhline(y=long_term_stats['mean'], color='red', linestyle='--', linewidth=2, 
+                       label=f'Long-term Average ({long_term_stats["mean"]:.3f})')
+    axes[0, 0].fill_between(years_list, 
+                            [long_term_stats['mean'] - long_term_stats['std']] * len(years_list),
+                            [long_term_stats['mean'] + long_term_stats['std']] * len(years_list),
+                            alpha=0.2, color='red', label='±1 Std Dev')
+    axes[0, 0].set_xlabel('Year')
+    axes[0, 0].set_ylabel('Mean Ice Load (kg/m)')
+    axes[0, 0].set_title('Yearly Mean Ice Load vs Long-term Average')
+    axes[0, 0].grid(True, alpha=0.3)
+    axes[0, 0].legend()
+    
+    # Subplot 2: Yearly maximum ice load
+    axes[0, 1].plot(years_list, yearly_max, 'g-s', linewidth=2, markersize=4, label='Yearly Maximum')
+    axes[0, 1].axhline(y=long_term_stats['max'], color='orange', linestyle='--', linewidth=2,
+                       label=f'Long-term Max ({long_term_stats["max"]:.3f})')
+    axes[0, 1].set_xlabel('Year')
+    axes[0, 1].set_ylabel('Maximum Ice Load (kg/m)')
+    axes[0, 1].set_title('Yearly Maximum Ice Load')
+    axes[0, 1].grid(True, alpha=0.3)
+    axes[0, 1].legend()
+    
+    # Subplot 3: Yearly deviations from long-term average
+    colors = ['red' if x > 0 else 'blue' for x in yearly_deviations]
+    axes[1, 0].bar(years_list, yearly_deviations, color=colors, alpha=0.7, width=0.8)
+    axes[1, 0].axhline(y=0, color='black', linestyle='-', linewidth=1)
+    axes[1, 0].set_xlabel('Year')
+    axes[1, 0].set_ylabel('Deviation from Long-term Mean (kg/m)')
+    axes[1, 0].set_title('Yearly Deviations from Long-term Average')
+    axes[1, 0].grid(True, alpha=0.3)
+    
+    # Subplot 4: Normalized deviations
+    colors_norm = ['red' if x > 0 else 'blue' for x in yearly_normalized_deviations]
+    axes[1, 1].bar(years_list, yearly_normalized_deviations, color=colors_norm, alpha=0.7, width=0.8)
+    axes[1, 1].axhline(y=0, color='black', linestyle='-', linewidth=1)
+    axes[1, 1].axhline(y=1, color='red', linestyle='--', alpha=0.7, label='+1 Std Dev')
+    axes[1, 1].axhline(y=-1, color='red', linestyle='--', alpha=0.7, label='-1 Std Dev')
+    axes[1, 1].set_xlabel('Year')
+    axes[1, 1].set_ylabel('Normalized Deviation (σ)')
+    axes[1, 1].set_title('Normalized Yearly Deviations')
+    axes[1, 1].grid(True, alpha=0.3)
+    axes[1, 1].legend()
+    
+    plt.tight_layout()
+    
+    if save_plots:
+        plot1_path = os.path.join(base_results_dir, "ice_load_yearly_analysis.png")
+        plt.savefig(plot1_path, dpi=300, bbox_inches='tight')
+        print(f"Yearly analysis plot saved to: {plot1_path}")
+    
+    plt.close()
+    
+    # Plot 2: Resampling period analysis
+    if len(period_means) > 1:
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        
+        # Subplot 1: Period means
+        x_pos = np.arange(len(period_labels))
+        axes[0, 0].bar(x_pos, period_means, alpha=0.7, color='skyblue', edgecolor='navy')
+        axes[0, 0].axhline(y=long_term_stats['mean'], color='red', linestyle='--', linewidth=2,
+                           label=f'Overall Mean ({long_term_stats["mean"]:.3f})')
+        axes[0, 0].set_xlabel(f'{resampling_years}-Year Periods')
+        axes[0, 0].set_ylabel('Mean Ice Load (kg/m)')
+        axes[0, 0].set_title(f'{resampling_years}-Year Period Means')
+        axes[0, 0].set_xticks(x_pos)
+        axes[0, 0].set_xticklabels(period_labels, rotation=45)
+        axes[0, 0].grid(True, alpha=0.3)
+        axes[0, 0].legend()
+        
+        # Subplot 2: Period standard deviations
+        axes[0, 1].bar(x_pos, period_stds, alpha=0.7, color='lightcoral', edgecolor='darkred')
+        axes[0, 1].axhline(y=long_term_stats['std'], color='blue', linestyle='--', linewidth=2,
+                           label=f'Overall Std ({long_term_stats["std"]:.3f})')
+        axes[0, 1].set_xlabel(f'{resampling_years}-Year Periods')
+        axes[0, 1].set_ylabel('Standard Deviation (kg/m)')
+        axes[0, 1].set_title(f'{resampling_years}-Year Period Variability')
+        axes[0, 1].set_xticks(x_pos)
+        axes[0, 1].set_xticklabels(period_labels, rotation=45)
+        axes[0, 1].grid(True, alpha=0.3)
+        axes[0, 1].legend()
+        
+        # Subplot 3: Period deviations from overall mean
+        period_deviations = [mean - long_term_stats['mean'] for mean in period_means]
+        colors_period = ['red' if x > 0 else 'blue' for x in period_deviations]
+        axes[1, 0].bar(x_pos, period_deviations, color=colors_period, alpha=0.7)
+        axes[1, 0].axhline(y=0, color='black', linestyle='-', linewidth=1)
+        axes[1, 0].set_xlabel(f'{resampling_years}-Year Periods')
+        axes[1, 0].set_ylabel('Deviation from Overall Mean (kg/m)')
+        axes[1, 0].set_title(f'{resampling_years}-Year Period Deviations')
+        axes[1, 0].set_xticks(x_pos)
+        axes[1, 0].set_xticklabels(period_labels, rotation=45)
+        axes[1, 0].grid(True, alpha=0.3)
+        
+        # Subplot 4: Coefficient of variation
+        cv_values = [std/mean if mean > 0 else 0 for mean, std in zip(period_means, period_stds)]
+        overall_cv = long_term_stats['std'] / long_term_stats['mean']
+        
+        axes[1, 1].bar(x_pos, cv_values, alpha=0.7, color='gold', edgecolor='orange')
+        axes[1, 1].axhline(y=overall_cv, color='purple', linestyle='--', linewidth=2,
+                           label=f'Overall CV ({overall_cv:.3f})')
+        axes[1, 1].set_xlabel(f'{resampling_years}-Year Periods')
+        axes[1, 1].set_ylabel('Coefficient of Variation')
+        axes[1, 1].set_title(f'{resampling_years}-Year Period Relative Variability')
+        axes[1, 1].set_xticks(x_pos)
+        axes[1, 1].set_xticklabels(period_labels, rotation=45)
+        axes[1, 1].grid(True, alpha=0.3)
+        axes[1, 1].legend()
+        
+        plt.tight_layout()
+        
+        if save_plots:
+            plot2_path = os.path.join(base_results_dir, f"ice_load_{resampling_years}year_resampling_analysis.png")
+            plt.savefig(plot2_path, dpi=300, bbox_inches='tight')
+            print(f"Resampling analysis plot saved to: {plot2_path}")
+        
+        plt.close()
+    
+    # Plot 3: Percentiles evolution
+    fig, axes = plt.subplots(2, 1, figsize=(16, 10))
+    
+    # Subplot 1: Multiple percentiles over time
+    axes[0].plot(years_list, yearly_percentiles['p90'], 'g-o', linewidth=2, markersize=3, label='90th Percentile')
+    axes[0].plot(years_list, yearly_percentiles['p95'], 'orange', marker='s', linewidth=2, markersize=3, label='95th Percentile')
+    axes[0].plot(years_list, yearly_percentiles['p99'], 'r-^', linewidth=2, markersize=3, label='99th Percentile')
+    axes[0].plot(years_list, yearly_mean, 'b-', linewidth=2, alpha=0.7, label='Mean')
+    
+    # Add long-term averages
+    axes[0].axhline(y=np.percentile(all_values_clean, 90), color='green', linestyle='--', alpha=0.7)
+    axes[0].axhline(y=np.percentile(all_values_clean, 95), color='orange', linestyle='--', alpha=0.7)
+    axes[0].axhline(y=np.percentile(all_values_clean, 99), color='red', linestyle='--', alpha=0.7)
+    axes[0].axhline(y=long_term_stats['mean'], color='blue', linestyle='--', alpha=0.7)
+    
+    axes[0].set_xlabel('Year')
+    axes[0].set_ylabel('Ice Load (kg/m)')
+    axes[0].set_title('Ice Load Percentiles Evolution Over Time')
+    axes[0].grid(True, alpha=0.3)
+    axes[0].legend()
+    
+    # Subplot 2: Yearly statistics distribution
+    axes[1].boxplot([yearly_mean, yearly_percentiles['p90'], yearly_percentiles['p95'], yearly_percentiles['p99']], 
+                    labels=['Mean', 'P90', 'P95', 'P99'],
+                    patch_artist=True,
+                    boxprops=dict(facecolor='lightblue', alpha=0.7),
+                    medianprops=dict(color='red', linewidth=2))
+    axes[1].set_ylabel('Ice Load (kg/m)')
+    axes[1].set_title('Distribution of Yearly Statistics')
+    axes[1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    if save_plots:
+        plot3_path = os.path.join(base_results_dir, "ice_load_percentiles_evolution.png")
+        plt.savefig(plot3_path, dpi=300, bbox_inches='tight')
+        print(f"Percentiles evolution plot saved to: {plot3_path}")
+    
+    plt.close()
+    
+    # 5. SAVE SUMMARY REPORT
+    if save_plots:
+        summary_path = os.path.join(base_results_dir, "resampling_analysis_summary.txt")
+        with open(summary_path, 'w') as f:
+            f.write("ICE LOAD RESAMPLING ANALYSIS SUMMARY\n")
+            f.write("=" * 50 + "\n\n")
+            
+            f.write(f"Analysis timestamp: {pd.Timestamp.now()}\n")
+            f.write(f"Resampling interval: {resampling_years} years\n")
+            f.write(f"Height level: {height_level} ({dataset_with_ice_load.height.values[height_level]} m)\n")
+            f.write(f"Ice load threshold: {ice_load_threshold} kg/m\n")
+            if months:
+                f.write(f"Months included: {months}\n")
+            f.write(f"Time range: {start_year} to {end_year} ({total_years} years)\n\n")
+            
+            f.write("LONG-TERM STATISTICS:\n")
+            f.write("-" * 25 + "\n")
+            f.write(f"Mean: {long_term_stats['mean']:.4f} kg/m\n")
+            f.write(f"Std Dev: {long_term_stats['std']:.4f} kg/m\n")
+            f.write(f"Maximum: {long_term_stats['max']:.4f} kg/m\n")
+            f.write(f"95th Percentile: {long_term_stats['p95']:.4f} kg/m\n\n")
+            
+            f.write("YEARLY STATISTICS SUMMARY:\n")
+            f.write("-" * 30 + "\n")
+            f.write(f"Mean of yearly means: {np.mean(yearly_mean):.4f} kg/m\n")
+            f.write(f"Std of yearly means: {np.std(yearly_mean):.4f} kg/m\n")
+            f.write(f"Max yearly mean: {np.max(yearly_mean):.4f} kg/m ({years_list[np.argmax(yearly_mean)]})\n")
+            f.write(f"Min yearly mean: {np.min(yearly_mean):.4f} kg/m ({years_list[np.argmin(yearly_mean)]})\n\n")
+            
+            if len(period_means) > 1:
+                f.write(f"{resampling_years}-YEAR PERIOD STATISTICS:\n")
+                f.write("-" * 35 + "\n")
+                for i, (label, mean, std) in enumerate(zip(period_labels, period_means, period_stds)):
+                    deviation = mean - long_term_stats['mean']
+                    f.write(f"{label}: Mean={mean:.4f}, Std={std:.4f}, Dev={deviation:+.4f} kg/m\n")
+            
+            f.write(f"\nFILES GENERATED:\n")
+            f.write("-" * 20 + "\n")
+            f.write("- ice_load_yearly_analysis.png\n")
+            if len(period_means) > 1:
+                f.write(f"- ice_load_{resampling_years}year_resampling_analysis.png\n")
+            f.write("- ice_load_percentiles_evolution.png\n")
+            f.write("- resampling_analysis_summary.txt (this file)\n")
+        
+        print(f"Summary report saved to: {summary_path}")
+    
+    # Compile results
+    results = {
+        'long_term_stats': long_term_stats,
+        'yearly_stats': yearly_stats,
+        'yearly_deviations': yearly_deviations,
+        'yearly_normalized_deviations': yearly_normalized_deviations,
+        'period_stats': period_stats,
+        'resampling_years': resampling_years,
+        'years_list': years_list,
+        'time_range': (start_year, end_year),
+        'resampling_periods': resampling_periods
+    }
+    
+    print(f"\n=== RESAMPLING ANALYSIS COMPLETED ===")
+    print(f"Analyzed {total_years} years of data")
+    print(f"Long-term mean: {long_term_stats['mean']:.4f} kg/m")
+    print(f"Yearly variability: {np.std(yearly_mean):.4f} kg/m")
+    if len(period_means) > 1:
+        print(f"Number of {resampling_years}-year periods: {len(period_means)}")
+    
+    return results
+
 # EMD DATA IMPORT
 
 def import_emd_data(file_path):
