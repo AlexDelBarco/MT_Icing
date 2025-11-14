@@ -1459,6 +1459,317 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         traceback.print_exc()
         return None
 
+def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_variable='ICE_LOAD', height_level=0,
+                                         ice_load_threshold=0.1, save_plots=True, 
+                                         colormap='viridis', grid_labels=True, units='hours'):
+    """
+    Create a spatial map showing how often each grid cell exceeds a specified ice load threshold
+    per year on average. Uses a colorbar to show spatial differences in threshold exceedance.
+    
+    Parameters:
+    -----------
+    dataset_with_ice_load : xarray.Dataset
+        Dataset containing ice load data (from add_ice_load_to_dataset)
+    ice_load_variable : str, default 'ICE_LOAD'
+        Name of the ice load variable in the dataset
+    height_level : int, default 0
+        Height level index to analyze
+    ice_load_threshold : float
+        Ice load threshold value (kg/m) to analyze exceedance for
+    save_plots : bool, default True
+        Whether to save the plot to file
+    colormap : str, default 'viridis'
+        Matplotlib colormap to use for the spatial plot
+    grid_labels : bool, default True
+        Whether to add grid cell coordinate labels to the plot
+    units : str, default 'hours'
+        Units for the exceedance frequency ('hours', 'days', or 'percentage')
+        
+    Returns:
+    --------
+    dict : Dictionary containing exceedance analysis results and statistics
+    """
+    print(f"=== ICE LOAD THRESHOLD EXCEEDANCE ANALYSIS ===")
+    print(f"Height level: {height_level} ({dataset_with_ice_load.height.values[height_level]} m)")
+    print(f"Threshold: {ice_load_threshold:.3f} kg/m")
+    
+    try:
+        # Extract ice load data
+        if ice_load_variable not in dataset_with_ice_load.data_vars:
+            raise ValueError(f"Variable '{ice_load_variable}' not found in dataset. Available variables: {list(dataset_with_ice_load.data_vars.keys())}")
+        
+        ice_load_data = dataset_with_ice_load[ice_load_variable].isel(height=height_level)
+        
+        # Check data structure
+        print(f"\n1. Data Information:")
+        print(f"   Shape: {ice_load_data.shape}")
+        print(f"   Dimensions: {ice_load_data.dims}")
+        
+        # Get spatial dimensions
+        n_time = ice_load_data.sizes['time']
+        n_south_north = ice_load_data.sizes['south_north']
+        n_west_east = ice_load_data.sizes['west_east']
+        
+        print(f"   Grid size: {n_south_north} × {n_west_east} = {n_south_north * n_west_east} cells")
+        print(f"   Time steps: {n_time}")
+        
+        # Calculate temporal information
+        time_index = pd.to_datetime(ice_load_data.time.values)
+        n_years = len(time_index.year.unique())
+        years = sorted(time_index.year.unique())
+        
+        # Calculate time step in hours (assuming regular intervals)
+        if len(time_index) > 1:
+            time_step_hours = (time_index[1] - time_index[0]).total_seconds() / 3600
+        else:
+            time_step_hours = 0.5  # Default to 30 minutes
+            
+        print(f"   Years covered: {n_years} ({years[0]} to {years[-1]})")
+        print(f"   Time step: {time_step_hours} hours")
+        
+        # Clean the data (remove NaN values, replace negative with 0)
+        ice_data_clean = ice_load_data.where(ice_load_data >= 0, 0)
+        
+        print(f"\n2. Threshold Exceedance Analysis:")
+        print(f"   Analyzing exceedance of {ice_load_threshold:.3f} kg/m threshold...")
+        
+        # Initialize exceedance matrix
+        exceedance_matrix = np.zeros((n_south_north, n_west_east))
+        
+        # Calculate exceedance for each grid cell
+        total_cells = n_south_north * n_west_east
+        processed_cells = 0
+        
+        for i in range(n_south_north):
+            for j in range(n_west_east):
+                # Extract time series for this grid cell
+                cell_data = ice_data_clean.isel(south_north=i, west_east=j)
+                cell_values = cell_data.values
+                
+                # Remove NaN values
+                valid_mask = ~np.isnan(cell_values)
+                cell_values_clean = cell_values[valid_mask]
+                
+                if len(cell_values_clean) > 0:
+                    # Count exceedances
+                    exceedances = np.sum(cell_values_clean >= ice_load_threshold)
+                    
+                    # Convert to the requested units
+                    if units == 'hours':
+                        # Hours per year
+                        exceedance_value = (exceedances * time_step_hours) / n_years
+                    elif units == 'days':
+                        # Days per year
+                        exceedance_value = (exceedances * time_step_hours) / (24 * n_years)
+                    elif units == 'percentage':
+                        # Percentage of time
+                        total_hours_per_year = 365.25 * 24  # Account for leap years
+                        hours_per_year = (exceedances * time_step_hours) / n_years
+                        exceedance_value = (hours_per_year / total_hours_per_year) * 100
+                    else:
+                        # Default to hours
+                        exceedance_value = (exceedances * time_step_hours) / n_years
+                    
+                    exceedance_matrix[i, j] = exceedance_value
+                else:
+                    exceedance_matrix[i, j] = np.nan
+                
+                processed_cells += 1
+                if processed_cells % 20 == 0:
+                    print(f"   Processed {processed_cells}/{total_cells} cells...")
+        
+        # Calculate statistics
+        valid_exceedances = exceedance_matrix[~np.isnan(exceedance_matrix)]
+        
+        print(f"\n3. Exceedance Statistics:")
+        if len(valid_exceedances) > 0:
+            print(f"   Mean exceedance: {np.mean(valid_exceedances):.2f} {units}/year")
+            print(f"   Std exceedance: {np.std(valid_exceedances):.2f} {units}/year")
+            print(f"   Min exceedance: {np.min(valid_exceedances):.2f} {units}/year")
+            print(f"   Max exceedance: {np.max(valid_exceedances):.2f} {units}/year")
+            print(f"   Cells with exceedances: {np.sum(valid_exceedances > 0)}/{len(valid_exceedances)}")
+        else:
+            print(f"   No valid exceedance data found")
+        
+        # Create the spatial plot
+        print(f"\n4. Creating spatial exceedance map...")
+        
+        fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+        
+        # Create the main plot
+        im = ax.imshow(exceedance_matrix, cmap=colormap, origin='lower', 
+                      interpolation='nearest', aspect='auto')
+        
+        # Set title and labels
+        unit_label = units.capitalize()
+        if units == 'percentage':
+            unit_label = '% of Time'
+        
+        ax.set_title(f'Ice Load Threshold Exceedance Map\n'
+                    f'Threshold: {ice_load_threshold:.3f} kg/m\n'
+                    f'Mean Annual Exceedance ({unit_label})')
+        ax.set_xlabel('West-East Grid Points')
+        ax.set_ylabel('South-North Grid Points')
+        
+        # Add colorbar
+        cbar = plt.colorbar(im, ax=ax, shrink=0.8, aspect=20)
+        cbar.set_label(f'Exceedance ({unit_label}/Year)')
+        
+        # Add grid lines
+        ax.set_xticks(range(n_west_east))
+        ax.set_yticks(range(n_south_north))
+        ax.grid(True, alpha=0.3, color='white', linewidth=0.5)
+        
+        # Add cell values as text labels if requested
+        if grid_labels:
+            for i in range(n_south_north):
+                for j in range(n_west_east):
+                    value = exceedance_matrix[i, j]
+                    if not np.isnan(value):
+                        # Choose text color based on background
+                        text_color = 'white' if value > np.nanmean(exceedance_matrix) else 'black'
+                        ax.text(j, i, f'{value:.1f}', ha='center', va='center',
+                               color=text_color, fontsize=8, weight='bold')
+        
+        # Add coordinate references
+        ax.set_xticks(range(n_west_east))
+        ax.set_yticks(range(n_south_north))
+        ax.set_xticklabels([f'{j}' for j in range(n_west_east)])
+        ax.set_yticklabels([f'{i}' for i in range(n_south_north)])
+        
+        plt.tight_layout()
+        
+        # Save plot if requested
+        if save_plots:
+            # Create directory structure: results/figures/spatial_gradient/ice_load_grid_hours_exceedance/ice_load_hours_{height}_{ice_threshold}
+            height_m = int(dataset_with_ice_load.height.values[height_level])
+            
+            # Format ice threshold with appropriate precision and replace decimal point with 'p'
+            if ice_load_threshold == int(ice_load_threshold):
+                # If it's a whole number, format as integer
+                ice_threshold_str = f"{int(ice_load_threshold)}"
+            else:
+                # For decimal values, use appropriate precision to avoid rounding
+                ice_threshold_str = f"{ice_load_threshold:.2f}".rstrip('0').rstrip('.')
+            ice_threshold_str = ice_threshold_str.replace('.', 'p')
+            
+            base_dir = os.path.join(figures_dir, "spatial_gradient", "ice_load_grid_hours_exceedance")
+            specific_dir = f"ice_load_hours_{height_m}_{ice_threshold_str}"
+            threshold_plots_dir = os.path.join(base_dir, specific_dir)
+            os.makedirs(threshold_plots_dir, exist_ok=True)
+            
+            print(f"   Saving plots to: {threshold_plots_dir}")
+            
+            # Create filename with threshold value
+            plot_path = os.path.join(threshold_plots_dir, f"ice_load_threshold_exceedance_{ice_threshold_str}kgm.png")
+            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+            print(f"   Exceedance map saved to: {plot_path}")
+        
+        plt.close()  # Close the plot to prevent it from showing
+        
+        # Create additional summary statistics plot
+        if len(valid_exceedances) > 0:
+            fig2, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+            
+            # Histogram of exceedance values
+            ax1.hist(valid_exceedances, bins=min(20, len(np.unique(valid_exceedances))), 
+                    alpha=0.7, color='skyblue', edgecolor='black')
+            ax1.set_xlabel(f'Exceedance ({unit_label}/Year)')
+            ax1.set_ylabel('Number of Grid Cells')
+            ax1.set_title(f'Distribution of Threshold Exceedances\nThreshold: {ice_load_threshold:.3f} kg/m')
+            ax1.grid(True, alpha=0.3)
+            
+            # Box plot by row (south-north variation)
+            row_data = []
+            row_labels = []
+            for i in range(n_south_north):
+                row_exceedances = exceedance_matrix[i, :]
+                valid_row = row_exceedances[~np.isnan(row_exceedances)]
+                if len(valid_row) > 0:
+                    row_data.append(valid_row)
+                    row_labels.append(f'Row {i}')
+            
+            if row_data:
+                ax2.boxplot(row_data, labels=row_labels)
+                ax2.set_xlabel('Grid Row (South to North)')
+                ax2.set_ylabel(f'Exceedance ({unit_label}/Year)')
+                ax2.set_title('Exceedance by Grid Row')
+                ax2.grid(True, alpha=0.3)
+                ax2.tick_params(axis='x', rotation=45)
+            
+            plt.tight_layout()
+            
+            if save_plots:
+                summary_path = os.path.join(threshold_plots_dir, f"ice_load_threshold_exceedance_summary_{ice_threshold_str}kgm.png")
+                plt.savefig(summary_path, dpi=300, bbox_inches='tight')
+                print(f"   Summary statistics saved to: {summary_path}")
+            
+            plt.close()  # Close the plot to prevent it from showing
+        
+        # Prepare results dictionary
+        results = {
+            'threshold': ice_load_threshold,
+            'units': units,
+            'exceedance_matrix': exceedance_matrix,
+            'grid_shape': (n_south_north, n_west_east),
+            'n_years': n_years,
+            'years_range': (years[0], years[-1]),
+            'time_step_hours': time_step_hours,
+            'statistics': {
+                'mean': np.nanmean(exceedance_matrix),
+                'std': np.nanstd(exceedance_matrix),
+                'min': np.nanmin(exceedance_matrix),
+                'max': np.nanmax(exceedance_matrix),
+                'cells_with_exceedances': np.sum(valid_exceedances > 0) if len(valid_exceedances) > 0 else 0,
+                'total_valid_cells': len(valid_exceedances) if len(valid_exceedances) > 0 else 0
+            }
+        }
+        
+        # Save detailed results to file
+        if save_plots:
+            results_path = os.path.join(results_dir, f"ice_load_threshold_exceedance_{ice_threshold_str}kgm.txt")
+            with open(results_path, 'w') as f:
+                f.write("ICE LOAD THRESHOLD EXCEEDANCE ANALYSIS RESULTS\n")
+                f.write("=" * 50 + "\n\n")
+                f.write(f"Threshold: {ice_load_threshold:.3f} kg/m\n")
+                f.write(f"Units: {units}\n")
+                f.write(f"Grid shape: {n_south_north} × {n_west_east}\n")
+                f.write(f"Years analyzed: {n_years} ({years[0]} to {years[-1]})\n")
+                f.write(f"Time step: {time_step_hours} hours\n\n")
+                
+                f.write("Exceedance Statistics:\n")
+                f.write("-" * 25 + "\n")
+                if len(valid_exceedances) > 0:
+                    f.write(f"Mean: {results['statistics']['mean']:.3f} {units}/year\n")
+                    f.write(f"Std: {results['statistics']['std']:.3f} {units}/year\n")
+                    f.write(f"Min: {results['statistics']['min']:.3f} {units}/year\n")
+                    f.write(f"Max: {results['statistics']['max']:.3f} {units}/year\n")
+                    f.write(f"Cells with exceedances: {results['statistics']['cells_with_exceedances']}\n")
+                    f.write(f"Total valid cells: {results['statistics']['total_valid_cells']}\n\n")
+                
+                f.write("Grid Cell Exceedance Values:\n")
+                f.write("-" * 30 + "\n")
+                for i in range(n_south_north):
+                    row_str = f"Row {i:2d}: "
+                    for j in range(n_west_east):
+                        value = exceedance_matrix[i, j]
+                        if np.isnan(value):
+                            row_str += "   NaN   "
+                        else:
+                            row_str += f"{value:7.2f} "
+                    f.write(row_str + "\n")
+            
+            print(f"   Detailed results saved to: {results_path}")
+        
+        print(f"\n✓ Ice load threshold exceedance analysis completed successfully!")
+        return results
+        
+    except Exception as e:
+        print(f"Error in threshold exceedance analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 # SPATIAL GRADIENTS 
 
 def create_spatial_gradient_plots(ice_load_data):
@@ -4399,317 +4710,6 @@ def plot_ice_load_1_minus_cdf_curves(ice_load_data, save_plots=True, ice_load_bi
         traceback.print_exc()
         return None
 
-def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_variable='ICE_LOAD', height_level=0,
-                                         ice_load_threshold=0.1, save_plots=True, 
-                                         colormap='viridis', grid_labels=True, units='hours'):
-    """
-    Create a spatial map showing how often each grid cell exceeds a specified ice load threshold
-    per year on average. Uses a colorbar to show spatial differences in threshold exceedance.
-    
-    Parameters:
-    -----------
-    dataset_with_ice_load : xarray.Dataset
-        Dataset containing ice load data (from add_ice_load_to_dataset)
-    ice_load_variable : str, default 'ICE_LOAD'
-        Name of the ice load variable in the dataset
-    height_level : int, default 0
-        Height level index to analyze
-    ice_load_threshold : float
-        Ice load threshold value (kg/m) to analyze exceedance for
-    save_plots : bool, default True
-        Whether to save the plot to file
-    colormap : str, default 'viridis'
-        Matplotlib colormap to use for the spatial plot
-    grid_labels : bool, default True
-        Whether to add grid cell coordinate labels to the plot
-    units : str, default 'hours'
-        Units for the exceedance frequency ('hours', 'days', or 'percentage')
-        
-    Returns:
-    --------
-    dict : Dictionary containing exceedance analysis results and statistics
-    """
-    print(f"=== ICE LOAD THRESHOLD EXCEEDANCE ANALYSIS ===")
-    print(f"Height level: {height_level} ({dataset_with_ice_load.height.values[height_level]} m)")
-    print(f"Threshold: {ice_load_threshold:.3f} kg/m")
-    
-    try:
-        # Extract ice load data
-        if ice_load_variable not in dataset_with_ice_load.data_vars:
-            raise ValueError(f"Variable '{ice_load_variable}' not found in dataset. Available variables: {list(dataset_with_ice_load.data_vars.keys())}")
-        
-        ice_load_data = dataset_with_ice_load[ice_load_variable].isel(height=height_level)
-        
-        # Check data structure
-        print(f"\n1. Data Information:")
-        print(f"   Shape: {ice_load_data.shape}")
-        print(f"   Dimensions: {ice_load_data.dims}")
-        
-        # Get spatial dimensions
-        n_time = ice_load_data.sizes['time']
-        n_south_north = ice_load_data.sizes['south_north']
-        n_west_east = ice_load_data.sizes['west_east']
-        
-        print(f"   Grid size: {n_south_north} × {n_west_east} = {n_south_north * n_west_east} cells")
-        print(f"   Time steps: {n_time}")
-        
-        # Calculate temporal information
-        time_index = pd.to_datetime(ice_load_data.time.values)
-        n_years = len(time_index.year.unique())
-        years = sorted(time_index.year.unique())
-        
-        # Calculate time step in hours (assuming regular intervals)
-        if len(time_index) > 1:
-            time_step_hours = (time_index[1] - time_index[0]).total_seconds() / 3600
-        else:
-            time_step_hours = 0.5  # Default to 30 minutes
-            
-        print(f"   Years covered: {n_years} ({years[0]} to {years[-1]})")
-        print(f"   Time step: {time_step_hours} hours")
-        
-        # Clean the data (remove NaN values, replace negative with 0)
-        ice_data_clean = ice_load_data.where(ice_load_data >= 0, 0)
-        
-        print(f"\n2. Threshold Exceedance Analysis:")
-        print(f"   Analyzing exceedance of {ice_load_threshold:.3f} kg/m threshold...")
-        
-        # Initialize exceedance matrix
-        exceedance_matrix = np.zeros((n_south_north, n_west_east))
-        
-        # Calculate exceedance for each grid cell
-        total_cells = n_south_north * n_west_east
-        processed_cells = 0
-        
-        for i in range(n_south_north):
-            for j in range(n_west_east):
-                # Extract time series for this grid cell
-                cell_data = ice_data_clean.isel(south_north=i, west_east=j)
-                cell_values = cell_data.values
-                
-                # Remove NaN values
-                valid_mask = ~np.isnan(cell_values)
-                cell_values_clean = cell_values[valid_mask]
-                
-                if len(cell_values_clean) > 0:
-                    # Count exceedances
-                    exceedances = np.sum(cell_values_clean >= ice_load_threshold)
-                    
-                    # Convert to the requested units
-                    if units == 'hours':
-                        # Hours per year
-                        exceedance_value = (exceedances * time_step_hours) / n_years
-                    elif units == 'days':
-                        # Days per year
-                        exceedance_value = (exceedances * time_step_hours) / (24 * n_years)
-                    elif units == 'percentage':
-                        # Percentage of time
-                        total_hours_per_year = 365.25 * 24  # Account for leap years
-                        hours_per_year = (exceedances * time_step_hours) / n_years
-                        exceedance_value = (hours_per_year / total_hours_per_year) * 100
-                    else:
-                        # Default to hours
-                        exceedance_value = (exceedances * time_step_hours) / n_years
-                    
-                    exceedance_matrix[i, j] = exceedance_value
-                else:
-                    exceedance_matrix[i, j] = np.nan
-                
-                processed_cells += 1
-                if processed_cells % 20 == 0:
-                    print(f"   Processed {processed_cells}/{total_cells} cells...")
-        
-        # Calculate statistics
-        valid_exceedances = exceedance_matrix[~np.isnan(exceedance_matrix)]
-        
-        print(f"\n3. Exceedance Statistics:")
-        if len(valid_exceedances) > 0:
-            print(f"   Mean exceedance: {np.mean(valid_exceedances):.2f} {units}/year")
-            print(f"   Std exceedance: {np.std(valid_exceedances):.2f} {units}/year")
-            print(f"   Min exceedance: {np.min(valid_exceedances):.2f} {units}/year")
-            print(f"   Max exceedance: {np.max(valid_exceedances):.2f} {units}/year")
-            print(f"   Cells with exceedances: {np.sum(valid_exceedances > 0)}/{len(valid_exceedances)}")
-        else:
-            print(f"   No valid exceedance data found")
-        
-        # Create the spatial plot
-        print(f"\n4. Creating spatial exceedance map...")
-        
-        fig, ax = plt.subplots(1, 1, figsize=(12, 10))
-        
-        # Create the main plot
-        im = ax.imshow(exceedance_matrix, cmap=colormap, origin='lower', 
-                      interpolation='nearest', aspect='auto')
-        
-        # Set title and labels
-        unit_label = units.capitalize()
-        if units == 'percentage':
-            unit_label = '% of Time'
-        
-        ax.set_title(f'Ice Load Threshold Exceedance Map\n'
-                    f'Threshold: {ice_load_threshold:.3f} kg/m\n'
-                    f'Mean Annual Exceedance ({unit_label})')
-        ax.set_xlabel('West-East Grid Points')
-        ax.set_ylabel('South-North Grid Points')
-        
-        # Add colorbar
-        cbar = plt.colorbar(im, ax=ax, shrink=0.8, aspect=20)
-        cbar.set_label(f'Exceedance ({unit_label}/Year)')
-        
-        # Add grid lines
-        ax.set_xticks(range(n_west_east))
-        ax.set_yticks(range(n_south_north))
-        ax.grid(True, alpha=0.3, color='white', linewidth=0.5)
-        
-        # Add cell values as text labels if requested
-        if grid_labels:
-            for i in range(n_south_north):
-                for j in range(n_west_east):
-                    value = exceedance_matrix[i, j]
-                    if not np.isnan(value):
-                        # Choose text color based on background
-                        text_color = 'white' if value > np.nanmean(exceedance_matrix) else 'black'
-                        ax.text(j, i, f'{value:.1f}', ha='center', va='center',
-                               color=text_color, fontsize=8, weight='bold')
-        
-        # Add coordinate references
-        ax.set_xticks(range(n_west_east))
-        ax.set_yticks(range(n_south_north))
-        ax.set_xticklabels([f'{j}' for j in range(n_west_east)])
-        ax.set_yticklabels([f'{i}' for i in range(n_south_north)])
-        
-        plt.tight_layout()
-        
-        # Save plot if requested
-        if save_plots:
-            # Create directory structure: results/figures/spatial_gradient/ice_load_grid_hours_exceedance/ice_load_hours_{height}_{ice_threshold}
-            height_m = int(dataset_with_ice_load.height.values[height_level])
-            
-            # Format ice threshold with appropriate precision and replace decimal point with 'p'
-            if ice_load_threshold == int(ice_load_threshold):
-                # If it's a whole number, format as integer
-                ice_threshold_str = f"{int(ice_load_threshold)}"
-            else:
-                # For decimal values, use appropriate precision to avoid rounding
-                ice_threshold_str = f"{ice_load_threshold:.2f}".rstrip('0').rstrip('.')
-            ice_threshold_str = ice_threshold_str.replace('.', 'p')
-            
-            base_dir = os.path.join(figures_dir, "spatial_gradient", "ice_load_grid_hours_exceedance")
-            specific_dir = f"ice_load_hours_{height_m}_{ice_threshold_str}"
-            threshold_plots_dir = os.path.join(base_dir, specific_dir)
-            os.makedirs(threshold_plots_dir, exist_ok=True)
-            
-            print(f"   Saving plots to: {threshold_plots_dir}")
-            
-            # Create filename with threshold value
-            plot_path = os.path.join(threshold_plots_dir, f"ice_load_threshold_exceedance_{ice_threshold_str}kgm.png")
-            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-            print(f"   Exceedance map saved to: {plot_path}")
-        
-        plt.close()  # Close the plot to prevent it from showing
-        
-        # Create additional summary statistics plot
-        if len(valid_exceedances) > 0:
-            fig2, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-            
-            # Histogram of exceedance values
-            ax1.hist(valid_exceedances, bins=min(20, len(np.unique(valid_exceedances))), 
-                    alpha=0.7, color='skyblue', edgecolor='black')
-            ax1.set_xlabel(f'Exceedance ({unit_label}/Year)')
-            ax1.set_ylabel('Number of Grid Cells')
-            ax1.set_title(f'Distribution of Threshold Exceedances\nThreshold: {ice_load_threshold:.3f} kg/m')
-            ax1.grid(True, alpha=0.3)
-            
-            # Box plot by row (south-north variation)
-            row_data = []
-            row_labels = []
-            for i in range(n_south_north):
-                row_exceedances = exceedance_matrix[i, :]
-                valid_row = row_exceedances[~np.isnan(row_exceedances)]
-                if len(valid_row) > 0:
-                    row_data.append(valid_row)
-                    row_labels.append(f'Row {i}')
-            
-            if row_data:
-                ax2.boxplot(row_data, labels=row_labels)
-                ax2.set_xlabel('Grid Row (South to North)')
-                ax2.set_ylabel(f'Exceedance ({unit_label}/Year)')
-                ax2.set_title('Exceedance by Grid Row')
-                ax2.grid(True, alpha=0.3)
-                ax2.tick_params(axis='x', rotation=45)
-            
-            plt.tight_layout()
-            
-            if save_plots:
-                summary_path = os.path.join(threshold_plots_dir, f"ice_load_threshold_exceedance_summary_{ice_threshold_str}kgm.png")
-                plt.savefig(summary_path, dpi=300, bbox_inches='tight')
-                print(f"   Summary statistics saved to: {summary_path}")
-            
-            plt.close()  # Close the plot to prevent it from showing
-        
-        # Prepare results dictionary
-        results = {
-            'threshold': ice_load_threshold,
-            'units': units,
-            'exceedance_matrix': exceedance_matrix,
-            'grid_shape': (n_south_north, n_west_east),
-            'n_years': n_years,
-            'years_range': (years[0], years[-1]),
-            'time_step_hours': time_step_hours,
-            'statistics': {
-                'mean': np.nanmean(exceedance_matrix),
-                'std': np.nanstd(exceedance_matrix),
-                'min': np.nanmin(exceedance_matrix),
-                'max': np.nanmax(exceedance_matrix),
-                'cells_with_exceedances': np.sum(valid_exceedances > 0) if len(valid_exceedances) > 0 else 0,
-                'total_valid_cells': len(valid_exceedances) if len(valid_exceedances) > 0 else 0
-            }
-        }
-        
-        # Save detailed results to file
-        if save_plots:
-            results_path = os.path.join(results_dir, f"ice_load_threshold_exceedance_{ice_threshold_str}kgm.txt")
-            with open(results_path, 'w') as f:
-                f.write("ICE LOAD THRESHOLD EXCEEDANCE ANALYSIS RESULTS\n")
-                f.write("=" * 50 + "\n\n")
-                f.write(f"Threshold: {ice_load_threshold:.3f} kg/m\n")
-                f.write(f"Units: {units}\n")
-                f.write(f"Grid shape: {n_south_north} × {n_west_east}\n")
-                f.write(f"Years analyzed: {n_years} ({years[0]} to {years[-1]})\n")
-                f.write(f"Time step: {time_step_hours} hours\n\n")
-                
-                f.write("Exceedance Statistics:\n")
-                f.write("-" * 25 + "\n")
-                if len(valid_exceedances) > 0:
-                    f.write(f"Mean: {results['statistics']['mean']:.3f} {units}/year\n")
-                    f.write(f"Std: {results['statistics']['std']:.3f} {units}/year\n")
-                    f.write(f"Min: {results['statistics']['min']:.3f} {units}/year\n")
-                    f.write(f"Max: {results['statistics']['max']:.3f} {units}/year\n")
-                    f.write(f"Cells with exceedances: {results['statistics']['cells_with_exceedances']}\n")
-                    f.write(f"Total valid cells: {results['statistics']['total_valid_cells']}\n\n")
-                
-                f.write("Grid Cell Exceedance Values:\n")
-                f.write("-" * 30 + "\n")
-                for i in range(n_south_north):
-                    row_str = f"Row {i:2d}: "
-                    for j in range(n_west_east):
-                        value = exceedance_matrix[i, j]
-                        if np.isnan(value):
-                            row_str += "   NaN   "
-                        else:
-                            row_str += f"{value:7.2f} "
-                    f.write(row_str + "\n")
-            
-            print(f"   Detailed results saved to: {results_path}")
-        
-        print(f"\n✓ Ice load threshold exceedance analysis completed successfully!")
-        return results
-        
-    except Exception as e:
-        print(f"Error in threshold exceedance analysis: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
-
 def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height_level=0,
                       save_plots=True, colormap='viridis', grid_labels=True):
     """
@@ -6953,7 +6953,6 @@ def create_temporal_gradient_plots(ice_load_data):
         'min_temporal_gradient': all_temp_gradients.min()
     }
 
-
 def ice_load_resampling_analysis(
     dataset_with_ice_load,
     ice_load_variable='ICE_LOAD',
@@ -7418,7 +7417,6 @@ def ice_load_resampling_analysis(
     
     return results
 
-
 def ice_load_resampling_analysis_hours(
     dataset_with_ice_load,
     ice_load_variable='ICE_LOAD',
@@ -7528,16 +7526,35 @@ def ice_load_resampling_analysis_hours(
     time_index = pd.to_datetime(ice_load_data.time.values)
     start_year = time_index.year.min()
     end_year = time_index.year.max()
-    total_years = end_year - start_year + 1
     
-  
+    # For winter years: June Year1 to May Year2 is "Winter Year2"
+    # Adjust start and end years for winter year calculation
+    winter_start_year = start_year
+    winter_end_year = end_year
+    
+    # Check if we have data starting in June or later for proper winter year definition
+    first_month = time_index.month.min()
+    last_month = time_index.month.max()
+    
+    # If data starts after June, the first winter year is the following year
+    if time_index[time_index.year == start_year].month.min() > 6:
+        winter_start_year = start_year + 1
+    
+    # If data ends before June, the last winter year is the previous year
+    if time_index[time_index.year == end_year].month.max() < 6:
+        winter_end_year = end_year - 1
+    
+    total_winter_years = winter_end_year - winter_start_year + 1
+    
     time_step_hours = 0.5  # Default to 30 minutes
     
     print(f"\nData Overview:")
-    print(f"Time range: {start_year} to {end_year} ({total_years} years)")
+    print(f"Calendar time range: {start_year} to {end_year}")
+    print(f"Winter years range: {winter_start_year} to {winter_end_year} ({total_winter_years} winter years)")
     print(f"Grid size: {ice_load_data.sizes['south_north']} × {ice_load_data.sizes['west_east']}")
     print(f"Time step duration: {time_step_hours:.1f} hours")
     print(f"Ice load threshold: {ice_load_threshold} kg/m")
+    print(f"Note: Winter Year N = June Year(N-1) to May Year(N)")
     
     # 1. YEARLY EXCEEDANCE HOURS STATISTICS
     print(f"\n1. CALCULATING YEARLY EXCEEDANCE HOURS STATISTICS")
@@ -7550,19 +7567,25 @@ def ice_load_resampling_analysis_hours(
     yearly_percentiles = {'p75': [], 'p90': [], 'p95': []}
     years_list = []
     
-    for year in range(start_year, end_year + 1):
-        year_mask = time_index.year == year
-        if year_mask.any():
-            # Get exceedance data for this year
-            year_exceedance = exceedance_mask.isel(time=year_mask)
+    for winter_year in range(winter_start_year, winter_end_year + 1):
+        # Define winter year mask: June (year-1) to May (year)
+        winter_start = pd.Timestamp(f"{winter_year-1}-06-01")
+        winter_end = pd.Timestamp(f"{winter_year}-05-31 23:59:59")
+        
+        # Create mask for this winter year
+        winter_mask = (time_index >= winter_start) & (time_index <= winter_end)
+        
+        if winter_mask.any():
+            # Get exceedance data for this winter year
+            winter_exceedance = exceedance_mask.isel(time=winter_mask)
             
             # Calculate grid mean exceedance for each time step, then sum over time
             # This gives the total exceedance hours for the grid mean
-            grid_mean_exceedance = year_exceedance.mean(dim=['south_north', 'west_east'])
+            grid_mean_exceedance = winter_exceedance.mean(dim=['south_north', 'west_east'])
             total_grid_mean_exceedance_hours = float(grid_mean_exceedance.sum() * time_step_hours)
             
             # Also calculate exceedance hours per individual grid cell for spatial statistics
-            exceedance_hours_per_cell = year_exceedance.sum(dim='time') * time_step_hours
+            exceedance_hours_per_cell = winter_exceedance.sum(dim='time') * time_step_hours
             exceedance_hours_values = exceedance_hours_per_cell.values.flatten()
             exceedance_hours_clean = exceedance_hours_values[~np.isnan(exceedance_hours_values)]
             
@@ -7577,11 +7600,13 @@ def ice_load_resampling_analysis_hours(
                     'p90_hours_per_cell': float(np.percentile(exceedance_hours_clean, 90)),
                     'p95_hours_per_cell': float(np.percentile(exceedance_hours_clean, 95)),
                     'n_grid_cells': len(exceedance_hours_clean),
-                    'cells_with_exceedance': int(np.sum(exceedance_hours_clean > 0))
+                    'cells_with_exceedance': int(np.sum(exceedance_hours_clean > 0)),
+                    'winter_start': winter_start,
+                    'winter_end': winter_end
                 }
                 
-                yearly_stats[year] = stats
-                years_list.append(year)
+                yearly_stats[winter_year] = stats
+                years_list.append(winter_year)
                 yearly_total_hours.append(stats['grid_mean_total_hours'])  # Use grid mean total
                 yearly_max_hours.append(stats['max_hours_per_cell'])
                 yearly_mean_hours.append(stats['mean_hours_per_cell'])
@@ -7590,19 +7615,21 @@ def ice_load_resampling_analysis_hours(
                 yearly_percentiles['p95'].append(stats['p95_hours_per_cell'])
     
     # 2. RESAMPLING ANALYSIS
-    print(f"\n2. PERFORMING {resampling_years}-YEAR RESAMPLING ANALYSIS")
+    print(f"\n2. PERFORMING {resampling_years}-WINTER-YEAR RESAMPLING ANALYSIS")
     print("=" * 50)
     
-    # Create resampling periods
+    # Create resampling periods using winter years
     resampling_periods = []
-    for start in range(start_year, end_year + 1, resampling_years):
-        end = min(start + resampling_years - 1, end_year)
+    for start in range(winter_start_year, winter_end_year + 1, resampling_years):
+        end = min(start + resampling_years - 1, winter_end_year)
         if end - start + 1 >= resampling_years:  # Only include complete periods
             resampling_periods.append((start, end))
     
-    print(f"Resampling periods ({len(resampling_periods)}):")
+    print(f"Winter year resampling periods ({len(resampling_periods)}):")
     for start, end in resampling_periods:
-        print(f"  {start}-{end}")
+        calendar_start = start - 1
+        calendar_end = end
+        print(f"  Winter {start}-{end} (Jun {calendar_start} to May {calendar_end})")
     
     # Calculate statistics for each resampling period
     period_stats = {}
@@ -7611,7 +7638,14 @@ def ice_load_resampling_analysis_hours(
     period_labels = []
     
     for start, end in resampling_periods:
-        period_mask = (time_index.year >= start) & (time_index.year <= end)
+        # Create mask for winter year range
+        period_mask = np.zeros(len(time_index), dtype=bool)
+        for winter_year in range(start, end + 1):
+            winter_start = pd.Timestamp(f"{winter_year-1}-06-01")
+            winter_end = pd.Timestamp(f"{winter_year}-05-31 23:59:59")
+            winter_mask = (time_index >= winter_start) & (time_index <= winter_end)
+            period_mask = period_mask | winter_mask  # Combine masks (winter_mask is already numpy array)
+        
         if period_mask.any():
             # Get exceedance data for this period
             period_exceedance = exceedance_mask.isel(time=period_mask)
@@ -7637,7 +7671,7 @@ def ice_load_resampling_analysis_hours(
                     'years_in_period': end - start + 1
                 }
                 
-                period_key = f"{start}-{end}"
+                period_key = f"{start-1}-{end}"  # For winter years: show calendar year span
                 period_stats[period_key] = stats
                 period_total_hours.append(stats['grid_mean_total_hours'])  # Use grid mean total
                 period_mean_hours.append(stats['mean_hours_per_cell'])
@@ -7675,9 +7709,9 @@ def ice_load_resampling_analysis_hours(
     yearly_deviations = []
     yearly_normalized_deviations = []
     
-    for year in years_list:
-        if year in yearly_stats:
-            deviation = yearly_stats[year]['mean_hours_per_cell'] - long_term_stats['mean_hours_per_cell']
+    for winter_year in years_list:
+        if winter_year in yearly_stats:
+            deviation = yearly_stats[winter_year]['mean_hours_per_cell'] - long_term_stats['mean_hours_per_cell']
             if long_term_stats['std_hours_per_cell'] > 0:
                 normalized_deviation = deviation / long_term_stats['std_hours_per_cell']
             else:
@@ -7692,63 +7726,6 @@ def ice_load_resampling_analysis_hours(
     print(f"\n4. CREATING VISUALIZATIONS")
     print("=" * 30)
     
-    # Plot 1: Yearly exceedance hours time series
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    
-    # Subplot 1: Yearly mean exceedance hours per cell
-    axes[0, 0].plot(years_list, yearly_mean_hours, 'b-o', linewidth=2, markersize=4, label='Yearly Mean per Cell')
-    axes[0, 0].axhline(y=long_term_stats['mean_hours_per_cell'], color='red', linestyle='--', linewidth=2, 
-                       label=f'Long-term Average ({long_term_stats["mean_hours_per_cell"]:.1f})')
-    axes[0, 0].fill_between(years_list, 
-                            [long_term_stats['mean_hours_per_cell'] - long_term_stats['std_hours_per_cell']] * len(years_list),
-                            [long_term_stats['mean_hours_per_cell'] + long_term_stats['std_hours_per_cell']] * len(years_list),
-                            alpha=0.2, color='red', label='±1 Std Dev')
-    axes[0, 0].set_xlabel('Year')
-    axes[0, 0].set_ylabel('Mean Exceedance Hours per Cell')
-    axes[0, 0].set_title(f'Yearly Mean Exceedance Hours (Threshold: {ice_load_threshold} kg/m)')
-    axes[0, 0].grid(True, alpha=0.3)
-    axes[0, 0].legend()
-    
-    # Subplot 2: Yearly grid mean total exceedance hours
-    axes[0, 1].plot(years_list, yearly_total_hours, 'g-s', linewidth=2, markersize=4, label='Yearly Grid Mean Total Hours')
-    axes[0, 1].axhline(y=long_term_stats['grid_mean_total_hours']/total_years, color='orange', linestyle='--', linewidth=2,
-                       label=f'Long-term Average ({long_term_stats["grid_mean_total_hours"]/total_years:.1f})')
-    axes[0, 1].set_xlabel('Year')
-    axes[0, 1].set_ylabel('Grid Mean Total Exceedance Hours')
-    axes[0, 1].set_title('Yearly Grid Mean Total Exceedance Hours')
-    axes[0, 1].grid(True, alpha=0.3)
-    axes[0, 1].legend()
-    
-    # Subplot 3: Yearly deviations from long-term average
-    colors = ['red' if x > 0 else 'blue' for x in yearly_deviations]
-    axes[1, 0].bar(years_list, yearly_deviations, color=colors, alpha=0.7, width=0.8)
-    axes[1, 0].axhline(y=0, color='black', linestyle='-', linewidth=1)
-    axes[1, 0].set_xlabel('Year')
-    axes[1, 0].set_ylabel('Deviation from Long-term Mean (hours)')
-    axes[1, 0].set_title('Yearly Deviations from Long-term Average')
-    axes[1, 0].grid(True, alpha=0.3)
-    
-    # Subplot 4: Normalized deviations
-    colors_norm = ['red' if x > 0 else 'blue' for x in yearly_normalized_deviations]
-    axes[1, 1].bar(years_list, yearly_normalized_deviations, color=colors_norm, alpha=0.7, width=0.8)
-    axes[1, 1].axhline(y=0, color='black', linestyle='-', linewidth=1)
-    axes[1, 1].axhline(y=1, color='red', linestyle='--', alpha=0.7, label='+1 Std Dev')
-    axes[1, 1].axhline(y=-1, color='red', linestyle='--', alpha=0.7, label='-1 Std Dev')
-    axes[1, 1].set_xlabel('Year')
-    axes[1, 1].set_ylabel('Normalized Deviation (σ)')
-    axes[1, 1].set_title('Normalized Yearly Deviations')
-    axes[1, 1].grid(True, alpha=0.3)
-    axes[1, 1].legend()
-    
-    plt.tight_layout()
-    
-    if save_plots:
-        plot1_path = os.path.join(base_results_dir, "exceedance_hours_yearly_analysis.png")
-        plt.savefig(plot1_path, dpi=300, bbox_inches='tight')
-        print(f"Yearly exceedance hours analysis plot saved to: {plot1_path}")
-    
-    plt.close()
-    
     # Plot 2: Resampling period analysis
     if len(period_total_hours) > 1:
         fig, axes = plt.subplots(2, 2, figsize=(16, 12))
@@ -7756,7 +7733,7 @@ def ice_load_resampling_analysis_hours(
         # Subplot 1: Period grid mean total hours
         x_pos = np.arange(len(period_labels))
         axes[0, 0].bar(x_pos, period_total_hours, alpha=0.7, color='skyblue', edgecolor='navy')
-        period_avg = long_term_stats['grid_mean_total_hours'] / total_years * resampling_years
+        period_avg = long_term_stats['grid_mean_total_hours'] / total_winter_years * resampling_years
         axes[0, 0].axhline(y=period_avg, color='red', linestyle='--', linewidth=2,
                            label=f'Expected Total ({period_avg:.1f})')
         axes[0, 0].set_xlabel(f'{resampling_years}-Year Periods')
@@ -7769,8 +7746,10 @@ def ice_load_resampling_analysis_hours(
         
         # Subplot 2: Period mean hours per cell
         axes[0, 1].bar(x_pos, period_mean_hours, alpha=0.7, color='lightcoral', edgecolor='darkred')
-        axes[0, 1].axhline(y=long_term_stats['mean_hours_per_cell'], color='blue', linestyle='--', linewidth=2,
-                           label=f'Overall Mean ({long_term_stats["mean_hours_per_cell"]:.1f})')
+        # Calculate mean of all period means (average of the bars)
+        mean_of_period_means = np.mean(period_mean_hours)
+        axes[0, 1].axhline(y=mean_of_period_means, color='blue', linestyle='--', linewidth=2,
+                           label=f'Mean of Period Means ({mean_of_period_means:.1f})')
         axes[0, 1].set_xlabel(f'{resampling_years}-Year Periods')
         axes[0, 1].set_ylabel('Mean Hours per Cell')
         axes[0, 1].set_title(f'{resampling_years}-Year Period Mean Hours per Cell')
@@ -7779,13 +7758,13 @@ def ice_load_resampling_analysis_hours(
         axes[0, 1].grid(True, alpha=0.3)
         axes[0, 1].legend()
         
-        # Subplot 3: Period deviations from overall mean
-        period_deviations = [mean - long_term_stats['mean_hours_per_cell'] for mean in period_mean_hours]
+        # Subplot 3: Period deviations from mean of period means
+        period_deviations = [mean - mean_of_period_means for mean in period_mean_hours]
         colors_period = ['red' if x > 0 else 'blue' for x in period_deviations]
         axes[1, 0].bar(x_pos, period_deviations, color=colors_period, alpha=0.7)
         axes[1, 0].axhline(y=0, color='black', linestyle='-', linewidth=1)
         axes[1, 0].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[1, 0].set_ylabel('Deviation from Overall Mean (hours)')
+        axes[1, 0].set_ylabel('Deviation from Period Means Average (hours)')
         axes[1, 0].set_title(f'{resampling_years}-Year Period Deviations')
         axes[1, 0].set_xticks(x_pos)
         axes[1, 0].set_xticklabels(period_labels, rotation=45)
@@ -7827,11 +7806,11 @@ def ice_load_resampling_analysis_hours(
     axes[0].plot(years_list, yearly_percentiles['p95'], 'r-^', linewidth=2, markersize=3, label='95th Percentile')
     axes[0].plot(years_list, yearly_mean_hours, 'b-', linewidth=2, alpha=0.7, label='Mean')
     
-    # Add long-term averages
-    axes[0].axhline(y=np.percentile(all_exceedance_clean, 75), color='green', linestyle='--', alpha=0.7)
-    axes[0].axhline(y=np.percentile(all_exceedance_clean, 90), color='orange', linestyle='--', alpha=0.7)
-    axes[0].axhline(y=np.percentile(all_exceedance_clean, 95), color='red', linestyle='--', alpha=0.7)
-    axes[0].axhline(y=long_term_stats['mean_hours_per_cell'], color='blue', linestyle='--', alpha=0.7)
+    # Add long-term averages (average of yearly percentiles and yearly means)
+    axes[0].axhline(y=np.mean(yearly_percentiles['p75']), color='green', linestyle='--', alpha=0.7)
+    axes[0].axhline(y=np.mean(yearly_percentiles['p90']), color='orange', linestyle='--', alpha=0.7)
+    axes[0].axhline(y=np.mean(yearly_percentiles['p95']), color='red', linestyle='--', alpha=0.7)
+    axes[0].axhline(y=np.mean(yearly_mean_hours), color='blue', linestyle='--', alpha=0.7)
     
     axes[0].set_xlabel('Year')
     axes[0].set_ylabel('Exceedance Hours per Cell')
@@ -7872,7 +7851,9 @@ def ice_load_resampling_analysis_hours(
             f.write(f"Time step duration: {time_step_hours:.1f} hours\n")
             if months:
                 f.write(f"Months included: {months}\n")
-            f.write(f"Time range: {start_year} to {end_year} ({total_years} years)\n\n")
+            f.write(f"Calendar time range: {start_year} to {end_year}\n")
+            f.write(f"Winter years range: {winter_start_year} to {winter_end_year} ({total_winter_years} winter years)\n")
+            f.write(f"Note: Winter Year N = June Year(N-1) to May Year(N)\n\n")
             
             f.write("LONG-TERM EXCEEDANCE STATISTICS:\n")
             f.write("-" * 35 + "\n")
@@ -7904,7 +7885,6 @@ def ice_load_resampling_analysis_hours(
             
             f.write(f"\nFILES GENERATED:\n")
             f.write("-" * 20 + "\n")
-            f.write("- exceedance_hours_yearly_analysis.png\n")
             if len(period_total_hours) > 1:
                 f.write(f"- exceedance_hours_{resampling_years}year_resampling_analysis.png\n")
             f.write("- exceedance_hours_percentiles_evolution.png\n")
@@ -7920,20 +7900,22 @@ def ice_load_resampling_analysis_hours(
         'yearly_normalized_deviations': yearly_normalized_deviations,
         'period_stats': period_stats,
         'resampling_years': resampling_years,
-        'years_list': years_list,
-        'time_range': (start_year, end_year),
+        'years_list': years_list,  # These are winter years
+        'calendar_time_range': (start_year, end_year),
+        'winter_year_range': (winter_start_year, winter_end_year),
+        'total_winter_years': total_winter_years,
         'resampling_periods': resampling_periods,
         'ice_load_threshold': ice_load_threshold,
         'time_step_hours': time_step_hours
     }
     
     print(f"\n=== EXCEEDANCE HOURS ANALYSIS COMPLETED ===")
-    print(f"Analyzed {total_years} years of data")
+    print(f"Analyzed {total_winter_years} winter years of data")
     print(f"Grid mean total exceedance hours: {long_term_stats['grid_mean_total_hours']:.1f} hours")
     print(f"Mean exceedance hours per cell: {long_term_stats['mean_hours_per_cell']:.2f} hours")
     print(f"Spatial coverage: {(long_term_stats['cells_with_exceedance']/long_term_stats['total_grid_cells']*100):.1f}%")
     if len(period_total_hours) > 1:
-        print(f"Number of {resampling_years}-year periods: {len(period_total_hours)}")
+        print(f"Number of {resampling_years}-winter-year periods: {len(period_total_hours)}")
     
     return results
 
