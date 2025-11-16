@@ -6656,6 +6656,697 @@ def analyze_ice_load_with_filtering_and_cdf(
     
     return results
 
+def analyze_ice_load_with_weighted_neighborhood_cdf(
+    dataset_with_ice_load,
+    ice_load_variable='ICE_LOAD',
+    height_level=0,
+    save_plots=True,
+    results_subdir="weighted_neighborhood_ice_load_cdf_analysis",
+    # Neighborhood parameters
+    neighborhood_type='4-neighbors',  # '4-neighbors', '8-neighbors', '24-neighbors'
+    weight_scheme='uniform',          # 'uniform', 'distance', 'custom'
+    custom_weights=None,              # Custom weight dictionary for different neighbor types
+    # Filtering parameters (min, max for each variable)
+    WD_range=None,        # (min, max) for Wind Direction
+    WS_range=None,        # (min, max) for Wind Speed
+    T_range=None,         # (min, max) for Temperature
+    PBLH_range=None,      # (min, max) for Boundary Layer Height
+    PRECIP_range=None,    # (min, max) for Precipitation
+    QVAPOR_range=None,    # (min, max) for Water Vapor
+    RMOL_range=None,      # (min, max) for Monin-Obukhov Length
+    # CDF analysis parameters
+    ice_load_threshold=0.0,
+    ice_load_bins=None,
+    months=None,
+    percentile=None
+):
+    """
+    Enhanced version of analyze_ice_load_with_filtering_and_cdf that allows customizable
+    neighborhood analysis with different numbers of neighbors (4, 8, or 24) and 
+    weighted distance calculations for spatial gradient analysis.
+    
+    This function combines meteorological filtering with detailed CDF analysis and creates
+    spatial gradient plots using weighted Earth Mover's distance between neighboring grid cells.
+    
+    Parameters:
+    -----------
+    dataset_with_ice_load : xarray.Dataset
+        Dataset that already contains ice load as a variable (from add_ice_load_to_dataset)
+    ice_load_variable : str, optional
+        Name of the ice load variable in the dataset (default: 'ICE_LOAD')
+    height_level : int, optional
+        Height level index to use for analysis (default: 0)
+    save_plots : bool, optional
+        Whether to save plots to files (default: True)
+    results_subdir : str, optional
+        Subdirectory name for saving results (default: "weighted_neighborhood_ice_load_cdf_analysis")
+        
+    Neighborhood Parameters:
+    ------------------------
+    neighborhood_type : str, optional
+        Type of neighborhood to analyze:
+        - '4-neighbors': Only adjacent cells (N, S, E, W)
+        - '8-neighbors': Adjacent + diagonal cells (N, S, E, W, NE, NW, SE, SW)
+        - '24-neighbors': Extended neighborhood (5x5 grid around center, excluding center)
+    weight_scheme : str, optional
+        Weighting scheme for neighbor distances:
+        - 'uniform': All neighbors have equal weight
+        - 'distance': Weight inversely proportional to distance
+        - 'custom': Use custom weights provided in custom_weights parameter
+    custom_weights : dict, optional
+        Custom weights for different neighbor types. Required if weight_scheme='custom'.
+        Format: {
+            'adjacent': float,      # Weight for N, S, E, W neighbors (distance 1)
+            'diagonal': float,      # Weight for NE, NW, SE, SW neighbors (distance √2)
+            'second_line': float,   # Weight for 2-step neighbors (distance 2)
+            'second_diagonal': float # Weight for 2-step diagonal neighbors (distance 2√2)
+        }
+        
+    Filtering Parameters (all optional):
+    -----------------------------------
+    WD_range : tuple, optional
+        Wind direction range: (min, max) in degrees
+    WS_range : tuple, optional
+        Wind speed range: (min, max) in m/s
+    T_range : tuple, optional
+        Temperature range: (min, max) in K
+    PBLH_range : tuple, optional
+        Boundary layer height range: (min, max) in m
+    PRECIP_range : tuple, optional
+        Precipitation range: (min, max) in mm
+    QVAPOR_range : tuple, optional
+        Water vapor mixing ratio range: (min, max) in kg/kg
+    RMOL_range : tuple, optional
+        Monin-Obukhov length range: (min, max) in m
+        
+    CDF Analysis Parameters:
+    ------------------------
+    ice_load_threshold : float, optional
+        Minimum ice load threshold for CDF analysis (default: 0.0)
+    ice_load_bins : array-like, optional
+        Custom ice load bins for CDF analysis
+    months : list, optional
+        List of months to include (e.g., [1,2,12] for winter)
+    percentile : float, optional
+        Percentile threshold for extreme value filtering
+        
+    Returns:
+    --------
+    dict
+        Comprehensive results including filtering info, CDF data, and weighted spatial gradients
+    """
+    
+    print("=== ICE LOAD ANALYSIS WITH WEIGHTED NEIGHBORHOOD CDF ===")
+    print(f"Neighborhood type: {neighborhood_type}")
+    print(f"Weight scheme: {weight_scheme}")
+    
+    # Check if ice load variable exists
+    if ice_load_variable not in dataset_with_ice_load.data_vars:
+        raise ValueError(f"Ice load variable '{ice_load_variable}' not found in dataset. "
+                        f"Available variables: {list(dataset_with_ice_load.data_vars.keys())}")
+    
+    print(f"Using ice load variable: {ice_load_variable}")
+    print(f"Height level: {height_level} ({dataset_with_ice_load.height.values[height_level]} m)")
+    
+    # Validate neighborhood parameters
+    valid_neighborhoods = ['4-neighbors', '8-neighbors', '24-neighbors']
+    if neighborhood_type not in valid_neighborhoods:
+        raise ValueError(f"Invalid neighborhood_type. Must be one of: {valid_neighborhoods}")
+    
+    valid_weights = ['uniform', 'distance', 'custom']
+    if weight_scheme not in valid_weights:
+        raise ValueError(f"Invalid weight_scheme. Must be one of: {valid_weights}")
+    
+    if weight_scheme == 'custom' and custom_weights is None:
+        raise ValueError("custom_weights must be provided when weight_scheme='custom'")
+    
+    # Define neighbor offsets and weights for different neighborhood types
+    def get_neighborhood_config(neighborhood_type, weight_scheme, custom_weights=None):
+        """Get neighbor offsets and weights based on configuration"""
+        
+        if neighborhood_type == '4-neighbors':
+            neighbor_offsets = [
+                (-1, 0, 'adjacent'),  # North
+                (1, 0, 'adjacent'),   # South
+                (0, -1, 'adjacent'),  # West
+                (0, 1, 'adjacent'),   # East
+            ]
+        elif neighborhood_type == '8-neighbors':
+            neighbor_offsets = [
+                (-1, 0, 'adjacent'),   # North
+                (1, 0, 'adjacent'),    # South
+                (0, -1, 'adjacent'),   # West
+                (0, 1, 'adjacent'),    # East
+                (-1, -1, 'diagonal'),  # Northwest
+                (-1, 1, 'diagonal'),   # Northeast
+                (1, -1, 'diagonal'),   # Southwest
+                (1, 1, 'diagonal'),    # Southeast
+            ]
+        elif neighborhood_type == '24-neighbors':
+            neighbor_offsets = []
+            # 5x5 grid around center (excluding center itself)
+            for di in range(-2, 3):
+                for dj in range(-2, 3):
+                    if di == 0 and dj == 0:
+                        continue  # Skip center cell
+                    
+                    # Classify neighbor type by distance
+                    distance = np.sqrt(di**2 + dj**2)
+                    if distance == 1:
+                        neighbor_type = 'adjacent'
+                    elif distance == np.sqrt(2):
+                        neighbor_type = 'diagonal'
+                    elif distance == 2:
+                        neighbor_type = 'second_line'
+                    elif distance == 2 * np.sqrt(2):
+                        neighbor_type = 'second_diagonal'
+                    else:
+                        neighbor_type = 'extended'
+                    
+                    neighbor_offsets.append((di, dj, neighbor_type))
+        
+        # Assign weights based on scheme
+        neighbor_weights = {}
+        for di, dj, ntype in neighbor_offsets:
+            if weight_scheme == 'uniform':
+                weight = 1.0
+            elif weight_scheme == 'distance':
+                distance = np.sqrt(di**2 + dj**2)
+                weight = 1.0 / distance  # Inverse distance weighting
+            elif weight_scheme == 'custom':
+                if ntype in custom_weights:
+                    weight = custom_weights[ntype]
+                else:
+                    print(f"Warning: No custom weight specified for neighbor type '{ntype}', using 1.0")
+                    weight = 1.0
+            
+            neighbor_weights[(di, dj)] = weight
+        
+        return neighbor_offsets, neighbor_weights
+    
+    neighbor_offsets, neighbor_weights = get_neighborhood_config(neighborhood_type, weight_scheme, custom_weights)
+    
+    print(f"Using {len(neighbor_offsets)} neighbors with weights:")
+    for (di, dj, ntype), weight in zip(neighbor_offsets, neighbor_weights.values()):
+        print(f"  {ntype:>15} ({di:2d},{dj:2d}): weight = {weight:.3f}")
+    
+    # Create results directory based on filters and neighborhood config
+    if save_plots:
+        # Create organized directory structure
+        filters_base_dir = os.path.join("results", "figures", "spatial_gradient", "weighted_neighborhood_filters")
+        os.makedirs(filters_base_dir, exist_ok=True)
+        
+        # Generate folder name based on applied filters and neighborhood config
+        folder_name_parts = []
+        
+        # Add neighborhood configuration
+        folder_name_parts.append(f"{neighborhood_type.replace('-', '')}")
+        folder_name_parts.append(f"{weight_scheme}")
+        
+        # Add height level info
+        folder_name_parts.append(f"h{height_level}")
+        
+        # Add filter information to folder name
+        filter_params = {
+            'WD': WD_range,
+            'WS': WS_range, 
+            'T': T_range,
+            'PBLH': PBLH_range,
+            'PRECIP': PRECIP_range,
+            'QVAPOR': QVAPOR_range,
+            'RMOL': RMOL_range
+        }
+        
+        for param, value_range in filter_params.items():
+            if value_range is not None:
+                min_val, max_val = value_range
+                folder_name_parts.append(f"{param}_{min_val}to{max_val}")
+        
+        # Add month filtering if specified
+        if months is not None:
+            months_str = "_".join(map(str, sorted(months)))
+            folder_name_parts.append(f"months_{months_str}")
+        
+        # Add percentile filtering if specified
+        if percentile is not None:
+            folder_name_parts.append(f"p{percentile}")
+        
+        # Add ice load threshold if specified
+        if ice_load_threshold > 0:
+            folder_name_parts.append(f"min_{ice_load_threshold:.1f}")
+        
+        # Create unique folder name
+        if folder_name_parts:
+            folder_name = "_".join(folder_name_parts)
+        else:
+            folder_name = "no_filters"
+        
+        # Add timestamp to ensure uniqueness
+        timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+        folder_name = f"{folder_name}_{timestamp}"
+        
+        base_results_dir = os.path.join(filters_base_dir, folder_name)
+        os.makedirs(base_results_dir, exist_ok=True)
+        print(f"Results will be saved to: {base_results_dir}")
+    
+    # Apply meteorological filtering (same as original function)
+    print(f"\n1. APPLYING METEOROLOGICAL FILTERS")
+    print(f"=" * 40)
+    
+    filtered_ds = dataset_with_ice_load.copy()
+    filter_info = {}
+    
+    # Apply time filtering first (months)
+    if months is not None:
+        print(f"   Filtering by months: {months}")
+        time_df = pd.to_datetime(filtered_ds.time.values)
+        month_mask = time_df.month.isin(months)
+        if month_mask.any():
+            filtered_ds = filtered_ds.sel(time=filtered_ds.time[month_mask])
+            filter_info['months'] = months
+            print(f"   → Time steps after month filtering: {len(filtered_ds.time)}")
+        else:
+            print(f"   Warning: No data found for specified months")
+            return None
+    
+    # Apply meteorological variable filters
+    filter_params = {
+        'WD': WD_range,
+        'WS': WS_range, 
+        'T': T_range,
+        'PBLH': PBLH_range,
+        'PRECIP': PRECIP_range,
+        'QVAPOR': QVAPOR_range,
+        'RMOL': RMOL_range
+    }
+    
+    mask = xr.ones_like(filtered_ds.time, dtype=bool)
+    
+    for param, value_range in filter_params.items():
+        if value_range is not None and param in filtered_ds.data_vars:
+            min_val, max_val = value_range
+            param_data = filtered_ds[param]
+            
+            # For all parameters, simple range filtering at specified height
+            param_mask = (param_data.isel(height=height_level) >= min_val) & (param_data.isel(height=height_level) <= max_val)
+            
+            # Reduce spatial dimensions - use any() to keep time steps where ANY grid point meets criteria
+            param_mask_time = param_mask.any(dim=['south_north', 'west_east'])
+            mask = mask & param_mask_time
+            filter_info[param] = value_range
+            
+            # Count remaining data points
+            remaining_points = mask.sum().values
+            print(f"   {param} filter [{min_val}, {max_val}]: {remaining_points} time steps remaining")
+    
+    # Apply the combined mask using integer indexing
+    if not mask.any():
+        print(f"   ERROR: No data remaining after filtering!")
+        return None
+    
+    # Convert boolean mask to integer indices
+    time_indices = np.where(mask.values)[0]
+    filtered_ds = filtered_ds.isel(time=time_indices)
+    print(f"   Final filtered dataset: {len(filtered_ds.time)} time steps")
+    
+    # Get ice load data after filtering
+    ice_load_data = filtered_ds[ice_load_variable].isel(height=height_level)
+    
+    # Apply percentile filtering if specified
+    if percentile is not None:
+        print(f"   Applying {percentile}th percentile threshold...")
+        percentile_value = float(np.nanpercentile(ice_load_data.values, percentile))
+        ice_load_data = ice_load_data.where(ice_load_data <= percentile_value, np.nan)
+        filter_info['percentile'] = percentile
+        print(f"   → Percentile threshold: {percentile_value:.3f} kg/m")
+    
+    # Data statistics after filtering
+    print(f"\n2. FILTERED DATA STATISTICS")
+    print(f"=" * 30)
+    
+    ice_data_clean = ice_load_data.where(ice_load_data >= ice_load_threshold, np.nan)
+    max_ice_load = float(ice_data_clean.max())
+    mean_ice_load = float(ice_data_clean.mean())
+    
+    n_south_north = ice_load_data.sizes['south_north']
+    n_west_east = ice_load_data.sizes['west_east']
+    n_time = ice_load_data.sizes['time']
+    
+    print(f"   Grid size: {n_south_north} × {n_west_east}")
+    print(f"   Time steps: {n_time}")
+    print(f"   Ice load range: {ice_load_threshold:.3f} to {max_ice_load:.3f} kg/m")
+    print(f"   Ice load mean: {mean_ice_load:.3f} kg/m")
+    
+    # Define ice load bins for CDF analysis
+    if ice_load_bins is None:
+        if max_ice_load > ice_load_threshold:
+            ice_load_bins = np.linspace(0.0, max_ice_load, 100)
+        else:
+            ice_load_bins = np.array([0.0, ice_load_threshold + 0.01])
+    
+    # Perform CDF analysis for each grid cell (same as original)
+    print(f"\n3. CDF ANALYSIS")
+    print(f"=" * 15)
+    print(f"   Processing {n_south_north * n_west_east} grid cells...")
+    
+    cdf_results = {}
+    cell_statistics = {}
+    
+    for i in range(n_south_north):
+        for j in range(n_west_east):
+            # Extract time series for this grid cell
+            cell_data = ice_data_clean.isel(south_north=i, west_east=j)
+            cell_values = cell_data.values
+            
+            # Remove NaN values
+            valid_mask = ~np.isnan(cell_values)
+            cell_values_clean = cell_values[valid_mask]
+            
+            if len(cell_values_clean) == 0:
+                continue
+            
+            # Filter values to be >= threshold
+            cell_values_filtered = cell_values_clean[cell_values_clean >= ice_load_threshold]
+            
+            if len(cell_values_filtered) == 0:
+                continue
+            
+            # Calculate CDF
+            cdf_values = []
+            for ice_threshold in ice_load_bins:
+                prob = np.sum(cell_values_filtered <= ice_threshold) / len(cell_values_filtered)
+                cdf_values.append(prob)
+            
+            cdf_values = np.array(cdf_values)
+            
+            # Store results
+            cell_key = f'cell_{i}_{j}'
+            cdf_results[cell_key] = {
+                'ice_load_bins': ice_load_bins,
+                'cdf_values': cdf_values,
+                'position': (i, j)
+            }
+            
+            # Calculate statistics
+            cell_statistics[cell_key] = {
+                'max_ice_load': float(np.max(cell_values_filtered)),
+                'mean_ice_load': float(np.mean(cell_values_filtered)),
+                'std_ice_load': float(np.std(cell_values_filtered)),
+                'median_ice_load': float(np.median(cell_values_filtered)),
+                'percentile_95': float(np.percentile(cell_values_filtered, 95)),
+                'percentile_99': float(np.percentile(cell_values_filtered, 99)),
+                'n_valid_points': len(cell_values_filtered)
+            }
+    
+    print(f"   Processed {len(cdf_results)} valid grid cells")
+    
+    # Calculate weighted spatial gradients using configurable neighborhood
+    print(f"\n4. WEIGHTED SPATIAL GRADIENT ANALYSIS")
+    print(f"=" * 40)
+    
+    try:
+        from scipy.stats import wasserstein_distance
+        
+        print(f"   Computing weighted Earth Mover's distances using {neighborhood_type}...")
+        
+        # Initialize gradient matrix for neighborhood-based analysis
+        weighted_gradients = np.full((n_south_north, n_west_east), np.nan)
+        
+        # Calculate weighted gradients for each grid cell
+        for i in range(n_south_north):
+            for j in range(n_west_east):
+                cell_key = f'cell_{i}_{j}'
+                
+                if cell_key not in cdf_results:
+                    continue
+                
+                cell_cdf = cdf_results[cell_key]['cdf_values']
+                cell_bins = cdf_results[cell_key]['ice_load_bins']
+                
+                weighted_distances = []
+                total_weights = 0
+                
+                # Check all neighbors in the defined neighborhood
+                for di, dj in neighbor_weights.keys():
+                    ni, nj = i + di, j + dj
+                    
+                    # Check if neighbor is within bounds
+                    if 0 <= ni < n_south_north and 0 <= nj < n_west_east:
+                        neighbor_key = f'cell_{ni}_{nj}'
+                        
+                        if neighbor_key in cdf_results:
+                            neighbor_cdf = cdf_results[neighbor_key]['cdf_values']
+                            neighbor_bins = cdf_results[neighbor_key]['ice_load_bins']
+                            
+                            # Calculate Earth Mover's distance using L1 distance between CDFs
+                            try:
+                                distance = np.trapz(np.abs(cell_cdf - neighbor_cdf), cell_bins)
+                            except:
+                                distance = np.mean(np.abs(cell_cdf - neighbor_cdf))
+                            
+                            # Weight the distance
+                            weight = neighbor_weights[(di, dj)]
+                            weighted_distances.append(distance * weight)
+                            total_weights += weight
+                
+                # Calculate weighted average distance
+                if weighted_distances and total_weights > 0:
+                    weighted_gradients[i, j] = np.sum(weighted_distances) / total_weights
+        
+        print(f"   Computed weighted gradients for {np.sum(~np.isnan(weighted_gradients))} cells")
+        
+        # Create weighted spatial gradient plots
+        print(f"\n5. CREATING WEIGHTED SPATIAL GRADIENT PLOTS")
+        print(f"=" * 45)
+        
+        # Calculate statistics for normalization
+        valid_gradients = weighted_gradients[~np.isnan(weighted_gradients)]
+        if len(valid_gradients) > 0:
+            gradient_mean = np.mean(valid_gradients)
+            gradient_std = np.std(valid_gradients)
+            gradient_min = np.min(valid_gradients)
+            gradient_max = np.max(valid_gradients)
+        else:
+            gradient_mean = gradient_std = gradient_min = gradient_max = 0
+        
+        # ABSOLUTE GRADIENT PLOT
+        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+        
+        # Plot 1: Absolute weighted gradients
+        im1 = axes[0].imshow(weighted_gradients, cmap='viridis', origin='lower', 
+                           interpolation='nearest', aspect='auto')
+        axes[0].set_title(f'Weighted Spatial Gradient\n({neighborhood_type}, {weight_scheme} weighting)')
+        axes[0].set_xlabel('West-East Grid Points')
+        axes[0].set_ylabel('South-North Grid Points')
+        cbar1 = plt.colorbar(im1, ax=axes[0], shrink=0.8)
+        cbar1.set_label('Weighted Earth Mover\'s Distance (kg/m)')
+        
+        # Add grid lines and statistics text
+        axes[0].set_xticks(range(n_west_east))
+        axes[0].set_yticks(range(n_south_north))
+        axes[0].grid(True, alpha=0.3)
+        
+        # Add statistics text box
+        stats_text = f'Mean: {gradient_mean:.3f}\nStd: {gradient_std:.3f}\nMin: {gradient_min:.3f}\nMax: {gradient_max:.3f}'
+        axes[0].text(0.02, 0.98, stats_text, transform=axes[0].transAxes, 
+                   verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+        
+        # Plot 2: Normalized weighted gradients
+        if gradient_mean > 0:
+            weighted_gradients_normalized = weighted_gradients / gradient_mean
+        else:
+            weighted_gradients_normalized = weighted_gradients
+            
+        im2 = axes[1].imshow(weighted_gradients_normalized, cmap='RdBu_r', origin='lower', 
+                           interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
+        axes[1].set_title(f'Normalized Weighted Spatial Gradient\n(Relative to Domain Mean)')
+        axes[1].set_xlabel('West-East Grid Points')
+        axes[1].set_ylabel('South-North Grid Points')
+        cbar2 = plt.colorbar(im2, ax=axes[1], shrink=0.8)
+        cbar2.set_label('Gradient / Domain Mean')
+        
+        axes[1].set_xticks(range(n_west_east))
+        axes[1].set_yticks(range(n_south_north))
+        axes[1].grid(True, alpha=0.3)
+        
+        # Add normalization factor text
+        norm_text = f'Normalization factor:\n{gradient_mean:.3f} kg/m'
+        axes[1].text(0.02, 0.98, norm_text, transform=axes[1].transAxes, 
+                   verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+        
+        plt.tight_layout()
+        
+        # Save weighted spatial gradient plots
+        if save_plots:
+            gradient_filename = f"weighted_spatial_gradients_{neighborhood_type}_{weight_scheme}.png"
+            gradient_path = os.path.join(base_results_dir, gradient_filename)
+            plt.savefig(gradient_path, dpi=300, bbox_inches='tight')
+            print(f"   Weighted spatial gradient plots saved to: {gradient_path}")
+        
+        plt.close()
+        
+        # Store gradient results
+        gradient_results = {
+            'weighted_gradients': weighted_gradients,
+            'weighted_gradients_normalized': weighted_gradients_normalized,
+            'neighborhood_type': neighborhood_type,
+            'weight_scheme': weight_scheme,
+            'neighbor_weights': neighbor_weights,
+            'gradient_statistics': {
+                'mean': gradient_mean,
+                'std': gradient_std,
+                'min': gradient_min,
+                'max': gradient_max
+            }
+        }
+        
+        print(f"   ✓ Weighted spatial gradient analysis completed")
+        print(f"   Statistics: Mean={gradient_mean:.3f}, Std={gradient_std:.3f}")
+        
+    except ImportError:
+        print("   Warning: scipy not available, skipping Earth Mover's distance calculation")
+        gradient_results = None
+    except Exception as e:
+        print(f"   Error in spatial gradient analysis: {e}")
+        gradient_results = None
+    
+    # Create summary CDF plot (same as original)
+    print(f"\n6. CREATING SUMMARY CDF PLOT")
+    print(f"=" * 28)
+    
+    if cdf_results:
+        # Calculate mean CDF curve across all cells
+        all_cdf_curves = []
+        for cell_data in cdf_results.values():
+            all_cdf_curves.append(cell_data['cdf_values'])
+        
+        mean_cdf = np.mean(all_cdf_curves, axis=0)
+        std_cdf = np.std(all_cdf_curves, axis=0)
+        
+        plt.figure(figsize=(10, 6))
+        plot_mask = ice_load_bins >= ice_load_threshold
+        
+        plot_bins = ice_load_bins[plot_mask]
+        plot_mean_cdf = mean_cdf[plot_mask]
+        plot_std_cdf = std_cdf[plot_mask]
+        
+        plt.plot(plot_bins, plot_mean_cdf, 'r-', linewidth=3, label='Mean across all cells')
+        plt.fill_between(plot_bins, plot_mean_cdf - plot_std_cdf, 
+                       plot_mean_cdf + plot_std_cdf, alpha=0.3, color='red', 
+                       label='±1 Standard Deviation')
+        
+        plt.xlabel('Ice Load (kg/m)')
+        plt.ylabel('Cumulative Probability')
+        plt.title(f'Ice Load CDF - Domain Average\n({neighborhood_type}, {weight_scheme} weighting)')
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.xlim(left=ice_load_threshold)
+        plt.ylim([0, 1])
+        
+        plt.tight_layout()
+        
+        if save_plots:
+            summary_filename = f"ice_load_cdf_summary_{neighborhood_type}_{weight_scheme}.png"
+            summary_path = os.path.join(base_results_dir, summary_filename)
+            plt.savefig(summary_path, dpi=300, bbox_inches='tight')
+            print(f"   Summary CDF plot saved to: {summary_path}")
+        
+        plt.close()
+    
+    # Save enhanced analysis summary file
+    if save_plots:
+        summary_file_path = os.path.join(base_results_dir, "weighted_neighborhood_analysis_summary.txt")
+        with open(summary_file_path, 'w') as f:
+            f.write("WEIGHTED NEIGHBORHOOD ICE LOAD ANALYSIS WITH CDF\n")
+            f.write("=" * 60 + "\n\n")
+            
+            f.write(f"Analysis timestamp: {pd.Timestamp.now()}\n")
+            f.write(f"Ice load variable: {ice_load_variable}\n")
+            f.write(f"Height level: {height_level} ({dataset_with_ice_load.height.values[height_level]} m)\n\n")
+            
+            f.write("NEIGHBORHOOD CONFIGURATION:\n")
+            f.write("-" * 30 + "\n")
+            f.write(f"Neighborhood type: {neighborhood_type}\n")
+            f.write(f"Weight scheme: {weight_scheme}\n")
+            f.write(f"Number of neighbors: {len(neighbor_weights)}\n")
+            f.write("Neighbor weights:\n")
+            for (di, dj), weight in neighbor_weights.items():
+                f.write(f"  ({di:2d},{dj:2d}): {weight:.3f}\n")
+            f.write("\n")
+            
+            f.write("FILTERS APPLIED:\n")
+            f.write("-" * 20 + "\n")
+            if not filter_info:
+                f.write("No meteorological filters applied\n")
+            else:
+                for param, value_range in filter_info.items():
+                    if param == 'months':
+                        f.write(f"Months: {value_range}\n")
+                    elif param == 'percentile':
+                        f.write(f"Percentile threshold: {value_range}%\n")
+                    else:
+                        f.write(f"{param}: {value_range[0]} to {value_range[1]}\n")
+            
+            if ice_load_threshold > 0:
+                f.write(f"Ice load threshold: {ice_load_threshold} kg/m\n")
+            
+            f.write(f"\nDATA STATISTICS:\n")
+            f.write("-" * 20 + "\n")
+            f.write(f"Grid size: {n_south_north} × {n_west_east}\n")
+            f.write(f"Time steps after filtering: {n_time}\n")
+            f.write(f"Valid grid cells: {len(cdf_results)}\n")
+            f.write(f"Ice load range: {ice_load_threshold:.3f} to {max_ice_load:.3f} kg/m\n")
+            f.write(f"Ice load mean: {mean_ice_load:.3f} kg/m\n")
+            
+            if gradient_results:
+                f.write(f"\nWEIGHTED SPATIAL GRADIENT STATISTICS:\n")
+                f.write("-" * 40 + "\n")
+                stats = gradient_results['gradient_statistics']
+                f.write(f"Mean weighted gradient: {stats['mean']:.3f} kg/m\n")
+                f.write(f"Standard deviation: {stats['std']:.3f} kg/m\n")
+                f.write(f"Minimum gradient: {stats['min']:.3f} kg/m\n")
+                f.write(f"Maximum gradient: {stats['max']:.3f} kg/m\n")
+            
+            f.write(f"\nFILES GENERATED:\n")
+            f.write("-" * 20 + "\n")
+            f.write(f"- weighted_spatial_gradients_{neighborhood_type}_{weight_scheme}.png\n")
+            f.write(f"- ice_load_cdf_summary_{neighborhood_type}_{weight_scheme}.png\n")
+            f.write("- weighted_neighborhood_analysis_summary.txt (this file)\n")
+        
+        print(f"   Enhanced analysis summary saved to: {summary_file_path}")
+    
+    # Compile final results
+    results = {
+        'neighborhood_config': {
+            'neighborhood_type': neighborhood_type,
+            'weight_scheme': weight_scheme,
+            'neighbor_weights': neighbor_weights,
+            'n_neighbors': len(neighbor_weights)
+        },
+        'filter_info': filter_info,
+        'data_statistics': {
+            'n_time_steps': n_time,
+            'n_grid_cells': n_south_north * n_west_east,
+            'n_valid_cells': len(cdf_results),
+            'max_ice_load': max_ice_load,
+            'mean_ice_load': mean_ice_load,
+            'ice_load_threshold': ice_load_threshold
+        },
+        'cdf_results': cdf_results,
+        'cell_statistics': cell_statistics,
+        'weighted_spatial_gradients': gradient_results,
+        'ice_load_bins': ice_load_bins
+    }
+    
+    print(f"\n=== WEIGHTED NEIGHBORHOOD ANALYSIS COMPLETED SUCCESSFULLY ===")
+    print(f"   Neighborhood: {neighborhood_type} ({len(neighbor_weights)} neighbors)")
+    print(f"   Weight scheme: {weight_scheme}")
+    print(f"   Filters applied: {len(filter_info)}")
+    print(f"   Valid grid cells: {len(cdf_results)}")
+    print(f"   Weighted gradients: {'✓' if gradient_results else '✗'}")
+    
+    return results
+
 
 # TEMPORAL GRADIENTS
 

@@ -113,16 +113,17 @@ else:
     print(f"Ice load variable 'ICE_LOAD' is ready for analysis at height level {height}: {dataset_with_ice_load.height.values[height]} m")
 
 #Plot ice load values for each grid cell
-print("\n=== ICE LOAD GRID VALUES ANALYSIS ===")
-grid_results = fn.plot_grid_ice_load_values(
-     dataset_with_ice_load=dataset_with_ice_load,
-     ice_load_variable='ICE_LOAD',
-     height_level=height,
-     ice_load_threshold=0,
-     save_plots=True,
-     months=None,  # Can specify winter months like [12, 1, 2, 3] if desired
-     show_colorbar=True
- )
+
+# print("\n=== ICE LOAD GRID VALUES ANALYSIS ===")
+# grid_results = fn.plot_grid_ice_load_values(
+#      dataset_with_ice_load=dataset_with_ice_load,
+#      ice_load_variable='ICE_LOAD',
+#      height_level=height,
+#      ice_load_threshold=0,
+#      save_plots=True,
+#      months=None,  # Can specify winter months like [12, 1, 2, 3] if desired
+#      show_colorbar=True
+#  )
 
 # print("\n=== ICE LOAD GRID VALUES ANALYSIS HOURS ===")
 
@@ -242,6 +243,37 @@ grid_results = fn.plot_grid_ice_load_values(
 #     months=None,
 #     percentile=None
 # )
+
+# print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ; SYSTEMATIC + WEIGHTED NEIGHBOUR CELLS ===")
+
+results_w_weights = fn.analyze_ice_load_with_weighted_neighborhood_cdf(
+    dataset_with_ice_load=dataset_with_ice_load,  # Changed from 'dataset' to 'dataset_with_ice_load'
+    height_level=height,
+    neighborhood_type='24-neighbors', # '4-neighbors', '8-neighbors', '24-neighbors'
+    weight_scheme='distance',  # 'uniform', 'distance', 'custom'
+    # Filtering parameters (min, max for each variable)
+    WD_range=None,        # (min, max) for Wind Direction
+    WS_range=None,        # (min, max) for Wind Speed
+    T_range=None,         # (min, max) for Temperature
+    PBLH_range=None,      # (min, max) for Boundary Layer Height
+    PRECIP_range=None,    # (min, max) for Precipitation
+    QVAPOR_range=None,    # (min, max) for Water Vapor
+    RMOL_range=None,      # (min, max) for Monin-Obukhov Length
+    # CDF analysis parameters
+    ice_load_threshold=0.1,
+    ice_load_bins=None,
+    months=None,
+    percentile=None
+)
+
+# If custom weights:
+# custom_weights = {
+#     'adjacent': 1.0,      # Full weight for direct neighbors
+#     'diagonal': 0.7,      # Reduced weight for diagonal neighbors  
+#     'second_line': 0.5,   # Half weight for 2-step neighbors
+#     'second_diagonal': 0.3 # Lower weight for far diagonal neighbors
+# }
+# and remeber: custom_weights=custom_weights,
 
 
 # TEMPORAL GRADIENTS
