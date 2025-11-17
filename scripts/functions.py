@@ -8782,5 +8782,205 @@ def explore_emd_data(emd_df):
     print(f"  Missing values: {emd_df.isnull().sum().sum()} total")
     print(f"  Complete time series: {emd_df.isnull().sum() == 0}.sum() variables")
 
+# CORRELATION WITH METEOROLOGICAL VARIABLES
 
+def correlation_with_met_variables(dataset_with_ice_load, met_variable, ice_load_variable='ICE_LOAD', 
+                                 height_level=0, n_bins=50, ice_load_threshold=0.0):
+    """
+    Binned correlation visualization between ice load and meteorological variables.
+    
+    Parameters:
+    -----------
+    dataset_with_ice_load : xarray.Dataset
+        Dataset containing ice load and meteorological variables
+    met_variable : str
+        Name of the meteorological variable to correlate with ice load
+    ice_load_variable : str, optional
+        Name of the ice load variable (default: 'ICE_LOAD')
+    height_level : int, optional
+        Height level index to analyze (default: 0)
+    n_bins : int, optional
+        Number of meteorological variable bins (default: 50)
+    ice_load_threshold : float, optional
+        Minimum ice load threshold - only analyze data where ice load >= threshold (default: 0.0 kg/m)
+        
+    Returns:
+    --------
+    dict
+        Dictionary containing binned correlation statistics and bin data
+    """
+    
+    print(f"=== BINNED CORRELATION PLOT: {met_variable} vs {ice_load_variable} ===")
+    
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from scipy import stats
+        import os
+        
+        # Check if variables exist in dataset
+        if ice_load_variable not in dataset_with_ice_load.data_vars:
+            raise ValueError(f"Ice load variable '{ice_load_variable}' not found in dataset")
+        
+        if met_variable not in dataset_with_ice_load.data_vars:
+            raise ValueError(f"Meteorological variable '{met_variable}' not found in dataset")
+        
+        print(f"Analyzing: {met_variable} vs {ice_load_variable}")
+        print(f"Height level: {height_level} ({dataset_with_ice_load.height.values[height_level]} m)")
+        print(f"Ice load threshold: {ice_load_threshold} kg/m")
+        print(f"Number of bins: {n_bins}")
+        
+        # Extract ice load data at specified height level
+        ice_load_data = dataset_with_ice_load[ice_load_variable].isel(height=height_level)
+        
+        # Extract meteorological data (handle both 2D and 3D variables)
+        if 'height' in dataset_with_ice_load[met_variable].dims:
+            met_data = dataset_with_ice_load[met_variable].isel(height=height_level)
+            print(f"Using {met_variable} at height level {height_level}")
+        else:
+            met_data = dataset_with_ice_load[met_variable]
+            print(f"Using {met_variable} (surface data)")
+        
+        # Flatten data
+        ice_load_flat = ice_load_data.values.flatten()
+        met_flat = met_data.values.flatten()
+        
+        # Remove NaN values and apply ice load threshold
+        valid_mask = ~(np.isnan(ice_load_flat) | np.isnan(met_flat))
+        threshold_mask = ice_load_flat >= ice_load_threshold
+        combined_mask = valid_mask & threshold_mask
+        
+        ice_load_clean = ice_load_flat[combined_mask]
+        met_clean = met_flat[combined_mask]
+        
+        print(f"Total data points: {len(ice_load_flat):,}")
+        print(f"Valid data points (no NaN): {np.sum(valid_mask):,}")
+        print(f"Points above threshold ({ice_load_threshold} kg/m): {np.sum(threshold_mask):,}")
+        print(f"Final analysis points: {len(ice_load_clean):,}")
+        print(f"Data reduction: {(1 - len(ice_load_clean)/len(ice_load_flat))*100:.1f}%")
+        
+        if len(ice_load_clean) == 0:
+            print("No valid data points found!")
+            return None
+        
+        # Use all valid data points (no sampling needed since we're binning)
+        ice_load_sample = ice_load_clean
+        met_sample = met_clean
+        print(f"Using all {len(ice_load_sample):,} points for binning")
+        
+        # Create meteorological variable bins (X-axis)
+        met_min = np.min(met_sample)
+        met_max = np.max(met_sample)
+        
+        # Create bin edges for meteorological variable
+        bin_edges = np.linspace(met_min, met_max, n_bins + 1)
+        bin_width = (met_max - met_min) / n_bins
+        
+        print(f"{met_variable} range: {met_min:.3f} to {met_max:.3f}")
+        print(f"Bin width: {bin_width:.3f}")
+        
+        # Calculate bin centers and statistics
+        bin_centers = []
+        bin_means = []
+        bin_stds = []
+        bin_counts = []
+        
+        for i in range(len(bin_edges) - 1):
+            # Find data points in this meteorological bin
+            mask = (met_sample >= bin_edges[i]) & (met_sample < bin_edges[i + 1])
+            ice_load_in_bin = ice_load_sample[mask]
+            
+            if len(ice_load_in_bin) > 0:  # Only process bins with data
+                bin_center = (bin_edges[i] + bin_edges[i + 1]) / 2
+                bin_mean = np.mean(ice_load_in_bin)
+                bin_std = np.std(ice_load_in_bin)
+                bin_count = len(ice_load_in_bin)
+                
+                bin_centers.append(bin_center)
+                bin_means.append(bin_mean)
+                bin_stds.append(bin_std)
+                bin_counts.append(bin_count)
+        
+        # Convert to arrays
+        bin_centers = np.array(bin_centers)
+        bin_means = np.array(bin_means)
+        bin_stds = np.array(bin_stds)
+        bin_counts = np.array(bin_counts)
+        
+        print(f"Bins with data: {len(bin_centers)}")
+        
+        if len(bin_centers) == 0:
+            print("No bins contain data!")
+            return None
+        
+        # Calculate correlations on binned data
+        pearson_corr, pearson_p = stats.pearsonr(bin_centers, bin_means)
+        spearman_corr, spearman_p = stats.spearmanr(bin_centers, bin_means)
+        
+        print(f"Binned Pearson correlation: r = {pearson_corr:.4f}, p = {pearson_p:.4f}")
+        print(f"Binned Spearman correlation: rho = {spearman_corr:.4f}, p = {spearman_p:.4f}")
+        
+        # Create binned plot
+        plt.figure(figsize=(12, 8))
+        
+        # Main plot: meteorological variable vs mean ice load
+        plt.errorbar(bin_centers, bin_means, yerr=bin_stds, fmt='o-', capsize=3, 
+                     markersize=4, linewidth=1, alpha=0.8, color='blue')
+        
+        plt.xlabel(f'{met_variable}')
+        plt.ylabel(f'Mean {ice_load_variable} (kg/m)')
+        plt.title(f'Binned Correlation: {met_variable} vs Ice Load\n'
+                 f'Height: {dataset_with_ice_load.height.values[height_level]} m, '
+                 f'Threshold: {ice_load_threshold} kg/m, Bins: {n_bins}\n'
+                 f'Pearson r = {pearson_corr:.4f}, Spearman rho = {spearman_corr:.4f}')
+        plt.grid(True, alpha=0.3)
+        
+        # Add secondary plot showing bin counts
+        ax2 = plt.gca().twinx()
+        ax2.bar(bin_centers, bin_counts, alpha=0.3, width=bin_width*0.8, 
+                color='gray', label='Data count per bin')
+        ax2.set_ylabel('Number of data points per bin', color='gray')
+        ax2.tick_params(axis='y', labelcolor='gray')
+        
+        # Add legend
+        plt.legend([f'Mean {ice_load_variable} ± Std Dev'], loc='upper left')
+        ax2.legend(loc='upper right')
+        
+        # Save plot
+        results_dir = os.path.join("results", "figures", "correlation_ice_load", met_variable)
+        os.makedirs(results_dir, exist_ok=True)
+        
+        height_m = int(dataset_with_ice_load.height.values[height_level])
+        plot_path = os.path.join(results_dir, f"binned_correlation_{met_variable}_h{height_m}_thresh{ice_load_threshold:.3f}_bins{n_bins}.png")
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight', facecolor='white')
+        plt.close()
+        
+        print(f"Plot saved: {plot_path}")
+        
+        # Return results
+        results = {
+            'bin_centers': bin_centers.tolist(),
+            'bin_means': bin_means.tolist(),
+            'bin_stds': bin_stds.tolist(),
+            'bin_counts': bin_counts.tolist(),
+            'pearson_correlation': pearson_corr,
+            'pearson_p_value': pearson_p,
+            'spearman_correlation': spearman_corr,
+            'spearman_p_value': spearman_p,
+            'n_bins': len(bin_centers),
+            'total_data_points': len(ice_load_sample),
+            'ice_load_threshold': ice_load_threshold,
+            'n_bins_requested': n_bins,
+            'met_variable_range': (met_min, met_max),
+            'plot_path': plot_path
+        }
+        
+        print("✓ Binned correlation analysis completed!")
+        return results
+        
+    except Exception as e:
+        print(f"Error in correlation analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 

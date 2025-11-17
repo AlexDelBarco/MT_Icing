@@ -12,7 +12,7 @@ if current_dir.endswith('scripts'):
     print(f"Changed working directory from {current_dir} to {os.getcwd()}")
 
 # PARAMETERS
-height = 1  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
+height = 2  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
 ice_load_method = 51  # Method for ice load calculation
 calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
 
@@ -246,25 +246,25 @@ else:
 
 # print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ; SYSTEMATIC + WEIGHTED NEIGHBOUR CELLS ===")
 
-results_w_weights = fn.analyze_ice_load_with_weighted_neighborhood_cdf(
-    dataset_with_ice_load=dataset_with_ice_load,  # Changed from 'dataset' to 'dataset_with_ice_load'
-    height_level=height,
-    neighborhood_type='24-neighbors', # '4-neighbors', '8-neighbors', '24-neighbors'
-    weight_scheme='distance',  # 'uniform', 'distance', 'custom'
-    # Filtering parameters (min, max for each variable)
-    WD_range=None,        # (min, max) for Wind Direction
-    WS_range=None,        # (min, max) for Wind Speed
-    T_range=None,         # (min, max) for Temperature
-    PBLH_range=None,      # (min, max) for Boundary Layer Height
-    PRECIP_range=None,    # (min, max) for Precipitation
-    QVAPOR_range=None,    # (min, max) for Water Vapor
-    RMOL_range=None,      # (min, max) for Monin-Obukhov Length
-    # CDF analysis parameters
-    ice_load_threshold=0.1,
-    ice_load_bins=None,
-    months=None,
-    percentile=None
-)
+# results_w_weights = fn.analyze_ice_load_with_weighted_neighborhood_cdf(
+#     dataset_with_ice_load=dataset_with_ice_load,  # Changed from 'dataset' to 'dataset_with_ice_load'
+#     height_level=height,
+#     neighborhood_type='24-neighbors', # '4-neighbors', '8-neighbors', '24-neighbors'
+#     weight_scheme='distance',  # 'uniform', 'distance', 'custom'
+#     # Filtering parameters (min, max for each variable)
+#     WD_range=None,        # (min, max) for Wind Direction
+#     WS_range=None,        # (min, max) for Wind Speed
+#     T_range=None,         # (min, max) for Temperature
+#     PBLH_range=None,      # (min, max) for Boundary Layer Height
+#     PRECIP_range=None,    # (min, max) for Precipitation
+#     QVAPOR_range=None,    # (min, max) for Water Vapor
+#     RMOL_range=None,      # (min, max) for Monin-Obukhov Length
+#     # CDF analysis parameters
+#     ice_load_threshold=0.1,
+#     ice_load_bins=None,
+#     months=None,
+#     percentile=None
+# )
 
 # If custom weights:
 # custom_weights = {
@@ -304,3 +304,14 @@ results_w_weights = fn.analyze_ice_load_with_weighted_neighborhood_cdf(
 #     months=None,  # Use all months, or specify [12,1,2,3] for winter
 #     ice_load_threshold=0.1  # Include all ice load values
 # )
+
+# CORRELATION WITH METEOROLOGICAL VARIABLES
+
+results_correlation = fn.correlation_with_met_variables(
+    dataset_with_ice_load=dataset_with_ice_load,
+    met_variable='RMOL',  # Meteorological variable to correlate with (e.g., 'WS', 'T', 'PRECIP', 'RMOL')
+    height_level=height,
+    ice_load_variable='ICE_LOAD',
+    n_bins=100,  # Number of meteorological variable bins
+    ice_load_threshold=0.05  # Threshold for ice load values (kg/m)
+)
