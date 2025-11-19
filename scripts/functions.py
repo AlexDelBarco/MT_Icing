@@ -1770,6 +1770,7 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
         traceback.print_exc()
         return None
 
+
 # SPATIAL GRADIENTS 
 
 def create_spatial_gradient_plots(ice_load_data):
@@ -8980,6 +8981,628 @@ def correlation_with_met_variables(dataset_with_ice_load, met_variable, ice_load
         
     except Exception as e:
         print(f"Error in correlation analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+# EMD
+
+def plot_grid_with_extra_point(dataset, extra_point_coords, extra_point_label='EMD', 
+                              save_plot=True, plot_title="Grid Points with Extra Point"):
+    """
+    Plot dataset grid coordinates (XLON vs XLAT) and add an extra point.
+    
+    Parameters:
+    -----------
+    dataset : xarray.Dataset
+        Dataset containing XLAT and XLON coordinates
+    extra_point_coords : tuple
+        Coordinates of the extra point as (longitude, latitude)
+    extra_point_label : str, optional
+        Label for the extra point (default: 'EMD')
+    save_plot : bool, optional
+        Whether to save the plot to file (default: True)
+    plot_title : str, optional
+        Title for the plot (default: "Grid Points with Extra Point")
+        
+    Returns:
+    --------
+    dict
+        Dictionary containing plot information and grid statistics
+    """
+    
+    print(f"=== GRID VISUALIZATION WITH EXTRA POINT ===")
+    
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import os
+        
+        # Check if coordinates exist in dataset
+        if 'XLAT' not in dataset and 'XLAT' not in dataset.coords:
+            raise ValueError("'XLAT' coordinate not found in dataset")
+        if 'XLON' not in dataset and 'XLON' not in dataset.coords:
+            raise ValueError("'XLON' coordinate not found in dataset")
+        
+        # Extract coordinates - handle both data variables and coordinates
+        if 'XLAT' in dataset.coords:
+            lats = dataset.coords['XLAT'].values
+            lons = dataset.coords['XLON'].values
+        else:
+            lats = dataset['XLAT'].values
+            lons = dataset['XLON'].values
+        
+        # Get extra point coordinates
+        extra_lon, extra_lat = extra_point_coords
+        
+        print(f"Grid information:")
+        print(f"  Longitude range: {lons.min():.4f} to {lons.max():.4f}°")
+        print(f"  Latitude range: {lats.min():.4f} to {lats.max():.4f}°")
+        print(f"  Grid size: {lats.shape[0]} × {lats.shape[1]}")
+        print(f"  Extra point ({extra_point_label}): ({extra_lon:.4f}°, {extra_lat:.4f}°)")
+        
+        # Create the plot
+        plt.figure(figsize=(12, 10))
+        
+        # Plot all grid points in blue
+        plt.scatter(lons.flatten(), lats.flatten(), 
+                   c='blue', s=100, alpha=0.7, edgecolors='darkblue', linewidth=1,
+                   label='Grid Points')
+        
+        # Plot the extra point in red
+        plt.scatter(extra_lon, extra_lat, 
+                   c='red', s=200, alpha=0.9, edgecolors='darkred', linewidth=2,
+                   marker='*', label=extra_point_label)
+        
+        # Customize the plot
+        plt.xlabel('Longitude (°)')
+        plt.ylabel('Latitude (°)')
+        plt.title(plot_title)
+        plt.grid(True, alpha=0.3, linestyle='--')
+        plt.legend(fontsize=12)
+        
+        # Add coordinate labels for grid points (if not too many)
+        if lats.size <= 25:  # Only for small grids
+            for i in range(lats.shape[0]):
+                for j in range(lats.shape[1]):
+                    plt.annotate(f'({j},{i})', (lons[i,j], lats[i,j]), 
+                               xytext=(5, 5), textcoords='offset points', 
+                               fontsize=8, alpha=0.7)
+        
+        # Add coordinate annotation for extra point
+        plt.annotate(f'{extra_point_label}\n({extra_lon:.4f}°, {extra_lat:.4f}°)', 
+                    (extra_lon, extra_lat), 
+                    xytext=(10, 10), textcoords='offset points', 
+                    fontsize=10, fontweight='bold',
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.7))
+        
+        # Set equal aspect ratio to maintain grid proportions
+        plt.axis('equal')
+        
+        # Adjust limits to show all points with some margin
+        lon_margin = (lons.max() - lons.min()) * 0.1
+        lat_margin = (lats.max() - lats.min()) * 0.1
+        
+        plt.xlim(min(lons.min(), extra_lon) - lon_margin, 
+                max(lons.max(), extra_lon) + lon_margin)
+        plt.ylim(min(lats.min(), extra_lat) - lat_margin, 
+                max(lats.max(), extra_lat) + lat_margin)
+        
+        plt.tight_layout()
+        
+        # Save plot if requested
+        if save_plot:
+            results_dir = os.path.join("results", "figures", "EMD")
+            os.makedirs(results_dir, exist_ok=True)
+            
+            plot_filename = "grid_EMD_NEWA_points.png"
+            plot_path = os.path.join(results_dir, plot_filename)
+            plt.savefig(plot_path, dpi=300, bbox_inches='tight', facecolor='white')
+            print(f"Plot saved: {plot_path}")
+        
+        # Do not show the plot
+        plt.close()
+        
+        # Prepare results
+        results = {
+            'grid_info': {
+                'longitude_range': (float(lons.min()), float(lons.max())),
+                'latitude_range': (float(lats.min()), float(lats.max())),
+                'grid_size': lats.shape,
+                'n_grid_points': lats.size
+            },
+            'extra_point': {
+                'label': extra_point_label,
+                'coordinates': extra_point_coords,
+                'longitude': extra_lon,
+                'latitude': extra_lat
+            },
+            'plot_info': {
+                'title': plot_title,
+                'saved': save_plot,
+                'filename': plot_filename if save_plot else None
+            }
+        }
+        
+        print(f"✓ Grid visualization completed successfully!")
+        return results
+        
+    except Exception as e:
+        print(f"Error in grid visualization: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_plots=True):
+    """
+    Compare ice load data between EMD observations and NEWA model dataset.
+    
+    Parameters:
+    -----------
+    emd_data : pandas.DataFrame
+        EMD observational data containing ice load columns (MIce.50, MIce.100, MIce.150)
+    dataset_with_ice_load : xarray.Dataset
+        NEWA model dataset containing ICE_LOAD variable
+    height : int
+        Height level to compare (50, 100, or 150 meters)
+    emd_coordinates : tuple
+        EMD coordinates as (longitude, latitude) in degrees
+    save_plots : bool, optional
+        Whether to save plots to file (default: True)
+        
+    Returns:
+    --------
+    dict
+        Dictionary containing comparison statistics and analysis results
+    """
+    
+    print(f"=== ICE LOAD COMPARISON: EMD vs NEWA at {height}m ===")
+    
+    try:
+        import pandas as pd
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import os
+        from scipy import stats
+        from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+        
+        # Validate height input
+        if height not in [50, 100, 150]:
+            raise ValueError(f"Height must be 50, 100, or 150 meters. Got: {height}")
+        
+        # Check if EMD data contains required column
+        # Handle both integer and float height values from NEWA dataset
+        emd_column = f"MIce.{int(height)}"  # Convert to int to avoid .0 suffix
+        if emd_column not in emd_data.columns:
+            available_ice_cols = [col for col in emd_data.columns if 'ice' in col.lower()]
+            raise ValueError(f"Column '{emd_column}' not found in EMD data. Available ice columns: {available_ice_cols}")
+        
+        # Verify NEWA dataset height
+        if 'ICE_LOAD' not in dataset_with_ice_load.data_vars:
+            raise ValueError("'ICE_LOAD' variable not found in NEWA dataset")
+        
+        # Get height information from NEWA dataset
+        height_levels = dataset_with_ice_load.height.values
+        height_idx = None
+        for i, h in enumerate(height_levels):
+            if abs(h - height) < 1:  # Allow 1m tolerance
+                height_idx = i
+                break
+        
+        if height_idx is None:
+            raise ValueError(f"Height {height}m not found in NEWA dataset. Available heights: {height_levels}")
+        
+        print(f"Using NEWA height level {height_idx} ({height_levels[height_idx]}m)")
+        
+        # Get EMD coordinates
+        emd_lon, emd_lat = emd_coordinates
+        print(f"EMD coordinates: {emd_lon:.4f}°E, {emd_lat:.4f}°N")
+        
+        # Find the closest grid cell to EMD coordinates
+        if 'XLAT' not in dataset_with_ice_load and 'XLAT' not in dataset_with_ice_load.coords:
+            raise ValueError("'XLAT' coordinate not found in NEWA dataset")
+        if 'XLON' not in dataset_with_ice_load and 'XLON' not in dataset_with_ice_load.coords:
+            raise ValueError("'XLON' coordinate not found in NEWA dataset")
+        
+        # Extract coordinates - handle both data variables and coordinates
+        if 'XLAT' in dataset_with_ice_load.coords:
+            lats = dataset_with_ice_load.coords['XLAT'].values
+            lons = dataset_with_ice_load.coords['XLON'].values
+        else:
+            lats = dataset_with_ice_load['XLAT'].values
+            lons = dataset_with_ice_load['XLON'].values
+        
+        print(f"NEWA grid covers:")
+        print(f"  Longitude range: {lons.min():.4f}° to {lons.max():.4f}°E")
+        print(f"  Latitude range: {lats.min():.4f}° to {lats.max():.4f}°N")
+        print(f"  Grid shape: {lats.shape}")
+        
+        # Calculate distance from EMD to each grid point
+        # Using Euclidean distance in degrees (appropriate for small domains)
+        distance_squared = (lons - emd_lon)**2 + (lats - emd_lat)**2
+        
+        # Find the index of the closest grid cell
+        closest_indices = np.unravel_index(np.argmin(distance_squared), distance_squared.shape)
+        closest_sn, closest_we = closest_indices
+        
+        # Get the actual coordinates of the closest grid cell
+        closest_lon = lons[closest_sn, closest_we]
+        closest_lat = lats[closest_sn, closest_we]
+        closest_distance_deg = np.sqrt(distance_squared[closest_sn, closest_we])
+        
+        # More accurate distance conversion accounting for latitude
+        # At EMD latitude (59.6°N), longitude degrees are shorter
+        lat_correction = np.cos(np.radians(emd_lat))
+        closest_distance_km = closest_distance_deg * 111.32 * lat_correction
+        
+        print(f"Closest NEWA grid cell:")
+        print(f"  Grid indices: south_north={closest_sn}, west_east={closest_we}")
+        print(f"  Grid coordinates: {closest_lon:.4f}°E, {closest_lat:.4f}°N")
+        print(f"  Distance from EMD: {closest_distance_km:.2f} km")
+        
+        # Extract NEWA ice load data at specified height and closest grid cell
+        newa_ice_load = dataset_with_ice_load['ICE_LOAD'].isel(height=height_idx, south_north=closest_sn, west_east=closest_we)
+        
+        # Convert to pandas DataFrame for easier manipulation
+        newa_df = newa_ice_load.to_dataframe(name='ICE_LOAD').reset_index()
+        newa_df['time'] = pd.to_datetime(newa_df['time'])
+        newa_df = newa_df.set_index('time')
+        
+        print(f"NEWA data extracted from grid cell ({closest_sn}, {closest_we})")
+        print(f"Closest cell coordinates: {closest_lon:.4f}°E, {closest_lat:.4f}°N")
+        print(f"Distance from EMD location: {closest_distance_km:.2f} km")
+        
+        # Prepare EMD data
+        if not isinstance(emd_data.index, pd.DatetimeIndex):
+            if 'time' in emd_data.columns:
+                emd_df = emd_data.copy()
+                emd_df['time'] = pd.to_datetime(emd_df['time'])
+                emd_df = emd_df.set_index('time')
+            else:
+                raise ValueError("EMD data must have datetime index or 'time' column")
+        else:
+            emd_df = emd_data.copy()
+        
+        print(f"EMD data period: {emd_df.index.min()} to {emd_df.index.max()}")
+        print(f"NEWA data period: {newa_df.index.min()} to {newa_df.index.max()}")
+        
+        # Find common time period
+        common_start = max(emd_df.index.min(), newa_df.index.min())
+        common_end = min(emd_df.index.max(), newa_df.index.max())
+        
+        print(f"Common period: {common_start} to {common_end}")
+        
+        # Filter to common period
+        emd_common = emd_df.loc[common_start:common_end, emd_column].copy()
+        newa_common = newa_df.loc[common_start:common_end, 'ICE_LOAD'].copy()
+        
+        # Resample NEWA data to hourly to match EMD (from 30min to 1h)
+        print("Resampling NEWA data from 30min to 1h resolution...")
+        newa_hourly = newa_common.resample('1H').mean()
+        
+        # Align time indices
+        common_times = emd_common.index.intersection(newa_hourly.index)
+        emd_aligned = emd_common.loc[common_times]
+        newa_aligned = newa_hourly.loc[common_times]
+        
+        print(f"Aligned data points: {len(common_times)}")
+        print(f"EMD ice load range: {emd_aligned.min():.3f} to {emd_aligned.max():.3f}")
+        print(f"NEWA ice load range: {newa_aligned.min():.3f} to {newa_aligned.max():.3f}")
+        
+        # Remove NaN values and filter out non-icing months (June-October)
+        valid_mask = ~(np.isnan(emd_aligned) | np.isnan(newa_aligned))
+        emd_clean_all = emd_aligned[valid_mask]
+        newa_clean_all = newa_aligned[valid_mask]
+        
+        # Filter out non-icing months (June=6, July=7, August=8, September=9, October=10)
+        non_icing_months = [6, 7, 8, 9, 10]
+        icing_mask = ~emd_clean_all.index.month.isin(non_icing_months)
+        emd_clean = emd_clean_all[icing_mask]
+        newa_clean = newa_clean_all[icing_mask]
+        
+        print(f"Valid data points after NaN removal: {len(emd_clean_all)}")
+        print(f"Icing season data points (excluding Jun-Oct): {len(emd_clean)}")
+        print(f"Excluded {len(emd_clean_all) - len(emd_clean)} non-icing season points")
+        
+        if len(emd_clean) < 10:
+            print("Warning: Very few valid data points for comparison!")
+            return None
+        
+        # Calculate comparison statistics
+        print("\nCalculating comparison statistics...")
+        
+        # Basic statistics
+        bias = np.mean(newa_clean - emd_clean)
+        mae = mean_absolute_error(emd_clean, newa_clean)
+        rmse = np.sqrt(mean_squared_error(emd_clean, newa_clean))
+        
+        # Correlation
+        correlation, correlation_p = stats.pearsonr(emd_clean, newa_clean)
+        spearman_corr, spearman_p = stats.spearmanr(emd_clean, newa_clean)
+        
+        # R-squared
+        r2 = r2_score(emd_clean, newa_clean)
+        
+        # Relative metrics
+        mean_emd = np.mean(emd_clean)
+        relative_bias = (bias / mean_emd) * 100 if mean_emd != 0 else np.nan
+        relative_mae = (mae / mean_emd) * 100 if mean_emd != 0 else np.nan
+        relative_rmse = (rmse / mean_emd) * 100 if mean_emd != 0 else np.nan
+        
+        # Agreement statistics
+        agreement_threshold = 0.1  # kg/m
+        within_threshold = np.sum(np.abs(newa_clean - emd_clean) <= agreement_threshold)
+        agreement_percentage = (within_threshold / len(emd_clean)) * 100
+        
+        # Print statistics
+        print(f"\n=== COMPARISON STATISTICS ===")
+        print(f"Data points: {len(emd_clean)}")
+        print(f"EMD mean: {mean_emd:.3f} kg/m")
+        print(f"NEWA mean: {np.mean(newa_clean):.3f} kg/m")
+        print(f"Bias (NEWA - EMD): {bias:.3f} kg/m ({relative_bias:.1f}%)")
+        print(f"MAE: {mae:.3f} kg/m ({relative_mae:.1f}%)")
+        print(f"RMSE: {rmse:.3f} kg/m ({relative_rmse:.1f}%)")
+        print(f"Correlation: {correlation:.3f} (p={correlation_p:.4f})")
+        print(f"Spearman correlation: {spearman_corr:.3f} (p={spearman_p:.4f})")
+        print(f"R²: {r2:.3f}")
+        print(f"Agreement within ±{agreement_threshold} kg/m: {agreement_percentage:.1f}%")
+        
+        # Prepare results dictionary
+        results = {
+            'height': height,
+            'n_points': len(emd_clean),
+            'common_period': {'start': common_start, 'end': common_end},
+            'emd_coordinates': {'longitude': emd_lon, 'latitude': emd_lat},
+            'newa_grid_cell': {
+                'south_north_index': int(closest_sn),
+                'west_east_index': int(closest_we),
+                'longitude': float(closest_lon),
+                'latitude': float(closest_lat),
+                'distance_from_emd_km': float(closest_distance_km)
+            },
+            'statistics': {
+                'emd_mean': float(mean_emd),
+                'newa_mean': float(np.mean(newa_clean)),
+                'bias': float(bias),
+                'mae': float(mae),
+                'rmse': float(rmse),
+                'relative_bias_percent': float(relative_bias),
+                'relative_mae_percent': float(relative_mae),
+                'relative_rmse_percent': float(relative_rmse),
+                'correlation': float(correlation),
+                'correlation_p_value': float(correlation_p),
+                'spearman_correlation': float(spearman_corr),
+                'spearman_p_value': float(spearman_p),
+                'r_squared': float(r2),
+                'agreement_percentage': float(agreement_percentage)
+            },
+            'data': {
+                'emd': emd_clean,
+                'newa': newa_clean,
+                'time': common_times
+            }
+        }
+        
+        # Create plots if requested
+        if save_plots:
+            print(f"\nCreating requested comparison plots...")
+            
+            # Create directory structure
+            base_dir = os.path.join("results", "figures", "EMD", "Ice_Load", f"NEWA_EMD_comparison_{height}")
+            os.makedirs(base_dir, exist_ok=True)
+            
+            # Plot 1: Both time series together (with daily and weekly averages)
+            print("1. Creating full time series comparison with daily and weekly averages...")
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
+            
+            # Subplot 1: Original hourly data (icing season only)
+            ax1.plot(emd_clean.index, emd_clean.values, 'b-', alpha=0.6, linewidth=0.3, 
+                    label=f'EMD Hourly ({emd_column})')
+            ax1.plot(newa_clean.index, newa_clean.values, 'r-', alpha=0.6, linewidth=0.3, 
+                    label=f'NEWA Hourly (ICE_LOAD)')
+            ax1.set_ylabel('Ice Load (kg/m)')
+            ax1.set_title(f'Hourly Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only)')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+            
+            # Calculate daily averages
+            emd_daily_avg = emd_clean.resample('D').mean()
+            newa_daily_avg = newa_clean.resample('D').mean()
+            
+            # Subplot 2: Daily averages
+            ax2.plot(emd_daily_avg.index, emd_daily_avg.values, 'b-', alpha=0.8, linewidth=0.8, 
+                    label=f'EMD Daily Average ({emd_column})')
+            ax2.plot(newa_daily_avg.index, newa_daily_avg.values, 'r-', alpha=0.8, linewidth=0.8, 
+                    label=f'NEWA Daily Average (ICE_LOAD)')
+            ax2.set_ylabel('Ice Load (kg/m)')
+            ax2.set_title(f'Daily Averaged Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only)')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+            
+            # Calculate weekly averages
+            emd_weekly_avg = emd_clean.resample('W').mean()
+            newa_weekly_avg = newa_clean.resample('W').mean()
+            
+            # Subplot 3: Weekly averages
+            ax3.plot(emd_weekly_avg.index, emd_weekly_avg.values, 'b-', alpha=0.9, linewidth=1.2, 
+                    label=f'EMD Weekly Average ({emd_column})')
+            ax3.plot(newa_weekly_avg.index, newa_weekly_avg.values, 'r-', alpha=0.9, linewidth=1.2, 
+                    label=f'NEWA Weekly Average (ICE_LOAD)')
+            ax3.set_xlabel('Time')
+            ax3.set_ylabel('Ice Load (kg/m)')
+            ax3.set_title(f'Weekly Averaged Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only)')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+            
+            plt.suptitle(f'Multi-Scale Ice Load Comparison: EMD vs NEWA at {height}m\n'
+                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                        fontsize=16, y=0.98)
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.92)
+            
+            timeseries_path = os.path.join(base_dir, f'multi_scale_timeseries_{height}m.png')
+            plt.savefig(timeseries_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {timeseries_path}")
+            
+            # Plot 2: Difference over time (with daily and weekly averages)
+            print("2. Creating difference time series with daily and weekly averages...")
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
+            
+            # Hourly differences
+            differences = newa_clean - emd_clean
+            ax1.plot(differences.index, differences.values, 'g-', alpha=0.6, linewidth=0.3)
+            ax1.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
+            ax1.axhline(y=bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
+                       label=f'Mean Bias: {bias:.3f} kg/m')
+            ax1.set_ylabel('Difference (NEWA - EMD) [kg/m]')
+            ax1.set_title(f'Hourly Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only)')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+            
+            # Daily differences
+            daily_differences_ts = newa_daily_avg - emd_daily_avg
+            daily_bias = daily_differences_ts.mean()
+            ax2.plot(daily_differences_ts.index, daily_differences_ts.values, 'g-', alpha=0.8, linewidth=0.8)
+            ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
+            ax2.axhline(y=daily_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
+                       label=f'Daily Mean Bias: {daily_bias:.3f} kg/m')
+            ax2.set_ylabel('Difference (NEWA - EMD) [kg/m]')
+            ax2.set_title(f'Daily Averaged Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only)')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+            
+            # Weekly differences
+            weekly_differences_ts = newa_weekly_avg - emd_weekly_avg
+            weekly_bias = weekly_differences_ts.mean()
+            ax3.plot(weekly_differences_ts.index, weekly_differences_ts.values, 'g-', alpha=0.9, linewidth=1.2)
+            ax3.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
+            ax3.axhline(y=weekly_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
+                       label=f'Weekly Mean Bias: {weekly_bias:.3f} kg/m')
+            ax3.set_xlabel('Time')
+            ax3.set_ylabel('Difference (NEWA - EMD) [kg/m]')
+            ax3.set_title(f'Weekly Averaged Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only)')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+            
+            plt.suptitle(f'Multi-Scale Ice Load Differences: NEWA - EMD at {height}m\n'
+                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                        fontsize=16, y=0.98)
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.92)
+            
+            differences_ts_path = os.path.join(base_dir, f'multi_scale_differences_{height}m.png')
+            plt.savefig(differences_ts_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {differences_ts_path}")
+            
+            # Plot 3: Hourly mean differences grid (all months included)
+            print("3. Creating hourly mean differences grid (all months)...")
+            
+            # Calculate hourly means and differences for all data (including summer months)
+            emd_hourly_all = emd_clean_all.groupby([emd_clean_all.index.year, emd_clean_all.index.dayofyear, emd_clean_all.index.hour]).mean()
+            newa_hourly_all = newa_clean_all.groupby([newa_clean_all.index.year, newa_clean_all.index.dayofyear, newa_clean_all.index.hour]).mean()
+            
+            # Create MultiIndex DataFrames for easier manipulation
+            emd_hourly_df = pd.DataFrame({'emd': emd_hourly_all.values}, 
+                                       index=pd.MultiIndex.from_tuples(emd_hourly_all.index, names=['year', 'dayofyear', 'hour']))
+            newa_hourly_df = pd.DataFrame({'newa': newa_hourly_all.values}, 
+                                        index=pd.MultiIndex.from_tuples(newa_hourly_all.index, names=['year', 'dayofyear', 'hour']))
+            
+            # Merge and calculate differences
+            hourly_merged = emd_hourly_df.join(newa_hourly_df, how='inner')
+            hourly_merged['difference'] = hourly_merged['newa'] - hourly_merged['emd']
+            
+            # Calculate mean differences for each day of year across all years and hours
+            daily_mean_diffs = hourly_merged.groupby('dayofyear')['difference'].mean()
+            
+            # Create DataFrame for grid plotting (year vs day of year)
+            # We'll use the daily mean differences for each year-day combination
+            grid_data = []
+            for year in range(int(emd_clean_all.index.year.min()), int(emd_clean_all.index.year.max()) + 1):
+                year_data = []
+                for day in range(1, 367):  # 366 days to handle leap years
+                    if day in daily_mean_diffs.index:
+                        year_data.append(daily_mean_diffs[day])
+                    else:
+                        year_data.append(np.nan)
+                grid_data.append(year_data[:365])  # Standardize to 365 days
+            
+            # Convert to numpy array for plotting
+            grid_array = np.array(grid_data)
+            
+            # Create the grid plot with improved clarity (all months)
+            plt.figure(figsize=(24, 14))  # Even larger for all months
+            
+            # Use a diverging colormap centered at 0
+            vmax = np.nanmax(np.abs(grid_array))
+            vmin = -vmax
+            
+            # Create the heatmap with clear cell boundaries
+            im = plt.imshow(grid_array, cmap='RdBu_r', aspect='auto', 
+                          interpolation='nearest', vmin=vmin, vmax=vmax)
+            
+            # Add grid lines to separate cells clearly
+            plt.gca().set_xticks(np.arange(-0.5, grid_array.shape[1], 1), minor=True)
+            plt.gca().set_yticks(np.arange(-0.5, grid_array.shape[0], 1), minor=True)
+            plt.grid(which="minor", color="black", linestyle='-', linewidth=0.1, alpha=0.2)
+            
+            # Add colorbar with better formatting
+            cbar = plt.colorbar(im, shrink=0.6, pad=0.02)
+            cbar.set_label('Hourly Mean Ice Load Difference (NEWA - EMD) [kg/m]', fontsize=14)
+            cbar.ax.tick_params(labelsize=12)
+            
+            # Set labels and ticks with better formatting for all months
+            plt.xlabel('Day of Year', fontsize=14)
+            plt.ylabel('Year', fontsize=14)
+            plt.title(f'Hourly Mean Ice Load Differences Grid: NEWA - EMD at {height}m (All Months)\n'
+                     f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km\n'
+                     f'Mean hourly differences averaged across all years', fontsize=16, pad=20)
+            
+            # Set year labels
+            years = range(int(emd_clean_all.index.year.min()), int(emd_clean_all.index.year.max()) + 1)
+            year_step = max(1, len(years)//15)
+            year_indices = np.arange(0, len(years), year_step)
+            plt.yticks(year_indices, [years[i] for i in year_indices], fontsize=12)
+            
+            # Set day of year labels (all months)
+            month_starts = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
+            month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            plt.xticks(month_starts, month_labels, rotation=0, fontsize=12)
+            
+            # Add secondary x-axis with day numbers
+            ax2 = plt.gca().secondary_xaxis('top')
+            day_ticks = np.arange(0, 366, 30)
+            ax2.set_xticks(day_ticks)
+            ax2.set_xlabel('Day of Year', fontsize=12)
+            ax2.tick_params(labelsize=10)
+            
+            # Improve layout
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.85)
+            
+            daily_grid_path = os.path.join(base_dir, f'hourly_mean_grid_all_months_{height}m.png')
+            plt.savefig(daily_grid_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {daily_grid_path}")
+            
+            print(f"\nHourly mean grid statistics (all months):")
+            print(f"  Years covered: {min(years)} to {max(years)}")
+            print(f"  Days per year: 365")
+            print(f"  All months included (Jan-Dec)")
+            print(f"  Hourly mean difference range: {np.nanmin(grid_array):.3f} to {np.nanmax(grid_array):.3f} kg/m")
+            print(f"  Overall mean difference: {np.nanmean(grid_array):.3f} kg/m")
+        
+        print(f"\n✓ Ice load comparison completed successfully!")
+        print(f"Results saved to: {base_dir}")
+        
+        return results
+        
+    except Exception as e:
+        print(f"Error in ice load comparison: {e}")
         import traceback
         traceback.print_exc()
         return None

@@ -40,11 +40,6 @@ else:
 # Import merged NEWEA meteorological data
 dataset = fn.load_netcdf_data(data1)
 
-# Import EMD data
-# data2 = "data/EMD_data/EmdWrf_N59.600_E019.960.txt"
-# emd_data = fn.import_emd_data(data2)
-# print(emd_data.head())
-
 
 # EXPLORE DATASET
 height_level = dataset.height.values[height]  # Height level in meters
@@ -307,11 +302,12 @@ else:
 
 # CORRELATION WITH METEOROLOGICAL VARIABLES
 
-results_correlation = fn.correlation_with_met_variables(
-    dataset_with_ice_load=dataset_with_ice_load,
-    met_variable='RMOL',  # Meteorological variable to correlate with (e.g., 'WS', 'T', 'PRECIP', 'RMOL')
-    height_level=height,
-    ice_load_variable='ICE_LOAD',
-    n_bins=100,  # Number of meteorological variable bins
-    ice_load_threshold=0.05  # Threshold for ice load values (kg/m)
-)
+# results_correlation = fn.correlation_with_met_variables(
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     met_variable='RMOL',  # Meteorological variable to correlate with (e.g., 'WS', 'T', 'PRECIP', 'RMOL')
+#     height_level=height,
+#     ice_load_variable='ICE_LOAD',
+#     n_bins=100,  # Number of meteorological variable bins
+#     ice_load_threshold=0.05  # Threshold for ice load values (kg/m)
+# )
+
