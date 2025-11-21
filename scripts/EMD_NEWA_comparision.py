@@ -12,7 +12,7 @@ if current_dir.endswith('scripts'):
     print(f"Changed working directory from {current_dir} to {os.getcwd()}")
 
 # IMPORT NEWA DATA
-height = 2  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
+height = 1  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
 ice_load_method = 51  # Method for ice load calculation
 calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
 

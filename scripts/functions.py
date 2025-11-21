@@ -8611,6 +8611,7 @@ def ice_load_resampling_analysis_hours(
     
     return results
 
+
 # EMD DATA IMPORT
 
 def import_emd_data(file_path):
@@ -8782,6 +8783,7 @@ def explore_emd_data(emd_df):
     print(f"\nData quality:")
     print(f"  Missing values: {emd_df.isnull().sum().sum()} total")
     print(f"  Complete time series: {emd_df.isnull().sum() == 0}.sum() variables")
+
 
 # CORRELATION WITH METEOROLOGICAL VARIABLES
 
@@ -9134,7 +9136,6 @@ def plot_grid_with_extra_point(dataset, extra_point_coords, extra_point_label='E
         traceback.print_exc()
         return None
 
-
 def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_plots=True):
     """
     Compare ice load data between EMD observations and NEWA model dataset.
@@ -9393,145 +9394,235 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             base_dir = os.path.join("results", "figures", "EMD", "Ice_Load", f"NEWA_EMD_comparison_{height}")
             os.makedirs(base_dir, exist_ok=True)
             
-            # Plot 1: Both time series together (with daily and weekly averages)
-            print("1. Creating full time series comparison with daily and weekly averages...")
+            # Plot 1A: Time series comparison with lines only
+            print("1A. Creating full time series comparison (lines only)...")
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
             
-            # Subplot 1: Original hourly data (icing season only)
-            ax1.plot(emd_clean.index, emd_clean.values, 'b-', alpha=0.6, linewidth=0.3, 
+            # Subplot 1: Original hourly data (lines only)
+            ax1.plot(emd_clean.index, emd_clean.values, 'b-', alpha=0.7, linewidth=0.5, 
                     label=f'EMD Hourly ({emd_column})')
-            ax1.plot(newa_clean.index, newa_clean.values, 'r-', alpha=0.6, linewidth=0.3, 
+            ax1.plot(newa_clean.index, newa_clean.values, 'r-', alpha=0.7, linewidth=0.5, 
                     label=f'NEWA Hourly (ICE_LOAD)')
             ax1.set_ylabel('Ice Load (kg/m)')
-            ax1.set_title(f'Hourly Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only)')
+            ax1.set_title(f'Hourly Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
             
-            # Calculate daily averages
+            # Calculate daily averages - hourly mean per each day
             emd_daily_avg = emd_clean.resample('D').mean()
             newa_daily_avg = newa_clean.resample('D').mean()
             
-            # Subplot 2: Daily averages
-            ax2.plot(emd_daily_avg.index, emd_daily_avg.values, 'b-', alpha=0.8, linewidth=0.8, 
-                    label=f'EMD Daily Average ({emd_column})')
-            ax2.plot(newa_daily_avg.index, newa_daily_avg.values, 'r-', alpha=0.8, linewidth=0.8, 
-                    label=f'NEWA Daily Average (ICE_LOAD)')
+            # Subplot 2: Daily averages (lines only)
+            ax2.plot(emd_daily_avg.index, emd_daily_avg.values, 'b-', alpha=0.8, linewidth=1.0, 
+                    label=f'EMD Daily Mean ({emd_column})')
+            ax2.plot(newa_daily_avg.index, newa_daily_avg.values, 'r-', alpha=0.8, linewidth=1.0, 
+                    label=f'NEWA Daily Mean (ICE_LOAD)')
             ax2.set_ylabel('Ice Load (kg/m)')
-            ax2.set_title(f'Daily Averaged Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only)')
+            ax2.set_title(f'Daily Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
             ax2.legend()
             ax2.grid(True, alpha=0.3)
             
-            # Calculate weekly averages
+            # Calculate weekly averages - hourly mean per each week
             emd_weekly_avg = emd_clean.resample('W').mean()
             newa_weekly_avg = newa_clean.resample('W').mean()
             
-            # Subplot 3: Weekly averages
-            ax3.plot(emd_weekly_avg.index, emd_weekly_avg.values, 'b-', alpha=0.9, linewidth=1.2, 
-                    label=f'EMD Weekly Average ({emd_column})')
-            ax3.plot(newa_weekly_avg.index, newa_weekly_avg.values, 'r-', alpha=0.9, linewidth=1.2, 
-                    label=f'NEWA Weekly Average (ICE_LOAD)')
+            # Subplot 3: Weekly averages (lines only)
+            ax3.plot(emd_weekly_avg.index, emd_weekly_avg.values, 'b-', alpha=0.9, linewidth=1.5, 
+                    label=f'EMD Weekly Mean ({emd_column})')
+            ax3.plot(newa_weekly_avg.index, newa_weekly_avg.values, 'r-', alpha=0.9, linewidth=1.5, 
+                    label=f'NEWA Weekly Mean (ICE_LOAD)')
             ax3.set_xlabel('Time')
             ax3.set_ylabel('Ice Load (kg/m)')
-            ax3.set_title(f'Weekly Averaged Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only)')
+            ax3.set_title(f'Weekly Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
             ax3.legend()
             ax3.grid(True, alpha=0.3)
             
-            plt.suptitle(f'Multi-Scale Ice Load Comparison: EMD vs NEWA at {height}m\n'
+            plt.suptitle(f'Multi-Scale Ice Load Comparison: EMD vs NEWA at {height}m (Lines Only)\n'
                         f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
                         fontsize=16, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
-            timeseries_path = os.path.join(base_dir, f'multi_scale_timeseries_{height}m.png')
-            plt.savefig(timeseries_path, dpi=150, facecolor='white')
+            timeseries_lines_path = os.path.join(base_dir, f'multi_scale_timeseries_lines_{height}m.png')
+            plt.savefig(timeseries_lines_path, dpi=150, facecolor='white')
             plt.close()
-            print(f"Saved: {timeseries_path}")
+            print(f"Saved: {timeseries_lines_path}")
             
-            # Plot 2: Difference over time (with daily and weekly averages)
-            print("2. Creating difference time series with daily and weekly averages...")
+            # Plot 1B: Time series comparison with scatter only
+            print("1B. Creating full time series comparison (scatter only)...")
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
             
-            # Hourly differences
+            # Subplot 1: Original hourly data (scatter only)
+            ax1.scatter(emd_clean.index, emd_clean.values, c='blue', s=0.5, alpha=0.6, label=f'EMD Hourly ({emd_column})')
+            ax1.scatter(newa_clean.index, newa_clean.values, c='red', s=0.5, alpha=0.6, label=f'NEWA Hourly (ICE_LOAD)')
+            ax1.set_ylabel('Ice Load (kg/m)')
+            ax1.set_title(f'Hourly Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+            
+            # Subplot 2: Daily averages (scatter only)
+            ax2.scatter(emd_daily_avg.index, emd_daily_avg.values, c='blue', s=3, alpha=0.7, label=f'EMD Daily Mean ({emd_column})')
+            ax2.scatter(newa_daily_avg.index, newa_daily_avg.values, c='red', s=3, alpha=0.7, label=f'NEWA Daily Mean (ICE_LOAD)')
+            ax2.set_ylabel('Ice Load (kg/m)')
+            ax2.set_title(f'Daily Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+            
+            # Subplot 3: Weekly averages (scatter only)
+            ax3.scatter(emd_weekly_avg.index, emd_weekly_avg.values, c='blue', s=10, alpha=0.8, label=f'EMD Weekly Mean ({emd_column})')
+            ax3.scatter(newa_weekly_avg.index, newa_weekly_avg.values, c='red', s=10, alpha=0.8, label=f'NEWA Weekly Mean (ICE_LOAD)')
+            ax3.set_xlabel('Time')
+            ax3.set_ylabel('Ice Load (kg/m)')
+            ax3.set_title(f'Weekly Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+            
+            plt.suptitle(f'Multi-Scale Ice Load Comparison: EMD vs NEWA at {height}m (Scatter Only)\n'
+                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                        fontsize=16, y=0.98)
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.92)
+            
+            timeseries_scatter_path = os.path.join(base_dir, f'multi_scale_timeseries_scatter_{height}m.png')
+            plt.savefig(timeseries_scatter_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {timeseries_scatter_path}")
+            
+            # Plot 2A: Difference over time with lines only
+            print("2A. Creating difference time series (lines only)...")
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
+            
+            # Hourly differences - difference for every hour (lines only)
             differences = newa_clean - emd_clean
-            ax1.plot(differences.index, differences.values, 'g-', alpha=0.6, linewidth=0.3)
+            ax1.plot(differences.index, differences.values, 'g-', alpha=0.7, linewidth=0.5)
             ax1.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax1.axhline(y=bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Mean Bias: {bias:.3f} kg/m')
             ax1.set_ylabel('Difference (NEWA - EMD) [kg/m]')
-            ax1.set_title(f'Hourly Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only)')
+            ax1.set_title(f'Hourly Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
             
-            # Daily differences
+            # Daily differences - mean of hourly differences for each day (lines only)
             daily_differences_ts = newa_daily_avg - emd_daily_avg
             daily_bias = daily_differences_ts.mean()
-            ax2.plot(daily_differences_ts.index, daily_differences_ts.values, 'g-', alpha=0.8, linewidth=0.8)
+            ax2.plot(daily_differences_ts.index, daily_differences_ts.values, 'g-', alpha=0.8, linewidth=1.0)
             ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax2.axhline(y=daily_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Daily Mean Bias: {daily_bias:.3f} kg/m')
             ax2.set_ylabel('Difference (NEWA - EMD) [kg/m]')
-            ax2.set_title(f'Daily Averaged Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only)')
+            ax2.set_title(f'Daily Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
             ax2.legend()
             ax2.grid(True, alpha=0.3)
             
-            # Weekly differences
+            # Weekly differences - mean of hourly differences for each week (lines only)
             weekly_differences_ts = newa_weekly_avg - emd_weekly_avg
             weekly_bias = weekly_differences_ts.mean()
-            ax3.plot(weekly_differences_ts.index, weekly_differences_ts.values, 'g-', alpha=0.9, linewidth=1.2)
+            ax3.plot(weekly_differences_ts.index, weekly_differences_ts.values, 'g-', alpha=0.9, linewidth=1.5)
             ax3.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax3.axhline(y=weekly_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Weekly Mean Bias: {weekly_bias:.3f} kg/m')
             ax3.set_xlabel('Time')
             ax3.set_ylabel('Difference (NEWA - EMD) [kg/m]')
-            ax3.set_title(f'Weekly Averaged Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only)')
+            ax3.set_title(f'Weekly Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
             ax3.legend()
             ax3.grid(True, alpha=0.3)
             
-            plt.suptitle(f'Multi-Scale Ice Load Differences: NEWA - EMD at {height}m\n'
+            plt.suptitle(f'Multi-Scale Ice Load Differences: NEWA - EMD at {height}m (Lines Only)\n'
                         f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
                         fontsize=16, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
-            differences_ts_path = os.path.join(base_dir, f'multi_scale_differences_{height}m.png')
-            plt.savefig(differences_ts_path, dpi=150, facecolor='white')
+            differences_lines_path = os.path.join(base_dir, f'multi_scale_differences_lines_{height}m.png')
+            plt.savefig(differences_lines_path, dpi=150, facecolor='white')
             plt.close()
-            print(f"Saved: {differences_ts_path}")
+            print(f"Saved: {differences_lines_path}")
+            
+            # Plot 2B: Difference over time with scatter only
+            print("2B. Creating difference time series (scatter only)...")
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
+            
+            # Hourly differences - difference for every hour (scatter only)
+            ax1.scatter(differences.index, differences.values, c='green', s=0.5, alpha=0.6)
+            ax1.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
+            ax1.axhline(y=bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
+                       label=f'Mean Bias: {bias:.3f} kg/m')
+            ax1.set_ylabel('Difference (NEWA - EMD) [kg/m]')
+            ax1.set_title(f'Hourly Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+            
+            # Daily differences - mean of hourly differences for each day (scatter only)
+            ax2.scatter(daily_differences_ts.index, daily_differences_ts.values, c='green', s=3, alpha=0.7)
+            ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
+            ax2.axhline(y=daily_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
+                       label=f'Daily Mean Bias: {daily_bias:.3f} kg/m')
+            ax2.set_ylabel('Difference (NEWA - EMD) [kg/m]')
+            ax2.set_title(f'Daily Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+            
+            # Weekly differences - mean of hourly differences for each week (scatter only)
+            ax3.scatter(weekly_differences_ts.index, weekly_differences_ts.values, c='green', s=10, alpha=0.8)
+            ax3.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
+            ax3.axhline(y=weekly_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
+                       label=f'Weekly Mean Bias: {weekly_bias:.3f} kg/m')
+            ax3.set_xlabel('Time')
+            ax3.set_ylabel('Difference (NEWA - EMD) [kg/m]')
+            ax3.set_title(f'Weekly Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+            
+            plt.suptitle(f'Multi-Scale Ice Load Differences: NEWA - EMD at {height}m (Scatter Only)\n'
+                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                        fontsize=16, y=0.98)
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.92)
+            
+            differences_scatter_path = os.path.join(base_dir, f'multi_scale_differences_scatter_{height}m.png')
+            plt.savefig(differences_scatter_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {differences_scatter_path}")
             
             # Plot 3: Hourly mean differences grid (all months included)
             print("3. Creating hourly mean differences grid (all months)...")
             
-            # Calculate hourly means and differences for all data (including summer months)
-            emd_hourly_all = emd_clean_all.groupby([emd_clean_all.index.year, emd_clean_all.index.dayofyear, emd_clean_all.index.hour]).mean()
-            newa_hourly_all = newa_clean_all.groupby([newa_clean_all.index.year, newa_clean_all.index.dayofyear, newa_clean_all.index.hour]).mean()
+            # Calculate daily hourly means for each specific day (not averaged across years)
+            # Group by date (year-month-day) and calculate mean for each day
+            emd_daily_means = emd_clean_all.resample('D').mean()
+            newa_daily_means = newa_clean_all.resample('D').mean()
             
-            # Create MultiIndex DataFrames for easier manipulation
-            emd_hourly_df = pd.DataFrame({'emd': emd_hourly_all.values}, 
-                                       index=pd.MultiIndex.from_tuples(emd_hourly_all.index, names=['year', 'dayofyear', 'hour']))
-            newa_hourly_df = pd.DataFrame({'newa': newa_hourly_all.values}, 
-                                        index=pd.MultiIndex.from_tuples(newa_hourly_all.index, names=['year', 'dayofyear', 'hour']))
+            # Align the daily data
+            common_daily_dates = emd_daily_means.index.intersection(newa_daily_means.index)
+            emd_daily_aligned = emd_daily_means.loc[common_daily_dates]
+            newa_daily_aligned = newa_daily_means.loc[common_daily_dates]
             
-            # Merge and calculate differences
-            hourly_merged = emd_hourly_df.join(newa_hourly_df, how='inner')
-            hourly_merged['difference'] = hourly_merged['newa'] - hourly_merged['emd']
+            # Calculate daily differences for each specific day
+            daily_differences_all = newa_daily_aligned - emd_daily_aligned
             
-            # Calculate mean differences for each day of year across all years and hours
-            daily_mean_diffs = hourly_merged.groupby('dayofyear')['difference'].mean()
+            # Create DataFrame with year, day of year, and differences for grid plotting
+            grid_df = pd.DataFrame({
+                'date': daily_differences_all.index,
+                'difference': daily_differences_all.values
+            })
+            grid_df['year'] = grid_df['date'].dt.year
+            grid_df['day_of_year'] = grid_df['date'].dt.dayofyear
             
-            # Create DataFrame for grid plotting (year vs day of year)
-            # We'll use the daily mean differences for each year-day combination
-            grid_data = []
-            for year in range(int(emd_clean_all.index.year.min()), int(emd_clean_all.index.year.max()) + 1):
-                year_data = []
-                for day in range(1, 367):  # 366 days to handle leap years
-                    if day in daily_mean_diffs.index:
-                        year_data.append(daily_mean_diffs[day])
-                    else:
-                        year_data.append(np.nan)
-                grid_data.append(year_data[:365])  # Standardize to 365 days
+            # Create pivot table for grid (each cell is unique year-day combination)
+            pivot_grid = grid_df.pivot(index='year', columns='day_of_year', values='difference')
+            
+            # Fill missing values with NaN and ensure we have 365 days
+            if pivot_grid.shape[1] < 365:
+                for day in range(1, 366):
+                    if day not in pivot_grid.columns:
+                        pivot_grid[day] = np.nan
+            
+            # Sort columns to ensure proper day order and limit to 365 days
+            pivot_grid = pivot_grid.reindex(columns=sorted(pivot_grid.columns)[:365])
             
             # Convert to numpy array for plotting
-            grid_array = np.array(grid_data)
+            grid_array = pivot_grid.values
             
             # Create the grid plot with improved clarity (all months)
             plt.figure(figsize=(24, 14))  # Even larger for all months
@@ -9540,8 +9631,8 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             vmax = np.nanmax(np.abs(grid_array))
             vmin = -vmax
             
-            # Create the heatmap with clear cell boundaries
-            im = plt.imshow(grid_array, cmap='RdBu_r', aspect='auto', 
+            # Create the heatmap with clear cell boundaries and darker colors
+            im = plt.imshow(grid_array, cmap='seismic', aspect='auto', 
                           interpolation='nearest', vmin=vmin, vmax=vmax)
             
             # Add grid lines to separate cells clearly
@@ -9557,15 +9648,15 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             # Set labels and ticks with better formatting for all months
             plt.xlabel('Day of Year', fontsize=14)
             plt.ylabel('Year', fontsize=14)
-            plt.title(f'Hourly Mean Ice Load Differences Grid: NEWA - EMD at {height}m (All Months)\n'
+            plt.title(f'Daily Mean Ice Load Differences Grid: NEWA - EMD at {height}m (All Months)\n'
                      f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km\n'
-                     f'Mean hourly differences averaged across all years', fontsize=16, pad=20)
+                     f'Each cell = daily mean difference for that specific year and day', fontsize=16, pad=20)
             
             # Set year labels
-            years = range(int(emd_clean_all.index.year.min()), int(emd_clean_all.index.year.max()) + 1)
-            year_step = max(1, len(years)//15)
-            year_indices = np.arange(0, len(years), year_step)
-            plt.yticks(year_indices, [years[i] for i in year_indices], fontsize=12)
+            year_indices = np.arange(0, len(pivot_grid.index))
+            year_step = max(1, len(pivot_grid.index)//15)
+            year_ticks = year_indices[::year_step]
+            plt.yticks(year_ticks, [pivot_grid.index[i] for i in year_ticks], fontsize=12)
             
             # Set day of year labels (all months)
             month_starts = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
@@ -9590,7 +9681,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             print(f"Saved: {daily_grid_path}")
             
             print(f"\nHourly mean grid statistics (all months):")
-            print(f"  Years covered: {min(years)} to {max(years)}")
+            print(f"  Years covered: {pivot_grid.index.min()} to {pivot_grid.index.max()}")
             print(f"  Days per year: 365")
             print(f"  All months included (Jan-Dec)")
             print(f"  Hourly mean difference range: {np.nanmin(grid_array):.3f} to {np.nanmax(grid_array):.3f} kg/m")
