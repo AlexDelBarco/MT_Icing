@@ -26,7 +26,7 @@ def load_netcdf_data(file_path):
         print(f"Last timestamp: {ds.time.values[-1]}")
         print(f"Total time steps: {len(ds.time)}")
         print(f"Time frequency: {pd.to_datetime(ds.time.values[1]) - pd.to_datetime(ds.time.values[0])}")
-        print(f"Height levels in dataset: {ds.height.values}")
+        # print(f"Height levels in dataset: {ds.height.values}")
         print(f"South north values in dataset: {ds.south_north.values}")
         print(f"West East values in dataset: {ds.west_east.values}")
 

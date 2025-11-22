@@ -22,12 +22,14 @@ calculate_new_ice_load = False  # Whether to calculate ice load or load existing
 print("=== MERGING NETCDF FILES ===")
 main_file = "data/newa_wrf_for_jana_mstudent_extended.nc"
 wd_file = "data/newa_wrf_for_jana_mstudent_extended_WD.nc"
+pdfc_file= "data/newa_wrf_for_jana_mstudent_extended_PSFC_SEAICE_SWDDNI.nc"
 merged_file = "data/newa_wrf_for_jana_mstudent_extended_merged.nc"
+final_file = "data/newa_wrf_final_merged.nc"
 
 # Check if merged file already exists
-if not os.path.exists(merged_file):
+if not os.path.exists(final_file):
     print("Merged file not found. Creating merged dataset...")
-    success = fn.merge_netcdf_files(main_file, wd_file, merged_file, verbose=True)
+    success = fn.merge_netcdf_files(merged_file, pdfc_file, final_file, verbose=True)
     if not success:
         print("Failed to merge files. Using main file only.")
         data1 = main_file
@@ -35,7 +37,7 @@ if not os.path.exists(merged_file):
         data1 = merged_file
 else:
     print("Merged file already exists. Using existing merged dataset...")
-    data1 = merged_file
+    data1 = final_file
 
 # Import merged NEWEA meteorological data
 dataset = fn.load_netcdf_data(data1)
@@ -45,7 +47,7 @@ dataset = fn.load_netcdf_data(data1)
 height_level = dataset.height.values[height]  # Height level in meters
 print(f"Exploring dataset at height level: {height_level} m")
 # explore the variables
-# fn.explore_variables(dataset)
+fn.explore_variables(dataset)
 
 #explore one variable in detail in a chosen period
 # fn.explore_variable_detail(dataset, 'QVAPOR')
