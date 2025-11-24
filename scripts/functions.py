@@ -3,6 +3,8 @@ import xarray as xr
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import metpy.calc as mpcalc
+from metpy.units import units
 
 # Results directories
 figures_dir = "results/figures"
@@ -1766,6 +1768,520 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
         
     except Exception as e:
         print(f"Error in threshold exceedance analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+# TEMPERATURE AND HUMIDITY CRITERIA
+
+def add_rh(dataset_with_ice_load, phase, verbose=True):
+    """
+    Compute relative humidity from temperature, pressure, and mixing ratio,
+    and add it as a new variable to the dataset.
+    
+    Parameters:
+    -----------
+    dataset_with_ice_load : xarray.Dataset
+        Dataset containing meteorological variables including:
+        - PSFC: surface pressure (Pa)
+        - T: air temperature (K) 
+        - QVAPOR: humidity mixing ratio (kg/kg)
+    verbose : bool, optional
+        Whether to print detailed information during calculation (default: True)
+        
+    Returns:
+    --------
+    xarray.Dataset
+        Dataset with added 'relative_humidity' variable (dimensionless, 0-1)
+        
+    Notes:
+    ------
+    Uses MetPy's relative_humidity_from_mixing_ratio function which expects:
+    - pressure in pressure units (Pa, hPa, etc.)
+    - temperature in temperature units (K, °C, etc.)
+    - mixing_ratio in dimensionless units (kg/kg)
+    """
+    
+    if verbose:
+        print("=== RELATIVE HUMIDITY CALCULATION ===")
+        print("Using MetPy to calculate relative humidity from mixing ratio")
+    
+    try:
+        # Check if required variables exist
+        required_vars = ['PSFC', 'T', 'QVAPOR']
+        missing_vars = [var for var in required_vars if var not in dataset_with_ice_load.data_vars]
+        
+        if missing_vars:
+            raise ValueError(f"Missing required variables: {missing_vars}")
+            
+        if verbose:
+            print(f"\n1. Input Variables:")
+            for var in required_vars:
+                data_var = dataset_with_ice_load[var]
+                print(f"   {var}: {data_var.shape} {data_var.dims}")
+                if hasattr(data_var, 'attrs') and 'units' in data_var.attrs:
+                    print(f"        Units: {data_var.attrs['units']}")
+                print(f"        Range: {float(data_var.min().values):.3f} to {float(data_var.max().values):.3f}")
+        
+        # Extract the variables
+        pressure = dataset_with_ice_load['PSFC']  # Surface pressure (Pa)
+        temperature = dataset_with_ice_load['T']   # Air temperature (K)
+        mixing_ratio = dataset_with_ice_load['QVAPOR']  # Mixing ratio (kg/kg)
+        
+        if verbose:
+            print(f"\n2. Data Processing:")
+            print(f"   Checking variable shapes...")
+            print(f"   PSFC shape: {pressure.shape}, dims: {pressure.dims}")
+            print(f"   T shape: {temperature.shape}, dims: {temperature.dims}")
+            print(f"   QVAPOR shape: {mixing_ratio.shape}, dims: {mixing_ratio.dims}")
+        
+        # Handle dimensional differences - ensure all variables have compatible shapes
+        # PSFC is typically 2D (surface), while T and QVAPOR might be 3D (with height levels)
+        
+        if 'height' in temperature.dims and 'height' not in pressure.dims:
+            # Temperature has height dimension but pressure doesn't
+            # Use lower level (height=0) for temperature and mixing ratio
+            if verbose:
+                print(f"   Temperature has height dimension, using lower level (height=0)")
+            temperature = temperature.isel(height=0)
+            mixing_ratio = mixing_ratio.isel(height=0)
+        elif 'height' in pressure.dims and 'height' not in temperature.dims:
+            # Pressure has height dimension but temperature doesn't 
+            # Use lower level for pressure
+            if verbose:
+                print(f"   Pressure has height dimension, using surface level (height=0)")
+            pressure = pressure.isel(height=0)
+        elif 'height' in temperature.dims and 'height' in pressure.dims:
+            # Both have height dimensions - use same level (surface = height=0)
+            if verbose:
+                print(f"   Both variables have height dimension, using surface level (height=0)")
+            temperature = temperature.isel(height=0)
+            mixing_ratio = mixing_ratio.isel(height=0)
+            pressure = pressure.isel(height=0)
+        
+        # Verify shapes after processing
+        if verbose:
+            print(f"   After processing:")
+            print(f"   PSFC shape: {pressure.shape}, dims: {pressure.dims}")
+            print(f"   T shape: {temperature.shape}, dims: {temperature.dims}")
+            print(f"   QVAPOR shape: {mixing_ratio.shape}, dims: {mixing_ratio.dims}")
+            
+        # Check if shapes are now compatible
+        if pressure.shape != temperature.shape or pressure.shape != mixing_ratio.shape:
+            raise ValueError(f"Shape mismatch after processing: "
+                           f"PSFC {pressure.shape}, T {temperature.shape}, QVAPOR {mixing_ratio.shape}")
+        
+        if verbose:
+            print(f"   Converting data to MetPy units...")
+        
+        # Convert to MetPy quantities with appropriate units
+        # Assuming PSFC is in Pa, T is in K, QVAPOR is in kg/kg
+        pressure_metpy = pressure.values * units.Pa
+        temperature_metpy = temperature.values * units.K  
+        mixing_ratio_metpy = mixing_ratio.values * units('kg/kg')
+        
+        if verbose:
+            print(f"   Pressure: {pressure_metpy.units}")
+            print(f"   Temperature: {temperature_metpy.units}")
+            print(f"   Mixing ratio: {mixing_ratio_metpy.units}")
+            print(f"   Calculating relative humidity...")
+        
+        # Calculate relative humidity using MetPy
+        rh_metpy = mpcalc.relative_humidity_from_mixing_ratio(
+            pressure_metpy,
+            temperature_metpy, 
+            mixing_ratio_metpy,
+            phase = phase
+        )
+        
+        # Convert back to dimensionless numpy array (0-1)
+        rh_values = rh_metpy.magnitude
+        
+        if verbose:
+            print(f"   Relative humidity calculated successfully")
+            print(f"   RH range: {np.nanmin(rh_values):.3f} to {np.nanmax(rh_values):.3f}")
+            print(f"   RH mean: {np.nanmean(rh_values):.3f}")
+        
+        # Create a copy of the dataset
+        ds_with_rh = dataset_with_ice_load.copy()
+        
+        # Create the relative humidity DataArray with same structure as processed temperature
+        rh_dataarray = xr.DataArray(
+            data=rh_values,
+            dims=temperature.dims,
+            coords=temperature.coords,
+            attrs={
+                'long_name': 'Relative humidity',
+                'description': 'Relative humidity calculated from mixing ratio using MetPy (surface level)',
+                'units': 'dimensionless',
+                'valid_range': [0.0, 1.0],
+                'calculation_method': 'MetPy relative_humidity_from_mixing_ratio',
+                'input_variables': 'PSFC (Pa), T (K), QVAPOR (kg/kg) - all at surface level',
+                'missing_value': np.nan,
+                'level': 'surface'
+            }
+        )
+        
+        # Add to dataset
+        ds_with_rh['relative_humidity'] = rh_dataarray
+        
+        if verbose:
+            print(f"\n3. Results:")
+            print(f"   Successfully added 'relative_humidity' variable to dataset")
+            print(f"   Variable shape: {ds_with_rh['relative_humidity'].shape}")
+            print(f"   Variable dimensions: {ds_with_rh['relative_humidity'].dims}")
+            
+            # Calculate some statistics
+            rh_clean = ds_with_rh['relative_humidity'].where(
+                ~np.isnan(ds_with_rh['relative_humidity']) & 
+                (ds_with_rh['relative_humidity'] >= 0) & 
+                (ds_with_rh['relative_humidity'] <= 1)
+            )
+            
+            if rh_clean.size > 0:
+                print(f"\n4. Statistics:")
+                print(f"   Valid data points: {rh_clean.count().values:,}")
+                print(f"   Mean RH: {float(rh_clean.mean().values):.3f} ({float(rh_clean.mean().values)*100:.1f}%)")
+                print(f"   Median RH: {float(rh_clean.median().values):.3f} ({float(rh_clean.median().values)*100:.1f}%)")
+                print(f"   Min RH: {float(rh_clean.min().values):.3f} ({float(rh_clean.min().values)*100:.1f}%)")
+                print(f"   Max RH: {float(rh_clean.max().values):.3f} ({float(rh_clean.max().values)*100:.1f}%)")
+                print(f"   Std RH: {float(rh_clean.std().values):.3f}")
+                
+                # Check for potentially problematic values
+                n_over_100 = (rh_clean > 1.0).sum().values
+                n_under_0 = (rh_clean < 0.0).sum().values
+                
+                if n_over_100 > 0:
+                    print(f"   Warning: {n_over_100} values > 100% RH found")
+                if n_under_0 > 0:
+                    print(f"   Warning: {n_under_0} values < 0% RH found")
+            
+            print(f"\n5. Dataset Summary:")
+            print(f"   Total variables: {len(ds_with_rh.data_vars)}")
+            print(f"   Variables: {list(ds_with_rh.data_vars.keys())}")
+        
+        print(f"\n✓ Relative humidity calculation completed successfully!")
+        return ds_with_rh
+        
+    except ImportError as e:
+        print(f"Error: MetPy package required for relative humidity calculation")
+        print(f"Please install with: conda install -c conda-forge metpy")
+        print(f"Import error: {e}")
+        return dataset_with_ice_load
+        
+    except Exception as e:
+        print(f"Error calculating relative humidity: {e}")
+        print(f"Returning original dataset without relative humidity")
+        import traceback
+        traceback.print_exc()
+        return dataset_with_ice_load
+
+def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height_level=0,
+                      save_plots=True, colormap='viridis', grid_labels=True):
+    """
+    Create a spatial map showing how often each grid cell meets temperature and humidity criteria
+    per year on average. Temperature must be equal or below the threshold, and relative humidity 
+    must be equal or above the threshold.
+    
+    Parameters:
+    -----------
+    dataset : xarray.Dataset
+        Dataset containing meteorological data
+    humidity_threshold : float
+        Minimum relative humidity threshold value (0-1, dimensionless). Values must be >= this threshold
+    temperature_threshold : float
+        Maximum temperature threshold value (K). Values must be <= this threshold
+    height_level : int, default 0
+        Height level index to analyze
+    save_plots : bool, default True
+        Whether to save the plot to file
+    colormap : str, default 'viridis'
+        Matplotlib colormap to use for the spatial plot
+    grid_labels : bool, default True
+        Whether to add grid cell coordinate labels to the plot
+        
+    Returns:
+    --------
+    dict : Dictionary containing criteria analysis results and statistics
+    """
+    print(f"=== TEMPERATURE-HUMIDITY CRITERIA ANALYSIS ===")
+    print(f"Height level: {height_level} ({dataset.height.values[height_level]} m)")
+    print(f"Temperature threshold: <= {temperature_threshold:.2f} K")
+    print(f"Relative humidity threshold: >= {humidity_threshold:.3f} (dimensionless)")
+    
+    try:
+        # Check for required variables
+        required_vars = ['T', 'relative_humidity']  # Temperature and relative humidity
+        missing_vars = [var for var in required_vars if var not in dataset.data_vars]
+        if missing_vars:
+            raise ValueError(f"Required variables not found in dataset: {missing_vars}. Available variables: {list(dataset.data_vars.keys())}")
+        
+        # Extract temperature and humidity data at specified height
+        temp_data = dataset['T'].isel(height=height_level)
+        humidity_data = dataset['relative_humidity']
+        
+        # Check data structure
+        print(f"\n1. Data Information:")
+        print(f"   Temperature shape: {temp_data.shape}")
+        print(f"   Humidity shape: {humidity_data.shape}")
+        print(f"   Dimensions: {temp_data.dims}")
+        
+        # Get spatial dimensions
+        n_time = temp_data.sizes['time']
+        n_south_north = temp_data.sizes['south_north']
+        n_west_east = temp_data.sizes['west_east']
+        
+        print(f"   Grid size: {n_south_north} × {n_west_east} = {n_south_north * n_west_east} cells")
+        print(f"   Time steps: {n_time}")
+        
+        # Calculate temporal information
+        time_index = pd.to_datetime(temp_data.time.values)
+        n_years = len(time_index.year.unique())
+        years = sorted(time_index.year.unique())
+        
+        # Calculate time step in hours (assuming regular intervals)
+        if len(time_index) > 1:
+            time_step_hours = (time_index[1] - time_index[0]).total_seconds() / 3600
+        else:
+            time_step_hours = 0.5  # Default to 30 minutes
+            
+        print(f"   Years covered: {n_years} ({years[0]} to {years[-1]})")
+        print(f"   Time step: {time_step_hours} hours")
+        
+        # Clean the data (remove NaN values)
+        temp_data_clean = temp_data.where(~np.isnan(temp_data))
+        humidity_data_clean = humidity_data.where(~np.isnan(humidity_data))
+        
+        print(f"\n2. Temperature and Humidity Statistics:")
+        print(f"   Temperature range: {float(temp_data_clean.min()):.2f} to {float(temp_data_clean.max()):.2f} K")
+        print(f"   Relative humidity range: {float(humidity_data_clean.min()):.3f} to {float(humidity_data_clean.max()):.3f} (dimensionless)")
+        
+        print(f"\n3. Criteria Analysis:")
+        print(f"   Analyzing when T <= {temperature_threshold:.2f} K AND relative_humidity >= {humidity_threshold:.3f}...")
+        
+        # Initialize criteria exceedance matrix
+        criteria_matrix = np.zeros((n_south_north, n_west_east))
+        
+        # Calculate criteria exceedance for each grid cell
+        total_cells = n_south_north * n_west_east
+        processed_cells = 0
+        
+        for i in range(n_south_north):
+            for j in range(n_west_east):
+                # Extract time series for this grid cell
+                cell_temp = temp_data_clean.isel(south_north=i, west_east=j)
+                cell_humidity = humidity_data_clean.isel(south_north=i, west_east=j)
+                
+                temp_values = cell_temp.values
+                humidity_values = cell_humidity.values
+                
+                # Remove NaN values from both arrays
+                valid_mask = ~(np.isnan(temp_values) | np.isnan(humidity_values))
+                temp_clean = temp_values[valid_mask]
+                humidity_clean = humidity_values[valid_mask]
+                
+                if len(temp_clean) > 0 and len(humidity_clean) > 0:
+                    # Count timesteps meeting both criteria
+                    temp_criteria = temp_clean <= temperature_threshold
+                    humidity_criteria = humidity_clean >= humidity_threshold
+                    both_criteria = temp_criteria & humidity_criteria
+                    
+                    criteria_count = np.sum(both_criteria)
+                    
+                    # Convert to hours per year
+                    hours_per_year = (criteria_count * time_step_hours) / n_years
+                    
+                    criteria_matrix[i, j] = hours_per_year
+                else:
+                    criteria_matrix[i, j] = np.nan
+                
+                processed_cells += 1
+                if processed_cells % 20 == 0:
+                    print(f"   Processed {processed_cells}/{total_cells} cells...")
+        
+        # Calculate statistics
+        valid_criteria = criteria_matrix[~np.isnan(criteria_matrix)]
+        
+        print(f"\n4. Criteria Statistics:")
+        if len(valid_criteria) > 0:
+            print(f"   Mean criteria met: {np.mean(valid_criteria):.2f} hours/year")
+            print(f"   Std criteria met: {np.std(valid_criteria):.2f} hours/year")
+            print(f"   Min criteria met: {np.min(valid_criteria):.2f} hours/year")
+            print(f"   Max criteria met: {np.max(valid_criteria):.2f} hours/year")
+            print(f"   Cells meeting criteria: {np.sum(valid_criteria > 0)}/{len(valid_criteria)}")
+        else:
+            print(f"   No valid criteria data found")
+        
+        # Create the spatial plot
+        print(f"\n5. Creating spatial criteria map...")
+        
+        fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+        
+        # Create the main plot
+        im = ax.imshow(criteria_matrix, cmap=colormap, origin='lower', 
+                      interpolation='nearest', aspect='auto')
+        
+        # Set title and labels
+        ax.set_title(f'Temperature-Humidity Criteria Exceedance Map\n'
+                    f'T ≤ {temperature_threshold:.2f} K AND relative_humidity ≥ {humidity_threshold:.3f}\n'
+                    f'Mean Annual Hours Meeting Criteria')
+        ax.set_xlabel('West-East Grid Points')
+        ax.set_ylabel('South-North Grid Points')
+        
+        # Add colorbar
+        cbar = plt.colorbar(im, ax=ax, shrink=0.8, aspect=20)
+        cbar.set_label('Hours/Year Meeting Criteria')
+        
+        # Add grid lines
+        ax.set_xticks(range(n_west_east))
+        ax.set_yticks(range(n_south_north))
+        ax.grid(True, alpha=0.3, color='white', linewidth=0.5)
+        
+        # Add cell values as text labels if requested
+        if grid_labels:
+            for i in range(n_south_north):
+                for j in range(n_west_east):
+                    value = criteria_matrix[i, j]
+                    if not np.isnan(value):
+                        # Choose text color based on background
+                        text_color = 'white' if value > np.nanmean(criteria_matrix) else 'black'
+                        ax.text(j, i, f'{value:.1f}', ha='center', va='center',
+                               color=text_color, fontsize=8, weight='bold')
+        
+        # Add coordinate references
+        ax.set_xticks(range(n_west_east))
+        ax.set_yticks(range(n_south_north))
+        ax.set_xticklabels([f'{j}' for j in range(n_west_east)])
+        ax.set_yticklabels([f'{i}' for i in range(n_south_north)])
+        
+        plt.tight_layout()
+        
+        # Save plot if requested
+        if save_plots:
+            # Create directory structure: results/figures/spatial_gradient/temp_hum_criteria_exceedance/criteria_{height}_{temp}K_{hum}kgkg
+            height_m = int(dataset.height.values[height_level])
+            
+            # Format thresholds for directory name
+            temp_str = f"{temperature_threshold:.2f}".replace('.', 'p')
+            hum_str = f"{humidity_threshold:.3f}".rstrip('0').rstrip('.').replace('.', 'p')
+            
+            base_dir = os.path.join(figures_dir, "spatial_gradient", "temp_hum_criteria_exceedance")
+            specific_dir = f"criteria_{height_m}_{temp_str}K_{hum_str}rh"
+            criteria_plots_dir = os.path.join(base_dir, specific_dir)
+            os.makedirs(criteria_plots_dir, exist_ok=True)
+            
+            print(f"   Saving plots to: {criteria_plots_dir}")
+            
+            # Create filename
+            plot_path = os.path.join(criteria_plots_dir, f"temp_hum_criteria_{temp_str}K_{hum_str}rh.png")
+            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+            print(f"   Criteria map saved to: {plot_path}")
+        
+        plt.close()  # Close the plot to prevent it from showing
+        
+        # Create additional summary statistics plot
+        if len(valid_criteria) > 0:
+            fig2, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+            
+            # Histogram of criteria values
+            ax1.hist(valid_criteria, bins=min(20, len(np.unique(valid_criteria))), 
+                    alpha=0.7, color='lightgreen', edgecolor='black')
+            ax1.set_xlabel('Hours/Year Meeting Criteria')
+            ax1.set_ylabel('Number of Grid Cells')
+            ax1.set_title(f'Distribution of Criteria Exceedances\n'
+                         f'T ≤ {temperature_threshold:.2f} K AND relative_humidity ≥ {humidity_threshold:.3f}')
+            ax1.grid(True, alpha=0.3)
+            
+            # Box plot by row (south-north variation)
+            row_data = []
+            row_labels = []
+            for i in range(n_south_north):
+                row_criteria = criteria_matrix[i, :]
+                valid_row = row_criteria[~np.isnan(row_criteria)]
+                if len(valid_row) > 0:
+                    row_data.append(valid_row)
+                    row_labels.append(f'Row {i}')
+            
+            if row_data:
+                ax2.boxplot(row_data, labels=row_labels)
+                ax2.set_xlabel('Grid Row (South to North)')
+                ax2.set_ylabel('Hours/Year Meeting Criteria')
+                ax2.set_title('Criteria Exceedance by Grid Row')
+                ax2.grid(True, alpha=0.3)
+                ax2.tick_params(axis='x', rotation=45)
+            
+            plt.tight_layout()
+            
+            if save_plots:
+                summary_path = os.path.join(criteria_plots_dir, f"temp_hum_criteria_summary_{temp_str}K_{hum_str}rh.png")
+                plt.savefig(summary_path, dpi=300, bbox_inches='tight')
+                print(f"   Summary statistics saved to: {summary_path}")
+            
+            plt.close()  # Close the plot to prevent it from showing
+        
+        # Prepare results dictionary
+        results = {
+            'temperature_threshold': temperature_threshold,
+            'humidity_threshold': humidity_threshold,
+            'height_level': height_level,
+            'criteria_matrix': criteria_matrix,
+            'grid_shape': (n_south_north, n_west_east),
+            'n_years': n_years,
+            'years_range': (years[0], years[-1]),
+            'time_step_hours': time_step_hours,
+            'statistics': {
+                'mean': np.nanmean(criteria_matrix),
+                'std': np.nanstd(criteria_matrix),
+                'min': np.nanmin(criteria_matrix),
+                'max': np.nanmax(criteria_matrix),
+                'cells_meeting_criteria': np.sum(valid_criteria > 0) if len(valid_criteria) > 0 else 0,
+                'total_valid_cells': len(valid_criteria) if len(valid_criteria) > 0 else 0
+            }
+        }
+        
+        # Save detailed results to file
+        if save_plots:
+            results_path = os.path.join(criteria_plots_dir, f"temp_hum_criteria_results_{temp_str}K_{hum_str}rh.txt")
+            with open(results_path, 'w') as f:
+                f.write("TEMPERATURE-HUMIDITY CRITERIA ANALYSIS RESULTS\n")
+                f.write("=" * 50 + "\n\n")
+                f.write(f"Temperature threshold: <= {temperature_threshold:.2f} K\n")
+                f.write(f"Relative humidity threshold: >= {humidity_threshold:.3f} (dimensionless)\n")
+                f.write(f"Height level: {height_level} ({dataset.height.values[height_level]} m)\n")
+                f.write(f"Grid shape: {n_south_north} × {n_west_east}\n")
+                f.write(f"Years analyzed: {n_years} ({years[0]} to {years[-1]})\n")
+                f.write(f"Time step: {time_step_hours} hours\n\n")
+                
+                f.write("Criteria Statistics:\n")
+                f.write("-" * 20 + "\n")
+                if len(valid_criteria) > 0:
+                    f.write(f"Mean: {results['statistics']['mean']:.3f} hours/year\n")
+                    f.write(f"Std: {results['statistics']['std']:.3f} hours/year\n")
+                    f.write(f"Min: {results['statistics']['min']:.3f} hours/year\n")
+                    f.write(f"Max: {results['statistics']['max']:.3f} hours/year\n")
+                    f.write(f"Cells meeting criteria: {results['statistics']['cells_meeting_criteria']}\n")
+                    f.write(f"Total valid cells: {results['statistics']['total_valid_cells']}\n\n")
+                
+                f.write("Grid Cell Criteria Values (hours/year):\n")
+                f.write("-" * 40 + "\n")
+                for i in range(n_south_north):
+                    row_str = f"Row {i:2d}: "
+                    for j in range(n_west_east):
+                        value = criteria_matrix[i, j]
+                        if np.isnan(value):
+                            row_str += "   NaN   "
+                        else:
+                            row_str += f"{value:7.2f} "
+                    f.write(row_str + "\n")
+            
+            print(f"   Detailed results saved to: {results_path}")
+        
+        print(f"\n✓ Temperature-humidity criteria analysis completed successfully!")
+        return results
+        
+    except Exception as e:
+        print(f"Error in temperature-humidity criteria analysis: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -4707,315 +5223,6 @@ def plot_ice_load_1_minus_cdf_curves(ice_load_data, save_plots=True, ice_load_bi
         
     except Exception as e:
         print(f"Error in ice load exceedance probability analysis: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
-
-def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height_level=0,
-                      save_plots=True, colormap='viridis', grid_labels=True):
-    """
-    Create a spatial map showing how often each grid cell meets temperature and humidity criteria
-    per year on average. Temperature must be equal or below the threshold, and humidity must be
-    equal or above the threshold.
-    
-    Parameters:
-    -----------
-    dataset : xarray.Dataset
-        Dataset containing meteorological data
-    humidity_threshold : float
-        Minimum humidity threshold value (kg/kg). Values must be >= this threshold
-    temperature_threshold : float
-        Maximum temperature threshold value (K). Values must be <= this threshold
-    height_level : int, default 0
-        Height level index to analyze
-    save_plots : bool, default True
-        Whether to save the plot to file
-    colormap : str, default 'viridis'
-        Matplotlib colormap to use for the spatial plot
-    grid_labels : bool, default True
-        Whether to add grid cell coordinate labels to the plot
-        
-    Returns:
-    --------
-    dict : Dictionary containing criteria analysis results and statistics
-    """
-    print(f"=== TEMPERATURE-HUMIDITY CRITERIA ANALYSIS ===")
-    print(f"Height level: {height_level} ({dataset.height.values[height_level]} m)")
-    print(f"Temperature threshold: <= {temperature_threshold:.2f} K")
-    print(f"Humidity threshold: >= {humidity_threshold:.6f} kg/kg")
-    
-    try:
-        # Check for required variables
-        required_vars = ['T', 'QVAPOR']  # Temperature and water vapor mixing ratio
-        missing_vars = [var for var in required_vars if var not in dataset.data_vars]
-        if missing_vars:
-            raise ValueError(f"Required variables not found in dataset: {missing_vars}. Available variables: {list(dataset.data_vars.keys())}")
-        
-        # Extract temperature and humidity data at specified height
-        temp_data = dataset['T'].isel(height=height_level)
-        humidity_data = dataset['QVAPOR'].isel(height=height_level)
-        
-        # Check data structure
-        print(f"\n1. Data Information:")
-        print(f"   Temperature shape: {temp_data.shape}")
-        print(f"   Humidity shape: {humidity_data.shape}")
-        print(f"   Dimensions: {temp_data.dims}")
-        
-        # Get spatial dimensions
-        n_time = temp_data.sizes['time']
-        n_south_north = temp_data.sizes['south_north']
-        n_west_east = temp_data.sizes['west_east']
-        
-        print(f"   Grid size: {n_south_north} × {n_west_east} = {n_south_north * n_west_east} cells")
-        print(f"   Time steps: {n_time}")
-        
-        # Calculate temporal information
-        time_index = pd.to_datetime(temp_data.time.values)
-        n_years = len(time_index.year.unique())
-        years = sorted(time_index.year.unique())
-        
-        # Calculate time step in hours (assuming regular intervals)
-        if len(time_index) > 1:
-            time_step_hours = (time_index[1] - time_index[0]).total_seconds() / 3600
-        else:
-            time_step_hours = 0.5  # Default to 30 minutes
-            
-        print(f"   Years covered: {n_years} ({years[0]} to {years[-1]})")
-        print(f"   Time step: {time_step_hours} hours")
-        
-        # Clean the data (remove NaN values)
-        temp_data_clean = temp_data.where(~np.isnan(temp_data))
-        humidity_data_clean = humidity_data.where(~np.isnan(humidity_data))
-        
-        print(f"\n2. Temperature and Humidity Statistics:")
-        print(f"   Temperature range: {float(temp_data_clean.min()):.2f} to {float(temp_data_clean.max()):.2f} K")
-        print(f"   Humidity range: {float(humidity_data_clean.min()):.6f} to {float(humidity_data_clean.max()):.6f} kg/kg")
-        
-        print(f"\n3. Criteria Analysis:")
-        print(f"   Analyzing when T <= {temperature_threshold:.2f} K AND QVAPOR >= {humidity_threshold:.6f} kg/kg...")
-        
-        # Initialize criteria exceedance matrix
-        criteria_matrix = np.zeros((n_south_north, n_west_east))
-        
-        # Calculate criteria exceedance for each grid cell
-        total_cells = n_south_north * n_west_east
-        processed_cells = 0
-        
-        for i in range(n_south_north):
-            for j in range(n_west_east):
-                # Extract time series for this grid cell
-                cell_temp = temp_data_clean.isel(south_north=i, west_east=j)
-                cell_humidity = humidity_data_clean.isel(south_north=i, west_east=j)
-                
-                temp_values = cell_temp.values
-                humidity_values = cell_humidity.values
-                
-                # Remove NaN values from both arrays
-                valid_mask = ~(np.isnan(temp_values) | np.isnan(humidity_values))
-                temp_clean = temp_values[valid_mask]
-                humidity_clean = humidity_values[valid_mask]
-                
-                if len(temp_clean) > 0 and len(humidity_clean) > 0:
-                    # Count timesteps meeting both criteria
-                    temp_criteria = temp_clean <= temperature_threshold
-                    humidity_criteria = humidity_clean >= humidity_threshold
-                    both_criteria = temp_criteria & humidity_criteria
-                    
-                    criteria_count = np.sum(both_criteria)
-                    
-                    # Convert to hours per year
-                    hours_per_year = (criteria_count * time_step_hours) / n_years
-                    
-                    criteria_matrix[i, j] = hours_per_year
-                else:
-                    criteria_matrix[i, j] = np.nan
-                
-                processed_cells += 1
-                if processed_cells % 20 == 0:
-                    print(f"   Processed {processed_cells}/{total_cells} cells...")
-        
-        # Calculate statistics
-        valid_criteria = criteria_matrix[~np.isnan(criteria_matrix)]
-        
-        print(f"\n4. Criteria Statistics:")
-        if len(valid_criteria) > 0:
-            print(f"   Mean criteria met: {np.mean(valid_criteria):.2f} hours/year")
-            print(f"   Std criteria met: {np.std(valid_criteria):.2f} hours/year")
-            print(f"   Min criteria met: {np.min(valid_criteria):.2f} hours/year")
-            print(f"   Max criteria met: {np.max(valid_criteria):.2f} hours/year")
-            print(f"   Cells meeting criteria: {np.sum(valid_criteria > 0)}/{len(valid_criteria)}")
-        else:
-            print(f"   No valid criteria data found")
-        
-        # Create the spatial plot
-        print(f"\n5. Creating spatial criteria map...")
-        
-        fig, ax = plt.subplots(1, 1, figsize=(12, 10))
-        
-        # Create the main plot
-        im = ax.imshow(criteria_matrix, cmap=colormap, origin='lower', 
-                      interpolation='nearest', aspect='auto')
-        
-        # Set title and labels
-        ax.set_title(f'Temperature-Humidity Criteria Exceedance Map\n'
-                    f'T ≤ {temperature_threshold:.2f} K AND QVAPOR ≥ {humidity_threshold:.6f} kg/kg\n'
-                    f'Mean Annual Hours Meeting Criteria')
-        ax.set_xlabel('West-East Grid Points')
-        ax.set_ylabel('South-North Grid Points')
-        
-        # Add colorbar
-        cbar = plt.colorbar(im, ax=ax, shrink=0.8, aspect=20)
-        cbar.set_label('Hours/Year Meeting Criteria')
-        
-        # Add grid lines
-        ax.set_xticks(range(n_west_east))
-        ax.set_yticks(range(n_south_north))
-        ax.grid(True, alpha=0.3, color='white', linewidth=0.5)
-        
-        # Add cell values as text labels if requested
-        if grid_labels:
-            for i in range(n_south_north):
-                for j in range(n_west_east):
-                    value = criteria_matrix[i, j]
-                    if not np.isnan(value):
-                        # Choose text color based on background
-                        text_color = 'white' if value > np.nanmean(criteria_matrix) else 'black'
-                        ax.text(j, i, f'{value:.1f}', ha='center', va='center',
-                               color=text_color, fontsize=8, weight='bold')
-        
-        # Add coordinate references
-        ax.set_xticks(range(n_west_east))
-        ax.set_yticks(range(n_south_north))
-        ax.set_xticklabels([f'{j}' for j in range(n_west_east)])
-        ax.set_yticklabels([f'{i}' for i in range(n_south_north)])
-        
-        plt.tight_layout()
-        
-        # Save plot if requested
-        if save_plots:
-            # Create directory structure: results/figures/spatial_gradient/temp_hum_criteria_exceedance/criteria_{height}_{temp}K_{hum}kgkg
-            height_m = int(dataset.height.values[height_level])
-            
-            # Format thresholds for directory name
-            temp_str = f"{temperature_threshold:.2f}".replace('.', 'p')
-            hum_str = f"{humidity_threshold:.6f}".rstrip('0').rstrip('.').replace('.', 'p')
-            
-            base_dir = os.path.join(figures_dir, "spatial_gradient", "temp_hum_criteria_exceedance")
-            specific_dir = f"criteria_{height_m}_{temp_str}K_{hum_str}kgkg"
-            criteria_plots_dir = os.path.join(base_dir, specific_dir)
-            os.makedirs(criteria_plots_dir, exist_ok=True)
-            
-            print(f"   Saving plots to: {criteria_plots_dir}")
-            
-            # Create filename
-            plot_path = os.path.join(criteria_plots_dir, f"temp_hum_criteria_{temp_str}K_{hum_str}kgkg.png")
-            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-            print(f"   Criteria map saved to: {plot_path}")
-        
-        plt.close()  # Close the plot to prevent it from showing
-        
-        # Create additional summary statistics plot
-        if len(valid_criteria) > 0:
-            fig2, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-            
-            # Histogram of criteria values
-            ax1.hist(valid_criteria, bins=min(20, len(np.unique(valid_criteria))), 
-                    alpha=0.7, color='lightgreen', edgecolor='black')
-            ax1.set_xlabel('Hours/Year Meeting Criteria')
-            ax1.set_ylabel('Number of Grid Cells')
-            ax1.set_title(f'Distribution of Criteria Exceedances\n'
-                         f'T ≤ {temperature_threshold:.2f} K AND QVAPOR ≥ {humidity_threshold:.6f} kg/kg')
-            ax1.grid(True, alpha=0.3)
-            
-            # Box plot by row (south-north variation)
-            row_data = []
-            row_labels = []
-            for i in range(n_south_north):
-                row_criteria = criteria_matrix[i, :]
-                valid_row = row_criteria[~np.isnan(row_criteria)]
-                if len(valid_row) > 0:
-                    row_data.append(valid_row)
-                    row_labels.append(f'Row {i}')
-            
-            if row_data:
-                ax2.boxplot(row_data, labels=row_labels)
-                ax2.set_xlabel('Grid Row (South to North)')
-                ax2.set_ylabel('Hours/Year Meeting Criteria')
-                ax2.set_title('Criteria Exceedance by Grid Row')
-                ax2.grid(True, alpha=0.3)
-                ax2.tick_params(axis='x', rotation=45)
-            
-            plt.tight_layout()
-            
-            if save_plots:
-                summary_path = os.path.join(criteria_plots_dir, f"temp_hum_criteria_summary_{temp_str}K_{hum_str}kgkg.png")
-                plt.savefig(summary_path, dpi=300, bbox_inches='tight')
-                print(f"   Summary statistics saved to: {summary_path}")
-            
-            plt.close()  # Close the plot to prevent it from showing
-        
-        # Prepare results dictionary
-        results = {
-            'temperature_threshold': temperature_threshold,
-            'humidity_threshold': humidity_threshold,
-            'height_level': height_level,
-            'criteria_matrix': criteria_matrix,
-            'grid_shape': (n_south_north, n_west_east),
-            'n_years': n_years,
-            'years_range': (years[0], years[-1]),
-            'time_step_hours': time_step_hours,
-            'statistics': {
-                'mean': np.nanmean(criteria_matrix),
-                'std': np.nanstd(criteria_matrix),
-                'min': np.nanmin(criteria_matrix),
-                'max': np.nanmax(criteria_matrix),
-                'cells_meeting_criteria': np.sum(valid_criteria > 0) if len(valid_criteria) > 0 else 0,
-                'total_valid_cells': len(valid_criteria) if len(valid_criteria) > 0 else 0
-            }
-        }
-        
-        # Save detailed results to file
-        if save_plots:
-            results_path = os.path.join(criteria_plots_dir, f"temp_hum_criteria_results_{temp_str}K_{hum_str}kgkg.txt")
-            with open(results_path, 'w') as f:
-                f.write("TEMPERATURE-HUMIDITY CRITERIA ANALYSIS RESULTS\n")
-                f.write("=" * 50 + "\n\n")
-                f.write(f"Temperature threshold: <= {temperature_threshold:.2f} K\n")
-                f.write(f"Humidity threshold: >= {humidity_threshold:.6f} kg/kg\n")
-                f.write(f"Height level: {height_level} ({dataset.height.values[height_level]} m)\n")
-                f.write(f"Grid shape: {n_south_north} × {n_west_east}\n")
-                f.write(f"Years analyzed: {n_years} ({years[0]} to {years[-1]})\n")
-                f.write(f"Time step: {time_step_hours} hours\n\n")
-                
-                f.write("Criteria Statistics:\n")
-                f.write("-" * 20 + "\n")
-                if len(valid_criteria) > 0:
-                    f.write(f"Mean: {results['statistics']['mean']:.3f} hours/year\n")
-                    f.write(f"Std: {results['statistics']['std']:.3f} hours/year\n")
-                    f.write(f"Min: {results['statistics']['min']:.3f} hours/year\n")
-                    f.write(f"Max: {results['statistics']['max']:.3f} hours/year\n")
-                    f.write(f"Cells meeting criteria: {results['statistics']['cells_meeting_criteria']}\n")
-                    f.write(f"Total valid cells: {results['statistics']['total_valid_cells']}\n\n")
-                
-                f.write("Grid Cell Criteria Values (hours/year):\n")
-                f.write("-" * 40 + "\n")
-                for i in range(n_south_north):
-                    row_str = f"Row {i:2d}: "
-                    for j in range(n_west_east):
-                        value = criteria_matrix[i, j]
-                        if np.isnan(value):
-                            row_str += "   NaN   "
-                        else:
-                            row_str += f"{value:7.2f} "
-                    f.write(row_str + "\n")
-            
-            print(f"   Detailed results saved to: {results_path}")
-        
-        print(f"\n✓ Temperature-humidity criteria analysis completed successfully!")
-        return results
-        
-    except Exception as e:
-        print(f"Error in temperature-humidity criteria analysis: {e}")
         import traceback
         traceback.print_exc()
         return None

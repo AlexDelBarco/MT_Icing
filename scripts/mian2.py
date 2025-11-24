@@ -135,13 +135,18 @@ else:
 
 # ICING TEMPERATURE AND HUMIDITY CRITERIA
 
+# Calculate relative humidity
+dataset_ice_load_rh = fn.add_rh(dataset_with_ice_load=dataset_with_ice_load,
+                                phase= 'auto') #'liquid', 'solid', 'auto' – to make calculation valid in 'liquid' water (default) or 'solid' ice regimes. 'auto' will change regime based on determination of phase boundaries
+                                
+
 # print("\n=== ICING TEMPERATURE AND HUMIDITY CRITERIA ANALYSIS HOURS ===")
 
-# humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_with_ice_load,
-#                                                     humidity_threshold=95,  # Relative Humidity threshold (%)
-#                                                     temperature_threshold=263.15,  # Temperature threshold (K)
-#                                                     height_level=height,
-#                                                     save_plots=True)
+humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_ice_load_rh,
+                                                    humidity_threshold=0.95,  # Relative Humidity threshold (%)
+                                                    temperature_threshold=263.15,  # Temperature threshold (K)
+                                                    height_level=height,
+                                                    save_plots=True)
 
 # SPATIAL GRADIENTS
 
