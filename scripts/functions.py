@@ -1775,7 +1775,7 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
 
 # TEMPERATURE AND HUMIDITY CRITERIA
 
-def add_rh(dataset_with_ice_load, phase, verbose=True):
+def add_rh(dataset_with_ice_load, height_l, phase, verbose=True):
     """
     Compute relative humidity from temperature, pressure, and mixing ratio,
     and add it as a new variable to the dataset.
@@ -1841,24 +1841,24 @@ def add_rh(dataset_with_ice_load, phase, verbose=True):
         
         if 'height' in temperature.dims and 'height' not in pressure.dims:
             # Temperature has height dimension but pressure doesn't
-            # Use lower level (height=0) for temperature and mixing ratio
+            # Use lower height level for temperature and mixing ratio
             if verbose:
-                print(f"   Temperature has height dimension, using lower level (height=0)")
-            temperature = temperature.isel(height=0)
-            mixing_ratio = mixing_ratio.isel(height=0)
+                print(f"   Temperature has height dimension, using level (height={height_l})")
+            temperature = temperature.isel(height=height_l)
+            mixing_ratio = mixing_ratio.isel(height=height_l)
         elif 'height' in pressure.dims and 'height' not in temperature.dims:
             # Pressure has height dimension but temperature doesn't 
             # Use lower level for pressure
             if verbose:
-                print(f"   Pressure has height dimension, using surface level (height=0)")
-            pressure = pressure.isel(height=0)
+                print(f"   Pressure has height dimension, using level ")
+            pressure = pressure.isel(height=height_l)
         elif 'height' in temperature.dims and 'height' in pressure.dims:
-            # Both have height dimensions - use same level (surface = height=0)
+            # Both have height dimensions - use same level)
             if verbose:
-                print(f"   Both variables have height dimension, using surface level (height=0)")
-            temperature = temperature.isel(height=0)
-            mixing_ratio = mixing_ratio.isel(height=0)
-            pressure = pressure.isel(height=0)
+                print(f"   Both variables have height dimension, using level (height={height_l})")
+            temperature = temperature.isel(height=height_l)
+            mixing_ratio = mixing_ratio.isel(height=height_l)
+            pressure = pressure.isel(height=height_l)
         
         # Verify shapes after processing
         if verbose:
@@ -9792,8 +9792,359 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             plt.close()
             print(f"Saved: {differences_scatter_path}")
             
-            # Plot 3: Hourly mean differences grid (all months included)
-            print("3. Creating hourly mean differences grid (all months)...")
+            # Plot 3: EMD vs NEWA scatter plot with 45° line and linear regression
+            print("3. Creating EMD vs NEWA scatter plot with regression analysis...")
+            
+            fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+            
+            # Create scatter plot (NEWA on x-axis, EMD on y-axis)
+            scatter = ax.scatter(newa_clean.values, emd_clean.values, alpha=0.6, s=20, c='blue', edgecolors='none', label='Data points')
+            
+            # Calculate plot limits
+            min_val = min(np.min(newa_clean), np.min(emd_clean))
+            max_val = max(np.max(newa_clean), np.max(emd_clean))
+            plot_range = max_val - min_val
+            margin = plot_range * 0.05  # 5% margin
+            xlim = [min_val - margin, max_val + margin]
+            ylim = [min_val - margin, max_val + margin]
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
+            
+            # Plot 45-degree reference line (perfect agreement)
+            ax.plot(xlim, ylim, 'k--', linewidth=2, alpha=0.8, label='Perfect agreement (1:1 line)')
+            
+            # Calculate and plot linear regression
+            from scipy.stats import linregress
+            slope, intercept, r_value, p_value, std_err = linregress(newa_clean.values, emd_clean.values)
+            
+            # Create regression line
+            regression_x = np.array(xlim)
+            regression_y = slope * regression_x + intercept
+            ax.plot(regression_x, regression_y, 'r-', linewidth=2, alpha=0.8, 
+                   label=f'Linear regression (y = {slope:.3f}x + {intercept:.3f})')
+            
+            # Add statistics text box
+            stats_text = (f'N = {len(emd_clean)}\n'
+                         f'R² = {r2:.3f}\n'
+                         f'Correlation = {correlation:.3f}\n'
+                         f'RMSE = {rmse:.3f} kg/m\n'
+                         f'MAE = {mae:.3f} kg/m\n'
+                         f'Bias = {bias:.3f} kg/m\n'
+                         f'Slope = {slope:.3f}\n'
+                         f'Intercept = {intercept:.3f}')
+            
+            # Position text box in upper left corner
+            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=11,
+                   verticalalignment='top', horizontalalignment='left',
+                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
+            
+            # Set labels and title
+            ax.set_xlabel(f'NEWA Ice Load (kg/m) at {height}m', fontsize=12)
+            ax.set_ylabel(f'EMD Ice Load (kg/m) at {height}m', fontsize=12)
+            ax.set_title(f'EMD vs NEWA Ice Load Scatter Plot at {height}m (Icing Season Only)\n'
+                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                        fontsize=14, pad=15)
+            
+            # Add grid and legend
+            ax.grid(True, alpha=0.3)
+            ax.legend(loc='lower right', fontsize=10)
+            
+            # Make axes equal for better visualization of agreement
+            ax.set_aspect('equal', adjustable='box')
+            
+            plt.tight_layout()
+            
+            scatter_regression_path = os.path.join(base_dir, f'emd_vs_newa_scatter_{height}m.png')
+            plt.savefig(scatter_regression_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {scatter_regression_path}")
+            
+            print(f"Regression analysis:")
+            print(f"  Slope: {slope:.3f} (perfect agreement = 1.0)")
+            print(f"  Intercept: {intercept:.3f} kg/m (perfect agreement = 0.0)")
+            print(f"  R-value: {r_value:.3f}")
+            print(f"  P-value: {p_value:.4e}")
+            print(f"  Standard error: {std_err:.3f}")
+            
+            # Plot 4: EMD vs NEWA scatter plot (non-zero values only)
+            print("4. Creating EMD vs NEWA scatter plot (non-zero values only)...")
+            
+            # Filter for non-zero values only
+            non_zero_mask = (emd_clean > 0) & (newa_clean > 0)
+            emd_nonzero = emd_clean[non_zero_mask]
+            newa_nonzero = newa_clean[non_zero_mask]
+            
+            print(f"Non-zero data: {len(emd_nonzero)} points out of {len(emd_clean)} total")
+            
+            if len(emd_nonzero) > 1:
+                # Create scatter plot with sample size information
+                fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+                
+                # Create scatter plot
+                sc = ax.scatter(emd_nonzero.values, newa_nonzero.values, 
+                              c='dodgerblue', alpha=0.6, s=20, label=f'Non-zero values (n={len(emd_nonzero)})')
+                
+                # Add 45-degree reference line
+                min_val = min(emd_nonzero.min(), newa_nonzero.min())
+                max_val = max(emd_nonzero.max(), newa_nonzero.max())
+                ax.plot([min_val, max_val], [min_val, max_val], 'k--', alpha=0.8, linewidth=2,
+                       label='Perfect Agreement (1:1 line)')
+                
+                # Calculate and add linear regression
+                from scipy import stats
+                slope, intercept, r_value, p_value, std_err = stats.linregress(emd_nonzero.values, newa_nonzero.values)
+                line_x = np.linspace(min_val, max_val, 100)
+                line_y = slope * line_x + intercept
+                ax.plot(line_x, line_y, 'r-', linewidth=2, alpha=0.8,
+                       label=f'Linear Fit: y={slope:.3f}x+{intercept:.3f} (R²={r_value**2:.3f})')
+                
+                ax.set_xlabel(f'EMD Ice Load [kg/m] at {height}m')
+                ax.set_ylabel(f'NEWA Ice Load [kg/m] at {height}m')
+                ax.set_title(f'EMD vs NEWA Ice Load Scatter Plot (Non-zero values only) at {height}m\n'
+                            f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km')
+                ax.legend()
+                ax.grid(True, alpha=0.3)
+                
+                # Set equal aspect ratio
+                ax.set_aspect('equal', adjustable='box')
+                
+                # Add statistics text box
+                stats_text = f'Statistics (non-zero values only):\n'
+                stats_text += f'Sample size: {len(emd_nonzero)}\n'
+                stats_text += f'EMD mean: {emd_nonzero.mean():.3f} kg/m\n'
+                stats_text += f'NEWA mean: {newa_nonzero.mean():.3f} kg/m\n'
+                stats_text += f'Correlation: {np.corrcoef(emd_nonzero, newa_nonzero)[0,1]:.3f}\n'
+                stats_text += f'Linear fit R²: {r_value**2:.3f}\n'
+                stats_text += f'Slope: {slope:.3f}\n'
+                stats_text += f'Intercept: {intercept:.3f}'
+                
+                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 
+                       bbox=dict(boxstyle='round', facecolor='white', alpha=0.8),
+                       verticalalignment='top', fontsize=10)
+                
+                plt.tight_layout()
+                
+                nonzero_scatter_path = os.path.join(base_dir, f'nonzero_scatter_plot_{height}m.png')
+                plt.savefig(nonzero_scatter_path, dpi=150, facecolor='white')
+                plt.close()
+                print(f"Saved: {nonzero_scatter_path}")
+                
+                print(f"\nNon-zero scatter plot statistics:")
+                print(f"  Sample size: {len(emd_nonzero)}")
+                print(f"  EMD range (non-zero): {emd_nonzero.min():.6f} to {emd_nonzero.max():.6f} kg/m")
+                print(f"  NEWA range (non-zero): {newa_nonzero.min():.6f} to {newa_nonzero.max():.6f} kg/m")
+                print(f"  Correlation: {np.corrcoef(emd_nonzero, newa_nonzero)[0,1]:.3f}")
+                print(f"  Linear regression: y = {slope:.3f}x + {intercept:.3f}")
+                print(f"  R-squared: {r_value**2:.3f}")
+                print(f"  Standard error: {std_err:.3f}")
+            else:
+                print("Insufficient non-zero data for scatter plot")
+            
+            # Plot 5: Zero values analysis - Bar plot
+            print("5. Creating zero values analysis bar plot...")
+            
+            # Calculate zero value statistics
+            emd_zero_count = (emd_clean == 0).sum()
+            newa_zero_count = (newa_clean == 0).sum()
+            total_timestamps = len(emd_clean)
+            
+            emd_zero_percentage = (emd_zero_count / total_timestamps) * 100
+            newa_zero_percentage = (newa_zero_count / total_timestamps) * 100
+            
+            # Create bar plot
+            fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+            
+            datasets = ['EMD', 'NEWA']
+            zero_percentages = [emd_zero_percentage, newa_zero_percentage]
+            zero_counts = [emd_zero_count, newa_zero_count]
+            colors = ['steelblue', 'orange']
+            
+            bars = ax.bar(datasets, zero_percentages, color=colors, alpha=0.7, edgecolor='black', linewidth=1)
+            
+            # Add value labels on bars
+            for i, (bar, count, percentage) in enumerate(zip(bars, zero_counts, zero_percentages)):
+                height_b = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5,
+                       f'{percentage:.1f}%\n({count:,} hours)',
+                       ha='center', va='bottom', fontweight='bold', fontsize=11)
+            
+            ax.set_ylabel('Percentage of Zero Values (%)', fontsize=12, fontweight='bold')
+            ax.set_title(f'Zero Value Analysis at {height:.0f}m\n'
+                        f'Total timestamps: {total_timestamps:,} hours\n'
+                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                        fontsize=14, fontweight='bold')
+            ax.grid(True, alpha=0.3, axis='y')
+            ax.set_ylim(0, max(zero_percentages) * 1.15)
+            
+            # Add summary statistics text
+            stats_text = f'Summary:\n'
+            stats_text += f'EMD zeros: {emd_zero_count:,} ({emd_zero_percentage:.1f}%)\n'
+            stats_text += f'NEWA zeros: {newa_zero_count:,} ({newa_zero_percentage:.1f}%)\n'
+            stats_text += f'Both zero: {((emd_clean == 0) & (newa_clean == 0)).sum():,}\n'
+            stats_text += f'Either zero: {((emd_clean == 0) | (newa_clean == 0)).sum():,}'
+            
+            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes,
+                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.9),
+                   verticalalignment='bottom', horizontalalignment='left', fontsize=10)
+            
+            plt.tight_layout()
+            
+            zero_analysis_path = os.path.join(base_dir, f'zero_values_analysis_{height:.0f}m.png')
+            plt.savefig(zero_analysis_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {zero_analysis_path}")
+            
+            print(f"\nZero values analysis:")
+            print(f"  EMD zeros: {emd_zero_count:,} timestamps ({emd_zero_percentage:.1f}%)")
+            print(f"  NEWA zeros: {newa_zero_count:,} timestamps ({newa_zero_percentage:.1f}%)")
+            print(f"  Both datasets zero: {((emd_clean == 0) & (newa_clean == 0)).sum():,} timestamps")
+            print(f"  Either dataset zero: {((emd_clean == 0) | (newa_clean == 0)).sum():,} timestamps")
+            
+            # Plot 6: Box plot for positive values only
+            print("6. Creating box plot for positive values distribution...")
+            
+            # Filter for positive values only (> 0 for both datasets)
+            positive_mask = (emd_clean > 0) & (newa_clean > 0)
+            emd_positive = emd_clean[positive_mask]
+            newa_positive = newa_clean[positive_mask]
+            
+            if len(emd_positive) > 0 and len(newa_positive) > 0:
+                # Create box plot
+                fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+                
+                # Prepare data for box plot
+                box_data = [emd_positive.values, newa_positive.values]
+                labels = ['EMD', 'NEWA']
+                colors = ['steelblue', 'orange']
+                
+                # Create box plot
+                box_plot = ax.boxplot(box_data, labels=labels, patch_artist=True,
+                                    showmeans=True, meanline=True,
+                                    boxprops=dict(alpha=0.7),
+                                    medianprops=dict(color='red', linewidth=2),
+                                    meanprops=dict(color='black', linewidth=2, linestyle='--'))
+                
+                # Color the boxes
+                for patch, color in zip(box_plot['boxes'], colors):
+                    patch.set_facecolor(color)
+                
+                ax.set_ylabel('Ice Load [kg/m]', fontsize=12, fontweight='bold')
+                ax.set_title(f'Distribution of Positive Ice Load Values at {height}m\n'
+                            f'Positive values: EMD={len(emd_positive):,}, NEWA={len(newa_positive):,}\n'
+                            f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                            fontsize=14, fontweight='bold')
+                ax.grid(True, alpha=0.3)
+                
+                # Calculate and display statistics
+                emd_stats = {
+                    'count': len(emd_positive),
+                    'mean': emd_positive.mean(),
+                    'std': emd_positive.std(),
+                    'min': emd_positive.min(),
+                    'q25': emd_positive.quantile(0.25),
+                    'median': emd_positive.median(),
+                    'q75': emd_positive.quantile(0.75),
+                    'max': emd_positive.max()
+                }
+                
+                newa_stats = {
+                    'count': len(newa_positive),
+                    'mean': newa_positive.mean(),
+                    'std': newa_positive.std(),
+                    'min': newa_positive.min(),
+                    'q25': newa_positive.quantile(0.25),
+                    'median': newa_positive.median(),
+                    'q75': newa_positive.quantile(0.75),
+                    'max': newa_positive.max()
+                }
+                
+                # Add statistics text box
+                stats_text = 'Positive Values Statistics:\n\n'
+                stats_text += f'EMD (n={emd_stats["count"]:,}):\n'
+                stats_text += f'  Mean: {emd_stats["mean"]:.4f} kg/m\n'
+                stats_text += f'  Std:  {emd_stats["std"]:.4f} kg/m\n'
+                stats_text += f'  Min:  {emd_stats["min"]:.4f} kg/m\n'
+                stats_text += f'  Q25:  {emd_stats["q25"]:.4f} kg/m\n'
+                stats_text += f'  Med:  {emd_stats["median"]:.4f} kg/m\n'
+                stats_text += f'  Q75:  {emd_stats["q75"]:.4f} kg/m\n'
+                stats_text += f'  Max:  {emd_stats["max"]:.4f} kg/m\n\n'
+                
+                stats_text += f'NEWA (n={newa_stats["count"]:,}):\n'
+                stats_text += f'  Mean: {newa_stats["mean"]:.4f} kg/m\n'
+                stats_text += f'  Std:  {newa_stats["std"]:.4f} kg/m\n'
+                stats_text += f'  Min:  {newa_stats["min"]:.4f} kg/m\n'
+                stats_text += f'  Q25:  {newa_stats["q25"]:.4f} kg/m\n'
+                stats_text += f'  Med:  {newa_stats["median"]:.4f} kg/m\n'
+                stats_text += f'  Q75:  {newa_stats["q75"]:.4f} kg/m\n'
+                stats_text += f'  Max:  {newa_stats["max"]:.4f} kg/m'
+                
+                ax.text(1.02, 1.0, stats_text, transform=ax.transAxes,
+                       bbox=dict(boxstyle='round', facecolor='white', alpha=0.9),
+                       verticalalignment='top', fontsize=9, family='monospace')
+                
+                # Add legend explaining box plot elements
+                legend_text = 'Box Plot Elements:\n'
+                legend_text += '━ Red line: Median\n'
+                legend_text += '┅ Black line: Mean\n'
+                legend_text += '□ Box: Q25-Q75 (IQR)\n'
+                legend_text += '┬ Whiskers: 1.5×IQR\n'
+                legend_text += '○ Outliers'
+                
+                ax.text(0.02, 0.98, legend_text, transform=ax.transAxes,
+                       bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8),
+                       verticalalignment='top', fontsize=9)
+                
+                plt.tight_layout()
+                
+                positive_boxplot_path = os.path.join(base_dir, f'positive_values_boxplot_{height:.0f}m.png')
+                plt.savefig(positive_boxplot_path, dpi=150, facecolor='white', bbox_inches='tight')
+                plt.close()
+                print(f"Saved: {positive_boxplot_path}")
+                
+                print(f"\nPositive values distribution statistics:")
+                print(f"  EMD positive values: {len(emd_positive):,} timestamps")
+                print(f"    Mean ± Std: {emd_stats['mean']:.4f} ± {emd_stats['std']:.4f} kg/m")
+                print(f"    Median [Q25, Q75]: {emd_stats['median']:.4f} [{emd_stats['q25']:.4f}, {emd_stats['q75']:.4f}] kg/m")
+                print(f"    Range: {emd_stats['min']:.4f} to {emd_stats['max']:.4f} kg/m")
+                print(f"  NEWA positive values: {len(newa_positive):,} timestamps")
+                print(f"    Mean ± Std: {newa_stats['mean']:.4f} ± {newa_stats['std']:.4f} kg/m")
+                print(f"    Median [Q25, Q75]: {newa_stats['median']:.4f} [{newa_stats['q25']:.4f}, {newa_stats['q75']:.4f}] kg/m")
+                print(f"    Range: {newa_stats['min']:.4f} to {newa_stats['max']:.4f} kg/m")
+            else:
+                print("No positive values available for box plot analysis")
+            
+            # Plot 7: Hourly mean differences grid (all months included)
+            print("7. Creating hourly mean differences grid (all months)...")
+            
+            # Calculate daily hourly means for each specific day (not averaged across years)
+            # Group by date (year-month-day) and calculate mean for each day
+            emd_daily_means = emd_clean_all.resample('D').mean()
+            newa_daily_means = newa_clean_all.resample('D').mean()
+
+            
+            # Align the daily data
+            ax.set_xlabel(f'NEWA Ice Load (kg/m) at {height}m', fontsize=12)
+            ax.set_ylabel(f'EMD Ice Load (kg/m) at {height}m', fontsize=12)
+            ax.set_title(f'EMD vs NEWA Ice Load Scatter Plot at {height}m (Non-Zero Values Only)\n'
+                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                        fontsize=14, pad=15)
+            
+            # Add grid and legend
+            ax.grid(True, alpha=0.3)
+            ax.legend(loc='lower right', fontsize=10)
+            
+            # Make axes equal for better visualization of agreement
+            ax.set_aspect('equal', adjustable='box')
+            
+            plt.tight_layout()
+            
+            scatter_nonzero_path = os.path.join(base_dir, f'emd_vs_newa_scatter_nonzero_{height:.0f}m.png')
+            plt.savefig(scatter_nonzero_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {scatter_nonzero_path}")
+            
+            # Plot 7: Hourly mean differences grid (all months included)
+            print("6. Creating hourly mean differences grid (all months)...")
             
             # Calculate daily hourly means for each specific day (not averaged across years)
             # Group by date (year-month-day) and calculate mean for each day
@@ -9893,6 +10244,18 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             print(f"  All months included (Jan-Dec)")
             print(f"  Hourly mean difference range: {np.nanmin(grid_array):.3f} to {np.nanmax(grid_array):.3f} kg/m")
             print(f"  Overall mean difference: {np.nanmean(grid_array):.3f} kg/m")
+            
+            print(f"\n=== PLOT SUMMARY ===")
+            print(f"Created 7 plots:")
+            print(f"  1A. Multi-scale time series (lines): {timeseries_lines_path}")
+            print(f"  1B. Multi-scale time series (scatter): {timeseries_scatter_path}")
+            print(f"  2A. Multi-scale differences (lines): {differences_lines_path}")
+            print(f"  2B. Multi-scale differences (scatter): {differences_scatter_path}")
+            print(f"  3. EMD vs NEWA scatter with regression: {scatter_regression_path}")
+            print(f"  4. EMD vs NEWA scatter (non-zero only): {nonzero_scatter_path}")
+            print(f"  5. Zero values analysis (bar plot): {zero_analysis_path}")
+            print(f"  6. Positive values distribution (box plot): {positive_boxplot_path}")
+            print(f"  7. Hourly mean differences grid: {daily_grid_path}")
         
         print(f"\n✓ Ice load comparison completed successfully!")
         print(f"Results saved to: {base_dir}")

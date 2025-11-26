@@ -14,7 +14,7 @@ if current_dir.endswith('scripts'):
 # PARAMETERS
 height = 0  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
 ice_load_method = 51  # Method for ice load calculation
-calculate_new_ice_load = True  # Whether to calculate ice load or load existing data
+calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
 
 
 # IMPORT DATA
@@ -47,7 +47,7 @@ dataset = fn.load_netcdf_data(data1)
 height_level = dataset.height.values[height]  # Height level in meters
 print(f"Exploring dataset at height level: {height_level} m")
 # explore the variables
-fn.explore_variables(dataset)
+# fn.explore_variables(dataset)
 
 #explore one variable in detail in a chosen period
 # fn.explore_variable_detail(dataset, 'QVAPOR')
@@ -137,17 +137,20 @@ else:
 # ICING TEMPERATURE AND HUMIDITY CRITERIA
 
 # Calculate relative humidity
-dataset_ice_load_rh = fn.add_rh(dataset_with_ice_load=dataset_with_ice_load,
-                                phase= 'auto') #'liquid', 'solid', 'auto' – to make calculation valid in 'liquid' water (default) or 'solid' ice regimes. 'auto' will change regime based on determination of phase boundaries
+#The rh is calculated using surface P, T and mixing ratio at height 
+# scale-height ~8km, from Ch.2 of 46100's book\notes, then consider d(ln p)/d(ln z)
+
+# dataset_ice_load_rh = fn.add_rh(dataset_with_ice_load=dataset_with_ice_load, height_l=height,
+#                                 phase= 'auto') #'liquid', 'solid', 'auto' – to make calculation valid in 'liquid' water (default) or 'solid' ice regimes. 'auto' will change regime based on determination of phase boundaries
                                 
 
-# print("\n=== ICING TEMPERATURE AND HUMIDITY CRITERIA ANALYSIS HOURS ===")
+# # print("\n=== ICING TEMPERATURE AND HUMIDITY CRITERIA ANALYSIS HOURS ===")
 
-humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_ice_load_rh,
-                                                    humidity_threshold=0.95,  # Relative Humidity threshold (%)
-                                                    temperature_threshold=263.15,  # Temperature threshold (K)
-                                                    height_level=height,
-                                                    save_plots=True)
+# humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_ice_load_rh,
+#                                                     humidity_threshold=0.95,  # Relative Humidity threshold (%)
+#                                                     temperature_threshold=263.15,  # Temperature threshold (K)
+#                                                     height_level=height,
+#                                                     save_plots=True)
 
 # SPATIAL GRADIENTS
 
