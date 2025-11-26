@@ -9650,7 +9650,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
-            timeseries_lines_path = os.path.join(base_dir, f'multi_scale_timeseries_lines_{height}m.png')
+            timeseries_lines_path = os.path.join(base_dir, f'multi_scale_timeseries_lines_{height:.0f}m.png')
             plt.savefig(timeseries_lines_path, dpi=150, facecolor='white')
             plt.close()
             print(f"Saved: {timeseries_lines_path}")
@@ -9690,7 +9690,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
-            timeseries_scatter_path = os.path.join(base_dir, f'multi_scale_timeseries_scatter_{height}m.png')
+            timeseries_scatter_path = os.path.join(base_dir, f'multi_scale_timeseries_scatter_{height:.0f}m.png')
             plt.savefig(timeseries_scatter_path, dpi=150, facecolor='white')
             plt.close()
             print(f"Saved: {timeseries_scatter_path}")
@@ -9741,7 +9741,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
-            differences_lines_path = os.path.join(base_dir, f'multi_scale_differences_lines_{height}m.png')
+            differences_lines_path = os.path.join(base_dir, f'multi_scale_differences_lines_{height:.0f}m.png')
             plt.savefig(differences_lines_path, dpi=150, facecolor='white')
             plt.close()
             print(f"Saved: {differences_lines_path}")
@@ -9787,7 +9787,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
-            differences_scatter_path = os.path.join(base_dir, f'multi_scale_differences_scatter_{height}m.png')
+            differences_scatter_path = os.path.join(base_dir, f'multi_scale_differences_scatter_{height:.0f}m.png')
             plt.savefig(differences_scatter_path, dpi=150, facecolor='white')
             plt.close()
             print(f"Saved: {differences_scatter_path}")
@@ -9854,7 +9854,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             
             plt.tight_layout()
             
-            scatter_regression_path = os.path.join(base_dir, f'emd_vs_newa_scatter_{height}m.png')
+            scatter_regression_path = os.path.join(base_dir, f'emd_vs_newa_scatter_{height:.0f}m.png')
             plt.savefig(scatter_regression_path, dpi=150, facecolor='white')
             plt.close()
             print(f"Saved: {scatter_regression_path}")
@@ -9881,50 +9881,60 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                 fig, ax = plt.subplots(1, 1, figsize=(12, 10))
                 
                 # Create scatter plot
-                sc = ax.scatter(emd_nonzero.values, newa_nonzero.values, 
-                              c='dodgerblue', alpha=0.6, s=20, label=f'Non-zero values (n={len(emd_nonzero)})')
+                sc = ax.scatter(newa_nonzero.values, emd_nonzero.values, 
+                              c='blue', alpha=0.6, s=20, edgecolors='none', label='Data points')
                 
-                # Add 45-degree reference line
+                # Calculate plot limits with same margin as normal scatter plot
                 min_val = min(emd_nonzero.min(), newa_nonzero.min())
                 max_val = max(emd_nonzero.max(), newa_nonzero.max())
-                ax.plot([min_val, max_val], [min_val, max_val], 'k--', alpha=0.8, linewidth=2,
-                       label='Perfect Agreement (1:1 line)')
+                plot_range = max_val - min_val
+                margin = plot_range * 0.05  # 5% margin
+                xlim = [min_val - margin, max_val + margin]
+                ylim = [min_val - margin, max_val + margin]
+                ax.set_xlim(xlim)
+                ax.set_ylim(ylim)
                 
-                # Calculate and add linear regression
-                from scipy import stats
-                slope, intercept, r_value, p_value, std_err = stats.linregress(emd_nonzero.values, newa_nonzero.values)
-                line_x = np.linspace(min_val, max_val, 100)
-                line_y = slope * line_x + intercept
-                ax.plot(line_x, line_y, 'r-', linewidth=2, alpha=0.8,
-                       label=f'Linear Fit: y={slope:.3f}x+{intercept:.3f} (R²={r_value**2:.3f})')
+                # Plot 45-degree reference line (perfect agreement)
+                ax.plot(xlim, ylim, 'k--', linewidth=2, alpha=0.8, label='Perfect agreement (1:1 line)')
                 
-                ax.set_xlabel(f'EMD Ice Load [kg/m] at {height}m')
-                ax.set_ylabel(f'NEWA Ice Load [kg/m] at {height}m')
-                ax.set_title(f'EMD vs NEWA Ice Load Scatter Plot (Non-zero values only) at {height}m\n'
-                            f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km')
-                ax.legend()
+                # Calculate and plot linear regression
+                slope, intercept, r_value, p_value, std_err = stats.linregress(newa_nonzero.values, emd_nonzero.values)
+                regression_x = np.array(xlim)
+                regression_y = slope * regression_x + intercept
+                ax.plot(regression_x, regression_y, 'r-', linewidth=2, alpha=0.8,
+                       label=f'Linear regression (y = {slope:.3f}x + {intercept:.3f})')
+                
+                ax.set_xlabel(f'NEWA Ice Load (kg/m) at {height}m', fontsize=12)
+                ax.set_ylabel(f'EMD Ice Load (kg/m) at {height}m', fontsize=12)
+                ax.set_title(f'EMD vs NEWA Ice Load Scatter Plot at {height}m (Non-Zero Values Only)\n'
+                            f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                            fontsize=14, pad=15)
+                
+                # Add grid and legend
                 ax.grid(True, alpha=0.3)
+                ax.legend(loc='lower right', fontsize=10)
                 
-                # Set equal aspect ratio
+                # Make axes equal for better visualization of agreement
                 ax.set_aspect('equal', adjustable='box')
                 
-                # Add statistics text box
-                stats_text = f'Statistics (non-zero values only):\n'
-                stats_text += f'Sample size: {len(emd_nonzero)}\n'
-                stats_text += f'EMD mean: {emd_nonzero.mean():.3f} kg/m\n'
-                stats_text += f'NEWA mean: {newa_nonzero.mean():.3f} kg/m\n'
-                stats_text += f'Correlation: {np.corrcoef(emd_nonzero, newa_nonzero)[0,1]:.3f}\n'
-                stats_text += f'Linear fit R²: {r_value**2:.3f}\n'
-                stats_text += f'Slope: {slope:.3f}\n'
-                stats_text += f'Intercept: {intercept:.3f}'
+                # Add statistics text box (same format as normal scatter plot)
+                stats_text = (f'N = {len(emd_nonzero)}\n'
+                             f'R² = {r_value**2:.3f}\n'
+                             f'Correlation = {np.corrcoef(emd_nonzero, newa_nonzero)[0,1]:.3f}\n'
+                             f'RMSE = {np.sqrt(np.mean((newa_nonzero - emd_nonzero)**2)):.3f} kg/m\n'
+                             f'MAE = {np.mean(np.abs(newa_nonzero - emd_nonzero)):.3f} kg/m\n'
+                             f'Bias = {np.mean(newa_nonzero - emd_nonzero):.3f} kg/m\n'
+                             f'Slope = {slope:.3f}\n'
+                             f'Intercept = {intercept:.3f}')
                 
-                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 
-                       bbox=dict(boxstyle='round', facecolor='white', alpha=0.8),
-                       verticalalignment='top', fontsize=10)
+                # Position text box in upper left corner (same as normal scatter plot)
+                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=11,
+                       verticalalignment='top', horizontalalignment='left',
+                       bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
                 
                 plt.tight_layout()
                 
-                nonzero_scatter_path = os.path.join(base_dir, f'nonzero_scatter_plot_{height}m.png')
+                nonzero_scatter_path = os.path.join(base_dir, f'emd_vs_newa_scatter_nonzero_{height:.0f}m.png')
                 plt.savefig(nonzero_scatter_path, dpi=150, facecolor='white')
                 plt.close()
                 print(f"Saved: {nonzero_scatter_path}")
@@ -10120,36 +10130,6 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             # Group by date (year-month-day) and calculate mean for each day
             emd_daily_means = emd_clean_all.resample('D').mean()
             newa_daily_means = newa_clean_all.resample('D').mean()
-
-            
-            # Align the daily data
-            ax.set_xlabel(f'NEWA Ice Load (kg/m) at {height}m', fontsize=12)
-            ax.set_ylabel(f'EMD Ice Load (kg/m) at {height}m', fontsize=12)
-            ax.set_title(f'EMD vs NEWA Ice Load Scatter Plot at {height}m (Non-Zero Values Only)\n'
-                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=14, pad=15)
-            
-            # Add grid and legend
-            ax.grid(True, alpha=0.3)
-            ax.legend(loc='lower right', fontsize=10)
-            
-            # Make axes equal for better visualization of agreement
-            ax.set_aspect('equal', adjustable='box')
-            
-            plt.tight_layout()
-            
-            scatter_nonzero_path = os.path.join(base_dir, f'emd_vs_newa_scatter_nonzero_{height:.0f}m.png')
-            plt.savefig(scatter_nonzero_path, dpi=150, facecolor='white')
-            plt.close()
-            print(f"Saved: {scatter_nonzero_path}")
-            
-            # Plot 7: Hourly mean differences grid (all months included)
-            print("6. Creating hourly mean differences grid (all months)...")
-            
-            # Calculate daily hourly means for each specific day (not averaged across years)
-            # Group by date (year-month-day) and calculate mean for each day
-            emd_daily_means = emd_clean_all.resample('D').mean()
-            newa_daily_means = newa_clean_all.resample('D').mean()
             
             # Align the daily data
             common_daily_dates = emd_daily_means.index.intersection(newa_daily_means.index)
@@ -10233,7 +10213,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             plt.tight_layout()
             plt.subplots_adjust(top=0.85)
             
-            daily_grid_path = os.path.join(base_dir, f'hourly_mean_grid_all_months_{height}m.png')
+            daily_grid_path = os.path.join(base_dir, f'hourly_mean_grid_all_months_{height:.0f}m.png')
             plt.savefig(daily_grid_path, dpi=150, facecolor='white')
             plt.close()
             print(f"Saved: {daily_grid_path}")
