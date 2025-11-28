@@ -10248,3 +10248,1126 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
         traceback.print_exc()
         return None
 
+def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, save_plots=True, ice_load_threshold=0.0, non_zero_percentage=0.0):
+    """
+    Compare typical day, week, and year ice load patterns between EMD observations and NEWA model dataset.
+    
+    Parameters:
+    -----------
+    emd_data : pandas.DataFrame
+        EMD observational data containing ice load columns (MIce.50, MIce.100, MIce.150)
+    dataset_with_ice_load : xarray.Dataset
+        NEWA model dataset containing ICE_LOAD variable
+    height : int
+        Height level to compare (50, 100, or 150 meters)
+    emd_coordinates : tuple
+        EMD coordinates as (longitude, latitude) in degrees
+    save_plots : bool, optional
+        Whether to save plots to file (default: True)
+    ice_load_threshold : float, optional
+        Minimum mean hourly ice load threshold (kg/m). Only temporal periods where both datasets
+        have mean hourly ice load >= threshold are included in analysis (default: 0.0)
+    non_zero_percentage : float, optional
+        Minimum percentage (0-100) of hours that must be > 0 in both datasets for a temporal period
+        to be included in analysis. Applied to daily, weekly, and yearly aggregations (default: 0.0)
+        
+    Returns:
+    --------
+    dict
+        Dictionary containing typical patterns analysis results
+    """
+    
+    print(f"=== TYPICAL PATTERNS ANALYSIS: EMD vs NEWA at {height}m ===")
+    print(f"Ice load threshold: {ice_load_threshold} kg/m (minimum mean hourly ice load for inclusion)")
+    print(f"Non-zero percentage threshold: {non_zero_percentage}% (minimum percentage of hours > 0 required)")
+    
+    try:
+        import pandas as pd
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import os
+        from scipy import stats
+        
+        # Validate height input
+        if height not in [50, 100, 150]:
+            raise ValueError(f"Height must be 50, 100, or 150 meters. Got: {height}")
+        
+        # Check if EMD data contains required column
+        emd_column = f"MIce.{int(height)}"
+        if emd_column not in emd_data.columns:
+            available_ice_cols = [col for col in emd_data.columns if 'ice' in col.lower()]
+            raise ValueError(f"Column '{emd_column}' not found in EMD data. Available ice columns: {available_ice_cols}")
+        
+        # Verify NEWA dataset height
+        if 'ICE_LOAD' not in dataset_with_ice_load.data_vars:
+            raise ValueError("'ICE_LOAD' variable not found in NEWA dataset")
+        
+        # Get height information from NEWA dataset
+        height_levels = dataset_with_ice_load.height.values
+        height_idx = None
+        for i, h in enumerate(height_levels):
+            if abs(h - height) < 1:  # Allow 1m tolerance
+                height_idx = i
+                break
+        
+        if height_idx is None:
+            raise ValueError(f"Height {height}m not found in NEWA dataset. Available heights: {height_levels}")
+        
+        print(f"Using NEWA height level {height_idx} ({height_levels[height_idx]}m)")
+        
+        # Get EMD coordinates and find closest NEWA grid cell
+        emd_lon, emd_lat = emd_coordinates
+        print(f"EMD coordinates: {emd_lon:.4f}°E, {emd_lat:.4f}°N")
+        
+        # Extract coordinates - handle both data variables and coordinates
+        if 'XLAT' in dataset_with_ice_load.coords:
+            lats = dataset_with_ice_load.coords['XLAT'].values
+            lons = dataset_with_ice_load.coords['XLON'].values
+        else:
+            lats = dataset_with_ice_load['XLAT'].values
+            lons = dataset_with_ice_load['XLON'].values
+        
+        # Find the closest grid cell to EMD coordinates
+        distance_squared = (lons - emd_lon)**2 + (lats - emd_lat)**2
+        closest_indices = np.unravel_index(np.argmin(distance_squared), distance_squared.shape)
+        closest_sn, closest_we = closest_indices
+        
+        # Get the actual coordinates of the closest grid cell
+        closest_lon = lons[closest_sn, closest_we]
+        closest_lat = lats[closest_sn, closest_we]
+        closest_distance_deg = np.sqrt(distance_squared[closest_sn, closest_we])
+        lat_correction = np.cos(np.radians(emd_lat))
+        closest_distance_km = closest_distance_deg * 111.32 * lat_correction
+        
+        print(f"Closest NEWA grid cell:")
+        print(f"  Grid indices: south_north={closest_sn}, west_east={closest_we}")
+        print(f"  Grid coordinates: {closest_lon:.4f}°E, {closest_lat:.4f}°N")
+        print(f"  Distance from EMD: {closest_distance_km:.2f} km")
+        
+        # Extract NEWA ice load data at specified height and closest grid cell
+        newa_ice_load = dataset_with_ice_load['ICE_LOAD'].isel(height=height_idx, south_north=closest_sn, west_east=closest_we)
+        
+        # Convert to pandas DataFrame for easier manipulation
+        newa_df = newa_ice_load.to_dataframe(name='ICE_LOAD').reset_index()
+        newa_df['time'] = pd.to_datetime(newa_df['time'])
+        newa_df = newa_df.set_index('time')
+        
+        # Prepare EMD data
+        if not isinstance(emd_data.index, pd.DatetimeIndex):
+            if 'time' in emd_data.columns:
+                emd_df = emd_data.copy()
+                emd_df['time'] = pd.to_datetime(emd_df['time'])
+                emd_df = emd_df.set_index('time')
+            else:
+                raise ValueError("EMD data must have datetime index or 'time' column")
+        else:
+            emd_df = emd_data.copy()
+        
+        # Find common time period
+        common_start = max(emd_df.index.min(), newa_df.index.min())
+        common_end = min(emd_df.index.max(), newa_df.index.max())
+        
+        print(f"Common period: {common_start} to {common_end}")
+        
+        # Filter to common period
+        emd_common = emd_df.loc[common_start:common_end, emd_column].copy()
+        newa_common = newa_df.loc[common_start:common_end, 'ICE_LOAD'].copy()
+        
+        # Resample NEWA data to hourly to match EMD (from 30min to 1h)
+        print("Resampling NEWA data from 30min to 1h resolution...")
+        newa_hourly = newa_common.resample('1H').mean()
+        
+        # Align time indices
+        common_times = emd_common.index.intersection(newa_hourly.index)
+        emd_aligned = emd_common.loc[common_times]
+        newa_aligned = newa_hourly.loc[common_times]
+        
+        # Remove NaN values and filter out non-icing months (June-October)
+        valid_mask = ~(np.isnan(emd_aligned) | np.isnan(newa_aligned))
+        emd_clean_all = emd_aligned[valid_mask]
+        newa_clean_all = newa_aligned[valid_mask]
+        
+        # Filter out non-icing months (June=6, July=7, August=8, September=9, October=10)
+        non_icing_months = [6, 7, 8, 9, 10]
+        icing_mask = ~emd_clean_all.index.month.isin(non_icing_months)
+        emd_clean = emd_clean_all[icing_mask]
+        newa_clean = newa_clean_all[icing_mask]
+        
+        print(f"Valid data points after NaN removal: {len(emd_clean_all)}")
+        print(f"Icing season data points (excluding Jun-Oct): {len(emd_clean)}")
+        
+        if len(emd_clean) < 10:
+            print("Warning: Very few valid data points for analysis!")
+            return None
+        
+        # Create DataFrames with time components for typical pattern analysis
+        emd_df_analysis = pd.DataFrame({
+            'ice_load': emd_clean.values,
+            'datetime': emd_clean.index,
+            'hour': emd_clean.index.hour,
+            'day_of_week': emd_clean.index.dayofweek,  # Monday=0, Sunday=6
+            'week_of_year': emd_clean.index.isocalendar().week,
+            'month': emd_clean.index.month,
+            'year': emd_clean.index.year,
+            'date': emd_clean.index.date
+        })
+        
+        newa_df_analysis = pd.DataFrame({
+            'ice_load': newa_clean.values,
+            'datetime': newa_clean.index,
+            'hour': newa_clean.index.hour,
+            'day_of_week': newa_clean.index.dayofweek,
+            'week_of_year': newa_clean.index.isocalendar().week,
+            'month': newa_clean.index.month,
+            'year': newa_clean.index.year,
+            'date': newa_clean.index.date
+        })
+        
+        print(f"\nCalculating typical patterns...")
+        
+        # 1. TYPICAL DAY ANALYSIS (hourly averages for each day, then statistics across all days)
+        print("1. Calculating typical day patterns...")
+        
+        # Calculate daily mean ice load for each specific day
+        emd_daily_means = emd_clean.resample('D').mean()
+        newa_daily_means = newa_clean.resample('D').mean()
+        
+        # Remove NaN values from daily means
+        emd_daily_clean = emd_daily_means.dropna()
+        newa_daily_clean = newa_daily_means.dropna()
+        
+        # Align daily data
+        common_daily_dates = emd_daily_clean.index.intersection(newa_daily_clean.index)
+        emd_daily_temp = emd_daily_clean.loc[common_daily_dates]
+        newa_daily_temp = newa_daily_clean.loc[common_daily_dates]
+        
+        # Apply ice load threshold filter for daily means
+        threshold_mask_daily = (emd_daily_temp >= ice_load_threshold) & (newa_daily_temp >= ice_load_threshold)
+        emd_daily_filtered = emd_daily_temp[threshold_mask_daily]
+        newa_daily_filtered = newa_daily_temp[threshold_mask_daily]
+        
+        # Apply non-zero percentage filter for daily data
+        if non_zero_percentage > 0:
+            print(f"  Applying {non_zero_percentage}% non-zero filter to daily data...")
+            daily_non_zero_mask = []
+            
+            for date in emd_daily_filtered.index:
+                # Get hourly data for this specific day from both datasets
+                day_start = date
+                day_end = date + pd.Timedelta(days=1) - pd.Timedelta(hours=1)
+                
+                # Extract hourly data for this day
+                emd_day_hours = emd_clean[(emd_clean.index >= day_start) & (emd_clean.index <= day_end)]
+                newa_day_hours = newa_clean[(newa_clean.index >= day_start) & (newa_clean.index <= day_end)]
+                
+                if len(emd_day_hours) > 0 and len(newa_day_hours) > 0:
+                    # Calculate percentage of non-zero hours for both datasets
+                    emd_nonzero_pct = (emd_day_hours > 0).mean() * 100
+                    newa_nonzero_pct = (newa_day_hours > 0).mean() * 100
+                    
+                    # Include day if both datasets meet the non-zero percentage requirement
+                    daily_non_zero_mask.append(emd_nonzero_pct >= non_zero_percentage and newa_nonzero_pct >= non_zero_percentage)
+                else:
+                    daily_non_zero_mask.append(False)
+            
+            daily_non_zero_mask = pd.Series(daily_non_zero_mask, index=emd_daily_filtered.index)
+            emd_daily_aligned = emd_daily_filtered[daily_non_zero_mask]
+            newa_daily_aligned = newa_daily_filtered[daily_non_zero_mask]
+            
+            print(f"  Daily means after non-zero filter ({non_zero_percentage}%): {len(emd_daily_aligned)} days")
+        else:
+            emd_daily_aligned = emd_daily_filtered
+            newa_daily_aligned = newa_daily_filtered
+        
+        print(f"  Daily means before threshold filter: {len(emd_daily_temp)} days")
+        print(f"  Daily means after threshold filter (>= {ice_load_threshold} kg/m): {len(emd_daily_filtered)} days")
+        print(f"  Daily means final count: {len(emd_daily_aligned)} days")
+        
+        # 2. TYPICAL WEEK ANALYSIS (weekly averages for each week, then statistics across all weeks)
+        print("2. Calculating typical week patterns...")
+        
+        # Calculate weekly mean ice load for each specific week
+        emd_weekly_means = emd_clean.resample('W').mean()
+        newa_weekly_means = newa_clean.resample('W').mean()
+        
+        # Remove NaN values from weekly means
+        emd_weekly_clean = emd_weekly_means.dropna()
+        newa_weekly_clean = newa_weekly_means.dropna()
+        
+        # Align weekly data
+        common_weekly_dates = emd_weekly_clean.index.intersection(newa_weekly_clean.index)
+        emd_weekly_temp = emd_weekly_clean.loc[common_weekly_dates]
+        newa_weekly_temp = newa_weekly_clean.loc[common_weekly_dates]
+        
+        # Apply ice load threshold filter for weekly means
+        threshold_mask_weekly = (emd_weekly_temp >= ice_load_threshold) & (newa_weekly_temp >= ice_load_threshold)
+        emd_weekly_filtered = emd_weekly_temp[threshold_mask_weekly]
+        newa_weekly_filtered = newa_weekly_temp[threshold_mask_weekly]
+        
+        # Apply non-zero percentage filter for weekly data
+        if non_zero_percentage > 0:
+            print(f"  Applying {non_zero_percentage}% non-zero filter to weekly data...")
+            weekly_non_zero_mask = []
+            
+            for week_end in emd_weekly_filtered.index:
+                # Get hourly data for this specific week from both datasets
+                week_start = week_end - pd.Timedelta(days=6, hours=23)  # 7 days total
+                
+                # Extract hourly data for this week
+                emd_week_hours = emd_clean[(emd_clean.index >= week_start) & (emd_clean.index <= week_end)]
+                newa_week_hours = newa_clean[(newa_clean.index >= week_start) & (newa_clean.index <= week_end)]
+                
+                if len(emd_week_hours) > 0 and len(newa_week_hours) > 0:
+                    # Calculate percentage of non-zero hours for both datasets
+                    emd_nonzero_pct = (emd_week_hours > 0).mean() * 100
+                    newa_nonzero_pct = (newa_week_hours > 0).mean() * 100
+                    
+                    # Include week if both datasets meet the non-zero percentage requirement
+                    weekly_non_zero_mask.append(emd_nonzero_pct >= non_zero_percentage and newa_nonzero_pct >= non_zero_percentage)
+                else:
+                    weekly_non_zero_mask.append(False)
+            
+            weekly_non_zero_mask = pd.Series(weekly_non_zero_mask, index=emd_weekly_filtered.index)
+            emd_weekly_aligned = emd_weekly_filtered[weekly_non_zero_mask]
+            newa_weekly_aligned = newa_weekly_filtered[weekly_non_zero_mask]
+            
+            print(f"  Weekly means after non-zero filter ({non_zero_percentage}%): {len(emd_weekly_aligned)} weeks")
+        else:
+            emd_weekly_aligned = emd_weekly_filtered
+            newa_weekly_aligned = newa_weekly_filtered
+        
+        print(f"  Weekly means before threshold filter: {len(emd_weekly_temp)} weeks")
+        print(f"  Weekly means after threshold filter (>= {ice_load_threshold} kg/m): {len(emd_weekly_filtered)} weeks")
+        print(f"  Weekly means final count: {len(emd_weekly_aligned)} weeks")
+        
+        # 3. TYPICAL YEAR ANALYSIS (yearly averages for each year, then statistics across all years)
+        print("3. Calculating typical year patterns...")
+        
+        # Calculate yearly mean ice load for each specific year
+        emd_yearly_means = emd_clean.resample('Y').mean()
+        newa_yearly_means = newa_clean.resample('Y').mean()
+        
+        # Remove NaN values from yearly means
+        emd_yearly_clean = emd_yearly_means.dropna()
+        newa_yearly_clean = newa_yearly_means.dropna()
+        
+        # Align yearly data
+        common_yearly_dates = emd_yearly_clean.index.intersection(newa_yearly_clean.index)
+        emd_yearly_temp = emd_yearly_clean.loc[common_yearly_dates]
+        newa_yearly_temp = newa_yearly_clean.loc[common_yearly_dates]
+        
+        # Apply ice load threshold filter for yearly means
+        threshold_mask_yearly = (emd_yearly_temp >= ice_load_threshold) & (newa_yearly_temp >= ice_load_threshold)
+        emd_yearly_filtered = emd_yearly_temp[threshold_mask_yearly]
+        newa_yearly_filtered = newa_yearly_temp[threshold_mask_yearly]
+        
+        # Apply non-zero percentage filter for yearly data
+        if non_zero_percentage > 0:
+            print(f"  Applying {non_zero_percentage}% non-zero filter to yearly data...")
+            yearly_non_zero_mask = []
+            
+            for year_end in emd_yearly_filtered.index:
+                # Get hourly data for this specific year from both datasets
+                year_start = year_end.replace(month=1, day=1, hour=0)
+                year_end_actual = year_end.replace(month=12, day=31, hour=23)
+                
+                # Extract hourly data for this year
+                emd_year_hours = emd_clean[(emd_clean.index >= year_start) & (emd_clean.index <= year_end_actual)]
+                newa_year_hours = newa_clean[(newa_clean.index >= year_start) & (newa_clean.index <= year_end_actual)]
+                
+                if len(emd_year_hours) > 0 and len(newa_year_hours) > 0:
+                    # Calculate percentage of non-zero hours for both datasets
+                    emd_nonzero_pct = (emd_year_hours > 0).mean() * 100
+                    newa_nonzero_pct = (newa_year_hours > 0).mean() * 100
+                    
+                    # Include year if both datasets meet the non-zero percentage requirement
+                    yearly_non_zero_mask.append(emd_nonzero_pct >= non_zero_percentage and newa_nonzero_pct >= non_zero_percentage)
+                else:
+                    yearly_non_zero_mask.append(False)
+            
+            yearly_non_zero_mask = pd.Series(yearly_non_zero_mask, index=emd_yearly_filtered.index)
+            emd_yearly_aligned = emd_yearly_filtered[yearly_non_zero_mask]
+            newa_yearly_aligned = newa_yearly_filtered[yearly_non_zero_mask]
+            
+            print(f"  Yearly means after non-zero filter ({non_zero_percentage}%): {len(emd_yearly_aligned)} years")
+        else:
+            emd_yearly_aligned = emd_yearly_filtered
+            newa_yearly_aligned = newa_yearly_filtered
+        
+        print(f"  Yearly means before threshold filter: {len(emd_yearly_temp)} years")
+        print(f"  Yearly means after threshold filter (>= {ice_load_threshold} kg/m): {len(emd_yearly_filtered)} years")
+        print(f"  Yearly means final count: {len(emd_yearly_aligned)} years")
+        
+        # Check if we have sufficient data after threshold filtering
+        if len(emd_daily_aligned) == 0:
+            print(f"Warning: No daily data above threshold {ice_load_threshold} kg/m. Consider lowering the threshold.")
+            return None
+        if len(emd_weekly_aligned) == 0:
+            print(f"Warning: No weekly data above threshold {ice_load_threshold} kg/m. Consider lowering the threshold.")
+        if len(emd_yearly_aligned) == 0:
+            print(f"Warning: No yearly data above threshold {ice_load_threshold} kg/m. Consider lowering the threshold.")
+        
+        # Calculate summary statistics for each temporal scale
+        def calculate_stats(data):
+            return {
+                'count': len(data),
+                'mean': data.mean(),
+                'std': data.std(),
+                'min': data.min(),
+                'q25': data.quantile(0.25),
+                'median': data.median(),
+                'q75': data.quantile(0.75),
+                'max': data.max()
+            }
+        
+        # Statistics for each temporal scale
+        emd_daily_stats = calculate_stats(emd_daily_aligned)
+        newa_daily_stats = calculate_stats(newa_daily_aligned)
+        
+        emd_weekly_stats = calculate_stats(emd_weekly_aligned)
+        newa_weekly_stats = calculate_stats(newa_weekly_aligned)
+        
+        emd_yearly_stats = calculate_stats(emd_yearly_aligned)
+        newa_yearly_stats = calculate_stats(newa_yearly_aligned)
+        
+        print(f"\n=== TYPICAL PATTERNS STATISTICS ===")
+        print(f"Filters Applied:")
+        print(f"  Ice Load Threshold: >={ice_load_threshold} kg/m")
+        print(f"  Non-Zero Percentage: >={non_zero_percentage}% hours > 0")
+        print(f"Daily means - EMD: {emd_daily_stats['mean']:.4f} +/- {emd_daily_stats['std']:.4f} kg/m (n={emd_daily_stats['count']})")
+        print(f"Daily means - NEWA: {newa_daily_stats['mean']:.4f} +/- {newa_daily_stats['std']:.4f} kg/m (n={newa_daily_stats['count']})")
+        print(f"Weekly means - EMD: {emd_weekly_stats['mean']:.4f} +/- {emd_weekly_stats['std']:.4f} kg/m (n={emd_weekly_stats['count']})")
+        print(f"Weekly means - NEWA: {newa_weekly_stats['mean']:.4f} +/- {newa_weekly_stats['std']:.4f} kg/m (n={newa_weekly_stats['count']})")
+        print(f"Yearly means - EMD: {emd_yearly_stats['mean']:.4f} +/- {emd_yearly_stats['std']:.4f} kg/m (n={emd_yearly_stats['count']})")
+        print(f"Yearly means - NEWA: {newa_yearly_stats['mean']:.4f} +/- {newa_yearly_stats['std']:.4f} kg/m (n={newa_yearly_stats['count']})")
+        
+        # Create plots if requested
+        if save_plots:
+            print(f"\nCreating typical patterns box plots...")
+            
+            # Create directory structure with threshold and non-zero percentage information
+            threshold_str = f"threshold_{ice_load_threshold:.3f}" if ice_load_threshold > 0 else "no_threshold"
+            nonzero_str = f"nonzero_{non_zero_percentage:.0f}pct" if non_zero_percentage > 0 else "no_nonzero_filter"
+            base_dir = os.path.join("results", "figures", "EMD", "Ice_Load", "MeanDWM", f"{height:.0f}m_{threshold_str}_{nonzero_str}")
+            os.makedirs(base_dir, exist_ok=True)
+            
+            # Create comprehensive box plot comparison
+            fig, axes = plt.subplots(1, 3, figsize=(18, 8))
+            
+            # Color scheme
+            colors = ['steelblue', 'orange']
+            labels = ['EMD', 'NEWA']
+            
+            # Plot 1: Daily means box plot
+            ax1 = axes[0]
+            daily_data = [emd_daily_aligned.values, newa_daily_aligned.values]
+            
+            box_plot_daily = ax1.boxplot(daily_data, labels=labels, patch_artist=True,
+                                       showmeans=True, meanline=True,
+                                       boxprops=dict(alpha=0.7),
+                                       medianprops=dict(color='red', linewidth=2),
+                                       meanprops=dict(color='black', linewidth=2, linestyle='--'))
+            
+            # Color the boxes
+            for patch, color in zip(box_plot_daily['boxes'], colors):
+                patch.set_facecolor(color)
+            
+            ax1.set_ylabel('Mean Daily Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=12, fontweight='bold')
+            ax1.set_title(f'Typical Day Comparison at {height}m\n'
+                         f'Distribution of Daily Means of Hourly Ice Load (n={len(emd_daily_aligned)})', fontsize=11, fontweight='bold')
+            ax1.grid(True, alpha=0.3)
+            
+            # Plot 2: Weekly means box plot
+            ax2 = axes[1]
+            weekly_data = [emd_weekly_aligned.values, newa_weekly_aligned.values]
+            
+            box_plot_weekly = ax2.boxplot(weekly_data, labels=labels, patch_artist=True,
+                                        showmeans=True, meanline=True,
+                                        boxprops=dict(alpha=0.7),
+                                        medianprops=dict(color='red', linewidth=2),
+                                        meanprops=dict(color='black', linewidth=2, linestyle='--'))
+            
+            # Color the boxes
+            for patch, color in zip(box_plot_weekly['boxes'], colors):
+                patch.set_facecolor(color)
+            
+            ax2.set_ylabel('Mean Weekly Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=12, fontweight='bold')
+            ax2.set_title(f'Typical Week Comparison at {height}m\n'
+                         f'Distribution of Weekly Means of Hourly Ice Load (n={len(emd_weekly_aligned)})', fontsize=11, fontweight='bold')
+            ax2.grid(True, alpha=0.3)
+            
+            # Plot 3: Yearly means box plot
+            ax3 = axes[2]
+            yearly_data = [emd_yearly_aligned.values, newa_yearly_aligned.values]
+            
+            box_plot_yearly = ax3.boxplot(yearly_data, labels=labels, patch_artist=True,
+                                        showmeans=True, meanline=True,
+                                        boxprops=dict(alpha=0.7),
+                                        medianprops=dict(color='red', linewidth=2),
+                                        meanprops=dict(color='black', linewidth=2, linestyle='--'))
+            
+            # Color the boxes
+            for patch, color in zip(box_plot_yearly['boxes'], colors):
+                patch.set_facecolor(color)
+            
+            ax3.set_ylabel('Mean Yearly Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=12, fontweight='bold')
+            ax3.set_title(f'Typical Year Comparison at {height}m\n'
+                         f'Distribution of Yearly Means of Hourly Ice Load (n={len(emd_yearly_aligned)})', fontsize=11, fontweight='bold')
+            ax3.grid(True, alpha=0.3)
+            
+            # Add overall title with filtering information
+            threshold_text = f"Ice Load Threshold: >={ice_load_threshold} kg/m" if ice_load_threshold > 0 else "No Ice Load Threshold"
+            nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
+            
+            fig.suptitle(f'Typical Patterns Analysis: EMD vs NEWA at {height}m (Icing Season Only)\n'
+                        f'Temporal Means of Hourly Ice Load Values\n'
+                        f'{threshold_text} | {nonzero_text}\n'
+                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                        fontsize=14, fontweight='bold', y=0.96)
+            
+            # Add legend explaining box plot elements
+            legend_text = 'Box Plot Elements:\n━ Red line: Median\n┅ Black line: Mean\n□ Box: Q25-Q75 (IQR)\n┬ Whiskers: 1.5×IQR\n○ Outliers'
+            fig.text(0.02, 0.02, legend_text, fontsize=9, 
+                    bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8),
+                    verticalalignment='bottom')
+            
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.80, bottom=0.15)  # Move plots down to prevent overlap with title
+            
+            typical_patterns_path = os.path.join(base_dir, f'typical_patterns_comparison_{height:.0f}m.png')
+            plt.savefig(typical_patterns_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {typical_patterns_path}")
+            
+            # Create detailed statistics table plot
+            fig, ax = plt.subplots(1, 1, figsize=(14, 10))
+            ax.axis('off')
+            
+            # Create statistics table
+            stats_table_data = []
+            
+            # Daily statistics
+            stats_table_data.append(['Temporal Scale', 'Dataset', 'Count', 'Mean', 'Std', 'Min', 'Q25', 'Median', 'Q75', 'Max'])
+            stats_table_data.append(['Daily', 'EMD', f"{emd_daily_stats['count']}", f"{emd_daily_stats['mean']:.4f}", 
+                                   f"{emd_daily_stats['std']:.4f}", f"{emd_daily_stats['min']:.4f}", 
+                                   f"{emd_daily_stats['q25']:.4f}", f"{emd_daily_stats['median']:.4f}", 
+                                   f"{emd_daily_stats['q75']:.4f}", f"{emd_daily_stats['max']:.4f}"])
+            stats_table_data.append(['', 'NEWA', f"{newa_daily_stats['count']}", f"{newa_daily_stats['mean']:.4f}", 
+                                   f"{newa_daily_stats['std']:.4f}", f"{newa_daily_stats['min']:.4f}", 
+                                   f"{newa_daily_stats['q25']:.4f}", f"{newa_daily_stats['median']:.4f}", 
+                                   f"{newa_daily_stats['q75']:.4f}", f"{newa_daily_stats['max']:.4f}"])
+            
+            # Weekly statistics
+            stats_table_data.append(['Weekly', 'EMD', f"{emd_weekly_stats['count']}", f"{emd_weekly_stats['mean']:.4f}", 
+                                   f"{emd_weekly_stats['std']:.4f}", f"{emd_weekly_stats['min']:.4f}", 
+                                   f"{emd_weekly_stats['q25']:.4f}", f"{emd_weekly_stats['median']:.4f}", 
+                                   f"{emd_weekly_stats['q75']:.4f}", f"{emd_weekly_stats['max']:.4f}"])
+            stats_table_data.append(['', 'NEWA', f"{newa_weekly_stats['count']}", f"{newa_weekly_stats['mean']:.4f}", 
+                                   f"{newa_weekly_stats['std']:.4f}", f"{newa_weekly_stats['min']:.4f}", 
+                                   f"{newa_weekly_stats['q25']:.4f}", f"{newa_weekly_stats['median']:.4f}", 
+                                   f"{newa_weekly_stats['q75']:.4f}", f"{newa_weekly_stats['max']:.4f}"])
+            
+            # Yearly statistics
+            stats_table_data.append(['Yearly', 'EMD', f"{emd_yearly_stats['count']}", f"{emd_yearly_stats['mean']:.4f}", 
+                                   f"{emd_yearly_stats['std']:.4f}", f"{emd_yearly_stats['min']:.4f}", 
+                                   f"{emd_yearly_stats['q25']:.4f}", f"{emd_yearly_stats['median']:.4f}", 
+                                   f"{emd_yearly_stats['q75']:.4f}", f"{emd_yearly_stats['max']:.4f}"])
+            stats_table_data.append(['', 'NEWA', f"{newa_yearly_stats['count']}", f"{newa_yearly_stats['mean']:.4f}", 
+                                   f"{newa_yearly_stats['std']:.4f}", f"{newa_yearly_stats['min']:.4f}", 
+                                   f"{newa_yearly_stats['q25']:.4f}", f"{newa_yearly_stats['median']:.4f}", 
+                                   f"{newa_yearly_stats['q75']:.4f}", f"{newa_yearly_stats['max']:.4f}"])
+            
+            # Create table
+            table = ax.table(cellText=stats_table_data[1:], colLabels=stats_table_data[0], 
+                           cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
+            table.auto_set_font_size(False)
+            table.set_fontsize(10)
+            table.scale(1, 2)
+            
+            # Style the table
+            for i in range(len(stats_table_data)):
+                for j in range(len(stats_table_data[0])):
+                    cell = table[(i, j)]
+                    if i == 0:  # Header row
+                        cell.set_facecolor('#4CAF50')
+                        cell.set_text_props(weight='bold', color='white')
+                    elif j == 1 and i > 0 and stats_table_data[i][j] == 'EMD':  # EMD rows
+                        cell.set_facecolor('#E3F2FD')
+                    elif j == 1 and i > 0 and stats_table_data[i][j] == 'NEWA':  # NEWA rows
+                        cell.set_facecolor('#FFF3E0')
+            
+            threshold_text = f"Ice Load Threshold: >={ice_load_threshold} kg/m" if ice_load_threshold > 0 else "No Ice Load Threshold"
+            nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
+            
+            ax.set_title(f'Typical Patterns Statistics Summary at {height}m\n'
+                        f'Temporal Means of Hourly Ice Load Values in kg/m (Icing Season Only)\n'
+                        f'{threshold_text} | {nonzero_text}',
+                        fontsize=14, fontweight='bold', pad=20)
+            
+            plt.tight_layout()
+            
+            stats_table_path = os.path.join(base_dir, f'typical_patterns_statistics_{height:.0f}m.png')
+            plt.savefig(stats_table_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {stats_table_path}")
+            
+            print(f"\n=== PLOT SUMMARY ===")
+            print(f"Created 2 plots:")
+            print(f"  1. Typical patterns box plot comparison: {typical_patterns_path}")
+            print(f"  2. Detailed statistics table: {stats_table_path}")
+        
+        # Prepare results dictionary
+        results = {
+            'height': height,
+            'ice_load_threshold': ice_load_threshold,
+            'non_zero_percentage': non_zero_percentage,
+            'emd_coordinates': {'longitude': emd_lon, 'latitude': emd_lat},
+            'newa_grid_cell': {
+                'south_north_index': int(closest_sn),
+                'west_east_index': int(closest_we),
+                'longitude': float(closest_lon),
+                'latitude': float(closest_lat),
+                'distance_from_emd_km': float(closest_distance_km)
+            },
+            'typical_patterns': {
+                'daily': {
+                    'emd_stats': emd_daily_stats,
+                    'newa_stats': newa_daily_stats,
+                    'emd_data': emd_daily_aligned,
+                    'newa_data': newa_daily_aligned
+                },
+                'weekly': {
+                    'emd_stats': emd_weekly_stats,
+                    'newa_stats': newa_weekly_stats,
+                    'emd_data': emd_weekly_aligned,
+                    'newa_data': newa_weekly_aligned
+                },
+                'yearly': {
+                    'emd_stats': emd_yearly_stats,
+                    'newa_stats': newa_yearly_stats,
+                    'emd_data': emd_yearly_aligned,
+                    'newa_data': newa_yearly_aligned
+                }
+            }
+        }
+        
+        print(f"\n✓ Typical patterns analysis completed successfully!")
+        print(f"Results saved to: {base_dir}")
+        
+        return results
+        
+    except Exception as e:
+        print(f"Error in typical patterns analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_plots=True, ice_load_threshold=0.0, non_zero_percentage=0.0):
+    """
+    Generate probability density function plots comparing EMD observations and NEWA model ice load distributions.
+    
+    Parameters:
+    -----------
+    emd_data : pandas.DataFrame
+        EMD observational data containing ice load columns (MIce.50, MIce.100, MIce.150)
+    dataset_with_ice_load : xarray.Dataset
+        NEWA model dataset containing ICE_LOAD variable
+    height : int
+        Height level to compare (50, 100, or 150 meters)
+    emd_coordinates : tuple
+        EMD coordinates as (longitude, latitude) in degrees
+    save_plots : bool, optional
+        Whether to save plots to file (default: True)
+    ice_load_threshold : float, optional
+        Minimum mean hourly ice load threshold (kg/m). Only temporal periods where both datasets
+        have mean hourly ice load >= threshold are included in analysis (default: 0.0)
+    non_zero_percentage : float, optional
+        Minimum percentage (0-100) of hours that must be > 0 in both datasets for a temporal period
+        to be included in analysis. Applied to daily, weekly, and yearly aggregations (default: 0.0)
+        
+    Returns:
+    --------
+    dict
+        Dictionary containing PDF analysis results and statistics
+    """
+    
+    print(f"=== PROBABILITY DENSITY FUNCTION ANALYSIS: EMD vs NEWA at {height}m ===")
+    print(f"Ice load threshold: {ice_load_threshold} kg/m (minimum mean hourly ice load for inclusion)")
+    print(f"Non-zero percentage threshold: {non_zero_percentage}% (minimum percentage of hours > 0 required)")
+    
+    try:
+        import numpy as np
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        import os
+        from scipy import stats
+        from sklearn.neighbors import KernelDensity
+        
+        # Validate height input
+        if height not in [50, 100, 150]:
+            raise ValueError(f"Height must be 50, 100, or 150 meters. Got: {height}")
+        
+        # Check if EMD data contains required column
+        emd_column = f"MIce.{int(height)}"
+        if emd_column not in emd_data.columns:
+            available_ice_cols = [col for col in emd_data.columns if 'ice' in col.lower()]
+            raise ValueError(f"Column '{emd_column}' not found in EMD data. Available ice columns: {available_ice_cols}")
+        
+        # Verify NEWA dataset height
+        if 'ICE_LOAD' not in dataset_with_ice_load.data_vars:
+            raise ValueError("'ICE_LOAD' variable not found in NEWA dataset")
+        
+        # Get height information from NEWA dataset
+        height_levels = dataset_with_ice_load.height.values
+        height_idx = None
+        for i, h in enumerate(height_levels):
+            if abs(h - height) < 1:  # Allow 1m tolerance
+                height_idx = i
+                break
+        
+        if height_idx is None:
+            raise ValueError(f"Height {height}m not found in NEWA dataset. Available heights: {height_levels}")
+        
+        print(f"Using NEWA height level {height_idx} ({height_levels[height_idx]}m)")
+        
+        # Get EMD coordinates and find closest NEWA grid cell
+        emd_lon, emd_lat = emd_coordinates
+        print(f"EMD coordinates: {emd_lon:.4f}°E, {emd_lat:.4f}°N")
+        
+        # Extract coordinates - handle both data variables and coordinates
+        if 'XLAT' in dataset_with_ice_load.coords:
+            lats = dataset_with_ice_load.coords['XLAT'].values
+            lons = dataset_with_ice_load.coords['XLON'].values
+        else:
+            lats = dataset_with_ice_load['XLAT'].values
+            lons = dataset_with_ice_load['XLON'].values
+        
+        # Find the closest grid cell to EMD coordinates
+        distance_squared = (lons - emd_lon)**2 + (lats - emd_lat)**2
+        closest_indices = np.unravel_index(np.argmin(distance_squared), distance_squared.shape)
+        closest_sn, closest_we = closest_indices
+        
+        # Get the actual coordinates of the closest grid cell
+        closest_lon = lons[closest_sn, closest_we]
+        closest_lat = lats[closest_sn, closest_we]
+        closest_distance_deg = np.sqrt(distance_squared[closest_sn, closest_we])
+        lat_correction = np.cos(np.radians(emd_lat))
+        closest_distance_km = closest_distance_deg * 111.32 * lat_correction
+        
+        print(f"Closest NEWA grid cell:")
+        print(f"  Grid indices: south_north={closest_sn}, west_east={closest_we}")
+        print(f"  Grid coordinates: {closest_lon:.4f}°E, {closest_lat:.4f}°N")
+        print(f"  Distance from EMD: {closest_distance_km:.2f} km")
+        
+        # Extract NEWA ice load data at specified height and closest grid cell
+        newa_ice_load = dataset_with_ice_load['ICE_LOAD'].isel(height=height_idx, south_north=closest_sn, west_east=closest_we)
+        
+        # Convert to pandas DataFrame for easier manipulation
+        newa_df = newa_ice_load.to_dataframe(name='ICE_LOAD').reset_index()
+        newa_df['time'] = pd.to_datetime(newa_df['time'])
+        newa_df = newa_df.set_index('time')
+        
+        # Prepare EMD data
+        if not isinstance(emd_data.index, pd.DatetimeIndex):
+            if 'time' in emd_data.columns:
+                emd_df = emd_data.copy()
+                emd_df['time'] = pd.to_datetime(emd_df['time'])
+                emd_df = emd_df.set_index('time')
+            else:
+                raise ValueError("EMD data must have datetime index or 'time' column")
+        else:
+            emd_df = emd_data.copy()
+        
+        # Find common time period
+        common_start = max(emd_df.index.min(), newa_df.index.min())
+        common_end = min(emd_df.index.max(), newa_df.index.max())
+        
+        print(f"Common period: {common_start} to {common_end}")
+        
+        # Filter to common period
+        emd_common = emd_df.loc[common_start:common_end, emd_column].copy()
+        newa_common = newa_df.loc[common_start:common_end, 'ICE_LOAD'].copy()
+        
+        # Resample NEWA data to hourly to match EMD (from 30min to 1h)
+        print("Resampling NEWA data from 30min to 1h resolution...")
+        newa_hourly = newa_common.resample('1H').mean()
+        
+        # Align time indices
+        common_times = emd_common.index.intersection(newa_hourly.index)
+        emd_aligned = emd_common.loc[common_times]
+        newa_aligned = newa_hourly.loc[common_times]
+        
+        # Remove NaN values and filter out non-icing months (June-October)
+        valid_mask = ~(np.isnan(emd_aligned) | np.isnan(newa_aligned))
+        emd_clean_all = emd_aligned[valid_mask]
+        newa_clean_all = newa_aligned[valid_mask]
+        
+        # Filter out non-icing months (June=6, July=7, August=8, September=9, October=10)
+        non_icing_months = [6, 7, 8, 9, 10]
+        icing_mask = ~emd_clean_all.index.month.isin(non_icing_months)
+        emd_clean = emd_clean_all[icing_mask]
+        newa_clean = newa_clean_all[icing_mask]
+        
+        print(f"Valid data points after NaN removal: {len(emd_clean_all)}")
+        print(f"Icing season data points (excluding Jun-Oct): {len(emd_clean)}")
+        
+        if len(emd_clean) < 10:
+            print("Warning: Very few valid data points for analysis!")
+            return None
+        
+        # Apply filtering based on ice_load_threshold and non_zero_percentage
+        print(f"\nApplying filters to hourly data...")
+        
+        # Create daily aggregations to apply filters (similar to emd_newa_typical)
+        emd_daily_means = emd_clean.resample('D').mean()
+        newa_daily_means = newa_clean.resample('D').mean()
+        
+        # Remove NaN values from daily means
+        emd_daily_clean = emd_daily_means.dropna()
+        newa_daily_clean = newa_daily_means.dropna()
+        
+        # Align daily data
+        common_daily_dates = emd_daily_clean.index.intersection(newa_daily_clean.index)
+        emd_daily_temp = emd_daily_clean.loc[common_daily_dates]
+        newa_daily_temp = newa_daily_clean.loc[common_daily_dates]
+        
+        # Apply ice load threshold filter
+        threshold_mask_daily = (emd_daily_temp >= ice_load_threshold) & (newa_daily_temp >= ice_load_threshold)
+        valid_days = emd_daily_temp[threshold_mask_daily].index
+        
+        # Apply non-zero percentage filter if specified
+        if non_zero_percentage > 0:
+            print(f"  Applying {non_zero_percentage}% non-zero filter...")
+            filtered_days = []
+            
+            for date in valid_days:
+                # Get hourly data for this specific day from both datasets
+                day_start = date
+                day_end = date + pd.Timedelta(days=1) - pd.Timedelta(hours=1)
+                
+                # Extract hourly data for this day
+                emd_day_hours = emd_clean[(emd_clean.index >= day_start) & (emd_clean.index <= day_end)]
+                newa_day_hours = newa_clean[(newa_clean.index >= day_start) & (newa_clean.index <= day_end)]
+                
+                if len(emd_day_hours) > 0 and len(newa_day_hours) > 0:
+                    # Calculate percentage of non-zero hours for both datasets
+                    emd_nonzero_pct = (emd_day_hours > 0).mean() * 100
+                    newa_nonzero_pct = (newa_day_hours > 0).mean() * 100
+                    
+                    # Include day if both datasets meet the non-zero percentage requirement
+                    if emd_nonzero_pct >= non_zero_percentage and newa_nonzero_pct >= non_zero_percentage:
+                        filtered_days.append(date)
+            
+            valid_days = pd.DatetimeIndex(filtered_days)
+            print(f"  Days after non-zero filter: {len(valid_days)}")
+        
+        print(f"  Days before threshold filter: {len(emd_daily_temp)}")
+        print(f"  Days after filters: {len(valid_days)}")
+        
+        # Filter hourly data to only include valid days
+        emd_filtered = []
+        newa_filtered = []
+        
+        for date in valid_days:
+            day_start = date
+            day_end = date + pd.Timedelta(days=1) - pd.Timedelta(hours=1)
+            
+            # Extract hourly data for this day
+            emd_day_hours = emd_clean[(emd_clean.index >= day_start) & (emd_clean.index <= day_end)]
+            newa_day_hours = newa_clean[(newa_clean.index >= day_start) & (newa_clean.index <= day_end)]
+            
+            emd_filtered.extend(emd_day_hours.values)
+            newa_filtered.extend(newa_day_hours.values)
+        
+        emd_final = np.array(emd_filtered)
+        newa_final = np.array(newa_filtered)
+        
+        print(f"  Final hourly data points for PDF: {len(emd_final)} (EMD), {len(newa_final)} (NEWA)")
+        
+        if len(emd_final) < 50:
+            print("Warning: Very few data points for PDF analysis!")
+            return None
+        
+        # Calculate basic statistics
+        def calculate_stats(data, name):
+            stats_dict = {
+                'count': len(data),
+                'mean': np.mean(data),
+                'std': np.std(data),
+                'min': np.min(data),
+                'q25': np.percentile(data, 25),
+                'median': np.median(data),
+                'q75': np.percentile(data, 75),
+                'max': np.max(data),
+                'skewness': stats.skew(data),
+                'kurtosis': stats.kurtosis(data)
+            }
+            print(f"{name} statistics: mean={stats_dict['mean']:.4f}, std={stats_dict['std']:.4f}, skew={stats_dict['skewness']:.3f}")
+            return stats_dict
+        
+        emd_stats = calculate_stats(emd_final, "EMD")
+        newa_stats = calculate_stats(newa_final, "NEWA")
+        
+        # Create plots if requested
+        if save_plots:
+            print(f"\nCreating PDF plots...")
+            
+            # Create directory structure
+            threshold_str = f"threshold_{ice_load_threshold:.3f}" if ice_load_threshold > 0 else "no_threshold"
+            nonzero_str = f"nonzero_{non_zero_percentage:.0f}pct" if non_zero_percentage > 0 else "no_nonzero_filter"
+            base_dir = os.path.join("results", "figures", "EMD", "Ice_Load", "pdf_EMD_NEWA", f"{height:.0f}m_{threshold_str}_{nonzero_str}")
+            os.makedirs(base_dir, exist_ok=True)
+            
+            # Define common range for plotting
+            data_min = min(np.min(emd_final), np.min(newa_final))
+            data_max = max(np.max(emd_final), np.max(newa_final))
+            x_range = np.linspace(data_min, data_max, 1000)
+            
+            # Create comprehensive PDF plot
+            fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+            
+            # Plot 1: Overlapping histograms with KDE
+            ax1 = axes[0, 0]
+            
+            # Plot histograms with transparency
+            bins = np.linspace(data_min, data_max, 50)
+            ax1.hist(emd_final, bins=bins, alpha=0.6, density=True, color='steelblue', 
+                    edgecolor='darkblue', linewidth=1, label=f'EMD (n={len(emd_final)})')
+            ax1.hist(newa_final, bins=bins, alpha=0.6, density=True, color='orange', 
+                    edgecolor='darkorange', linewidth=1, label=f'NEWA (n={len(newa_final)})')
+            
+            # Add KDE curves
+            if len(emd_final) > 10:
+                kde_emd = stats.gaussian_kde(emd_final)
+                ax1.plot(x_range, kde_emd(x_range), 'b-', linewidth=3, label='EMD KDE')
+            
+            if len(newa_final) > 10:
+                kde_newa = stats.gaussian_kde(newa_final)
+                ax1.plot(x_range, kde_newa(x_range), 'r-', linewidth=3, label='NEWA KDE')
+            
+            ax1.set_xlabel('Ice Load [kg/m]', fontweight='bold')
+            ax1.set_ylabel('Probability Density', fontweight='bold')
+            ax1.set_title('Probability Density Functions - Histograms + KDE', fontweight='bold')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+            
+            # Plot 2: KDE only (cleaner view)
+            ax2 = axes[0, 1]
+            
+            if len(emd_final) > 10:
+                kde_emd = stats.gaussian_kde(emd_final)
+                ax2.plot(x_range, kde_emd(x_range), 'steelblue', linewidth=3, 
+                        label=f'EMD (μ={emd_stats["mean"]:.3f}, σ={emd_stats["std"]:.3f})')
+            
+            if len(newa_final) > 10:
+                kde_newa = stats.gaussian_kde(newa_final)
+                ax2.plot(x_range, kde_newa(x_range), 'orange', linewidth=3, 
+                        label=f'NEWA (μ={newa_stats["mean"]:.3f}, σ={newa_stats["std"]:.3f})')
+            
+            # Add vertical lines for means
+            ax2.axvline(emd_stats['mean'], color='steelblue', linestyle='--', alpha=0.8, label='EMD Mean')
+            ax2.axvline(newa_stats['mean'], color='orange', linestyle='--', alpha=0.8, label='NEWA Mean')
+            
+            ax2.set_xlabel('Ice Load [kg/m]', fontweight='bold')
+            ax2.set_ylabel('Probability Density', fontweight='bold')
+            ax2.set_title('Kernel Density Estimation (KDE) Comparison', fontweight='bold')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+            
+            # Plot 3: Q-Q plot for distribution comparison
+            ax3 = axes[1, 0]
+            
+            # Create Q-Q plot data
+            n_quantiles = min(len(emd_final), len(newa_final), 1000)
+            quantiles = np.linspace(0.01, 0.99, n_quantiles)
+            
+            emd_quantiles = np.quantile(emd_final, quantiles)
+            newa_quantiles = np.quantile(newa_final, quantiles)
+            
+            # Plot Q-Q
+            ax3.scatter(emd_quantiles, newa_quantiles, alpha=0.6, s=20, color='purple')
+            
+            # Add perfect correlation line
+            min_val = min(np.min(emd_quantiles), np.min(newa_quantiles))
+            max_val = max(np.max(emd_quantiles), np.max(newa_quantiles))
+            ax3.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, 
+                    label='Perfect Agreement')
+            
+            # Calculate correlation
+            qq_correlation = np.corrcoef(emd_quantiles, newa_quantiles)[0, 1]
+            
+            ax3.set_xlabel('EMD Quantiles [kg/m]', fontweight='bold')
+            ax3.set_ylabel('NEWA Quantiles [kg/m]', fontweight='bold')
+            ax3.set_title(f'Q-Q Plot (r = {qq_correlation:.3f})', fontweight='bold')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+            
+            # Plot 4: Box plots for comparison
+            ax4 = axes[1, 1]
+            
+            box_data = [emd_final, newa_final]
+            labels = ['EMD', 'NEWA']
+            colors = ['steelblue', 'orange']
+            
+            box_plot = ax4.boxplot(box_data, labels=labels, patch_artist=True,
+                                  showmeans=True, meanline=True,
+                                  boxprops=dict(alpha=0.7),
+                                  medianprops=dict(color='red', linewidth=2),
+                                  meanprops=dict(color='black', linewidth=2, linestyle='--'))
+            
+            # Color the boxes
+            for patch, color in zip(box_plot['boxes'], colors):
+                patch.set_facecolor(color)
+            
+            ax4.set_ylabel('Ice Load [kg/m]', fontweight='bold')
+            ax4.set_title('Distribution Comparison (Box Plots)', fontweight='bold')
+            ax4.grid(True, alpha=0.3)
+            
+            # Add overall title with filtering information
+            threshold_text = f"Ice Load Threshold: >={ice_load_threshold} kg/m" if ice_load_threshold > 0 else "No Ice Load Threshold"
+            nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
+            
+            fig.suptitle(f'Probability Density Function Analysis: EMD vs NEWA at {height}m\n'
+                        f'Ice Load Distribution Comparison (Icing Season Only)\n'
+                        f'{threshold_text} | {nonzero_text}\n'
+                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                        fontsize=14, fontweight='bold', y=0.95)
+            
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.85)
+            
+            pdf_plot_path = os.path.join(base_dir, f'pdf_comparison_{height:.0f}m.png')
+            plt.savefig(pdf_plot_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {pdf_plot_path}")
+            
+            # Create a statistical comparison table
+            fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+            ax.axis('off')
+            
+            # Prepare statistics table
+            stats_data = [
+                ['Statistic', 'EMD', 'NEWA', 'Difference (NEWA - EMD)'],
+                ['Count', f"{emd_stats['count']}", f"{newa_stats['count']}", f"{newa_stats['count'] - emd_stats['count']}"],
+                ['Mean', f"{emd_stats['mean']:.4f}", f"{newa_stats['mean']:.4f}", f"{newa_stats['mean'] - emd_stats['mean']:.4f}"],
+                ['Std Dev', f"{emd_stats['std']:.4f}", f"{newa_stats['std']:.4f}", f"{newa_stats['std'] - emd_stats['std']:.4f}"],
+                ['Minimum', f"{emd_stats['min']:.4f}", f"{newa_stats['min']:.4f}", f"{newa_stats['min'] - emd_stats['min']:.4f}"],
+                ['Q25', f"{emd_stats['q25']:.4f}", f"{newa_stats['q25']:.4f}", f"{newa_stats['q25'] - emd_stats['q25']:.4f}"],
+                ['Median', f"{emd_stats['median']:.4f}", f"{newa_stats['median']:.4f}", f"{newa_stats['median'] - emd_stats['median']:.4f}"],
+                ['Q75', f"{emd_stats['q75']:.4f}", f"{newa_stats['q75']:.4f}", f"{newa_stats['q75'] - emd_stats['q75']:.4f}"],
+                ['Maximum', f"{emd_stats['max']:.4f}", f"{newa_stats['max']:.4f}", f"{newa_stats['max'] - emd_stats['max']:.4f}"],
+                ['Skewness', f"{emd_stats['skewness']:.4f}", f"{newa_stats['skewness']:.4f}", f"{newa_stats['skewness'] - emd_stats['skewness']:.4f}"],
+                ['Kurtosis', f"{emd_stats['kurtosis']:.4f}", f"{newa_stats['kurtosis']:.4f}", f"{newa_stats['kurtosis'] - emd_stats['kurtosis']:.4f}"],
+                ['Q-Q Correlation', '-', '-', f"{qq_correlation:.4f}"]
+            ]
+            
+            # Create table
+            table = ax.table(cellText=stats_data[1:], colLabels=stats_data[0], 
+                           cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
+            table.auto_set_font_size(False)
+            table.set_fontsize(11)
+            table.scale(1, 2)
+            
+            # Style the table
+            for i in range(len(stats_data)):
+                for j in range(len(stats_data[0])):
+                    cell = table[(i, j)]
+                    if i == 0:  # Header row
+                        cell.set_facecolor('#4CAF50')
+                        cell.set_text_props(weight='bold', color='white')
+                    elif j == 1:  # EMD column
+                        cell.set_facecolor('#E3F2FD')
+                    elif j == 2:  # NEWA column
+                        cell.set_facecolor('#FFF3E0')
+                    elif j == 3:  # Difference column
+                        cell.set_facecolor('#F3E5F5')
+            
+            threshold_text = f"Ice Load Threshold: >={ice_load_threshold} kg/m" if ice_load_threshold > 0 else "No Ice Load Threshold"
+            nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
+            
+            ax.set_title(f'PDF Statistical Comparison Summary at {height}m\n'
+                        f'Ice Load Distribution Statistics [kg/m] (Icing Season Only)\n'
+                        f'{threshold_text} | {nonzero_text}',
+                        fontsize=14, fontweight='bold', pad=20)
+            
+            plt.tight_layout()
+            
+            stats_table_path = os.path.join(base_dir, f'pdf_statistics_{height:.0f}m.png')
+            plt.savefig(stats_table_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {stats_table_path}")
+            
+            print(f"\n=== PLOT SUMMARY ===")
+            print(f"Created 2 plots:")
+            print(f"  1. PDF comparison plot: {pdf_plot_path}")
+            print(f"  2. Statistical summary table: {stats_table_path}")
+        
+        # Perform statistical tests
+        print(f"\n=== STATISTICAL TESTS ===")
+        
+        # Kolmogorov-Smirnov test
+        ks_statistic, ks_p_value = stats.ks_2samp(emd_final, newa_final)
+        print(f"Kolmogorov-Smirnov test:")
+        print(f"  Statistic: {ks_statistic:.4f}")
+        print(f"  P-value: {ks_p_value:.4f}")
+        print(f"  Interpretation: {'Distributions are significantly different' if ks_p_value < 0.05 else 'No significant difference in distributions'}")
+        
+        # Mann-Whitney U test (non-parametric)
+        mw_statistic, mw_p_value = stats.mannwhitneyu(emd_final, newa_final, alternative='two-sided')
+        print(f"\nMann-Whitney U test:")
+        print(f"  Statistic: {mw_statistic:.0f}")
+        print(f"  P-value: {mw_p_value:.4f}")
+        print(f"  Interpretation: {'Medians are significantly different' if mw_p_value < 0.05 else 'No significant difference in medians'}")
+        
+        # Prepare results dictionary
+        results = {
+            'height': height,
+            'ice_load_threshold': ice_load_threshold,
+            'non_zero_percentage': non_zero_percentage,
+            'emd_coordinates': {'longitude': emd_lon, 'latitude': emd_lat},
+            'newa_grid_cell': {
+                'south_north_index': int(closest_sn),
+                'west_east_index': int(closest_we),
+                'longitude': float(closest_lon),
+                'latitude': float(closest_lat),
+                'distance_from_emd_km': float(closest_distance_km)
+            },
+            'data_counts': {
+                'emd_final': len(emd_final),
+                'newa_final': len(newa_final),
+                'valid_days': len(valid_days)
+            },
+            'statistics': {
+                'emd_stats': emd_stats,
+                'newa_stats': newa_stats,
+                'qq_correlation': float(qq_correlation)
+            },
+            'statistical_tests': {
+                'ks_test': {
+                    'statistic': float(ks_statistic),
+                    'p_value': float(ks_p_value),
+                    'significant': ks_p_value < 0.05
+                },
+                'mann_whitney_test': {
+                    'statistic': float(mw_statistic),
+                    'p_value': float(mw_p_value),
+                    'significant': mw_p_value < 0.05
+                }
+            },
+            'filtered_data': {
+                'emd_data': emd_final,
+                'newa_data': newa_final
+            }
+        }
+        
+        print(f"\n✓ PDF analysis completed successfully!")
+        print(f"Results saved to: {base_dir}")
+        
+        return results
+        
+    except Exception as e:
+        print(f"Error in PDF analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+

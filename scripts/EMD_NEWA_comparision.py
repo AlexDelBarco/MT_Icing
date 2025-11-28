@@ -87,10 +87,27 @@ emd_coords = (19.960, 59.600)  # EMD's data coordinates
 #                                                 plot_title="NEWA Grid with EMD Location"
 # )
 
-EMD_NEW_results = fn.compare_ice_load_emd_newa(
+# EMD_NEWA_results = fn.compare_ice_load_emd_newa(
+#     emd_data=emd_data,
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     height=height_level,
+#     emd_coordinates=emd_coords
+# )
+
+# EMD_NEWA_meanDWY = fn.emd_newa_typical(
+#     emd_data=emd_data,
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     height=height_level,
+#     emd_coordinates=emd_coords,
+#     ice_load_threshold=0,
+#     non_zero_percentage=80
+# )
+
+EMD_NEWA_pdf = fn.pdf_emd_newa(
     emd_data=emd_data,
     dataset_with_ice_load=dataset_with_ice_load,
     height=height_level,
-    emd_coordinates=emd_coords
+    emd_coordinates=emd_coords,
+    ice_load_threshold=0,
+    non_zero_percentage=50
 )
-
