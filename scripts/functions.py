@@ -11429,9 +11429,9 @@ def compare_ice_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_
         
         # Find the closest grid cell to EMD coordinates
         if 'XLAT' not in dataset_with_ice_load and 'XLAT' not in dataset_with_ice_load.coords:
-            raise ValueError("XLAT coordinate not found in dataset")
+            raise ValueError("'XLAT' coordinate not found in NEWA dataset")
         if 'XLON' not in dataset_with_ice_load and 'XLON' not in dataset_with_ice_load.coords:
-            raise ValueError("XLON coordinate not found in dataset")
+            raise ValueError("'XLON' coordinate not found in NEWA dataset")
         
         # Extract coordinates - handle both data variables and coordinates
         if 'XLAT' in dataset_with_ice_load.coords:
@@ -11534,7 +11534,7 @@ def compare_ice_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_
         print(f"Excluded {len(emd_clean_all) - len(emd_clean)} non-icing season points")
         
         if len(emd_clean) < 10:
-            print("Warning: Very few valid data points for analysis!")
+            print("Warning: Very few valid data points for comparison!")
             return None
         
         # Calculate comparison statistics
@@ -11620,11 +11620,272 @@ def compare_ice_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_
             base_dir = os.path.join("results", "figures", "EMD", "Ice_Accretion", "comparison_EMD_NEWA", f"{height:.0f}m")
             os.makedirs(base_dir, exist_ok=True)
             
-            # Similar plotting code as original function but for accretion
-            # This would include scatter plots, time series, etc.
-            # (Implementation details similar to compare_ice_load_emd_newa)
+            # Create comprehensive comparison plot
+            fig = plt.figure(figsize=(20, 24))
             
-            print(f"Saved plots to: {base_dir}")
+            # Plot 1: Scatter plot with regression line
+            ax1 = plt.subplot(4, 2, 1)
+            
+            # Create scatter plot
+            scatter = ax1.scatter(emd_clean, newa_clean, alpha=0.6, s=15, c='blue', edgecolors='darkblue', linewidth=0.1)
+            
+            # Add 1:1 line
+            min_val = min(emd_clean.min(), newa_clean.min())
+            max_val = max(emd_clean.max(), newa_clean.max())
+            ax1.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, label='1:1 Line')
+            
+            # Add regression line
+            from sklearn.linear_model import LinearRegression
+            reg = LinearRegression()
+            X_reg = emd_clean.values.reshape(-1, 1)
+            reg.fit(X_reg, newa_clean.values)
+            regression_line = reg.predict(X_reg)
+            ax1.plot(emd_clean, regression_line, 'g-', linewidth=2, label=f'Regression (R²={r2:.3f})')
+            
+            ax1.set_xlabel('EMD Ice Accretion [mm/h]', fontweight='bold')
+            ax1.set_ylabel('NEWA Ice Accretion [mm/h]', fontweight='bold')
+            ax1.set_title('Scatter Plot: NEWA vs EMD Ice Accretion', fontweight='bold')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+            
+            # Add statistics text
+            stats_text = f'n = {len(emd_clean)}\nBias = {bias:.3f} mm/h\nMAE = {mae:.3f} mm/h\nRMSE = {rmse:.3f} mm/h\nr = {correlation:.3f}'
+            ax1.text(0.05, 0.95, stats_text, transform=ax1.transAxes, fontsize=10,
+                    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+            
+            # Plot 2: Time series comparison (first 30 days for visibility)
+            ax2 = plt.subplot(4, 2, 2)
+            
+            # Take a subset for better visualization
+            if len(emd_clean) > 720:  # More than 30 days
+                subset_size = 720  # 30 days of hourly data
+                subset_idx = np.random.choice(len(emd_clean), subset_size, replace=False)
+                subset_idx = np.sort(subset_idx)
+                emd_subset = emd_clean.iloc[subset_idx]
+                newa_subset = newa_clean.iloc[subset_idx]
+                time_subset = emd_subset.index
+            else:
+                emd_subset = emd_clean
+                newa_subset = newa_clean
+                time_subset = emd_clean.index
+            
+            ax2.plot(time_subset, emd_subset, 'b-', linewidth=1, alpha=0.8, label='EMD')
+            ax2.plot(time_subset, newa_subset, 'r-', linewidth=1, alpha=0.8, label='NEWA')
+            
+            ax2.set_xlabel('Time', fontweight='bold')
+            ax2.set_ylabel('Ice Accretion [mm/h]', fontweight='bold')
+            ax2.set_title(f'Time Series Comparison (Sample: {len(emd_subset)} points)', fontweight='bold')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+            plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45)
+            
+            # Plot 3: Residuals plot
+            ax3 = plt.subplot(4, 2, 3)
+            
+            residuals = newa_clean - emd_clean
+            ax3.scatter(emd_clean, residuals, alpha=0.6, s=15, c='purple')
+            ax3.axhline(y=0, color='r', linestyle='--', linewidth=2)
+            ax3.axhline(y=residuals.mean(), color='g', linestyle='-', linewidth=2, label=f'Mean Residual = {residuals.mean():.3f}')
+            
+            ax3.set_xlabel('EMD Ice Accretion [mm/h]', fontweight='bold')
+            ax3.set_ylabel('Residuals (NEWA - EMD) [mm/h]', fontweight='bold')
+            ax3.set_title('Residuals vs EMD Accretion', fontweight='bold')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+            
+            # Plot 4: Histogram of residuals
+            ax4 = plt.subplot(4, 2, 4)
+            
+            ax4.hist(residuals, bins=50, alpha=0.7, color='purple', edgecolor='black')
+            ax4.axvline(x=0, color='r', linestyle='--', linewidth=2, label='Zero Line')
+            ax4.axvline(x=residuals.mean(), color='g', linestyle='-', linewidth=2, label=f'Mean = {residuals.mean():.3f}')
+            
+            ax4.set_xlabel('Residuals (NEWA - EMD) [mm/h]', fontweight='bold')
+            ax4.set_ylabel('Frequency', fontweight='bold')
+            ax4.set_title('Distribution of Residuals', fontweight='bold')
+            ax4.legend()
+            ax4.grid(True, alpha=0.3)
+            
+            # Plot 5: Box plots comparison
+            ax5 = plt.subplot(4, 2, 5)
+            
+            box_data = [emd_clean.values, newa_clean.values]
+            labels = ['EMD', 'NEWA']
+            colors = ['lightblue', 'lightcoral']
+            
+            box_plot = ax5.boxplot(box_data, labels=labels, patch_artist=True,
+                                  showmeans=True, meanline=True,
+                                  boxprops=dict(alpha=0.7),
+                                  medianprops=dict(color='red', linewidth=2),
+                                  meanprops=dict(color='black', linewidth=2, linestyle='--'))
+            
+            for patch, color in zip(box_plot['boxes'], colors):
+                patch.set_facecolor(color)
+            
+            ax5.set_ylabel('Ice Accretion [mm/h]', fontweight='bold')
+            ax5.set_title('Distribution Comparison', fontweight='bold')
+            ax5.grid(True, alpha=0.3)
+            
+            # Plot 6: Monthly statistics
+            ax6 = plt.subplot(4, 2, 6)
+            
+            # Calculate monthly statistics
+            emd_monthly = emd_clean.groupby(emd_clean.index.month).mean()
+            newa_monthly = newa_clean.groupby(newa_clean.index.month).mean()
+            
+            months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            month_labels = [months[i-1] for i in emd_monthly.index]
+            
+            x = np.arange(len(month_labels))
+            width = 0.35
+            
+            ax6.bar(x - width/2, emd_monthly.values, width, label='EMD', alpha=0.7, color='blue')
+            ax6.bar(x + width/2, newa_monthly.values, width, label='NEWA', alpha=0.7, color='red')
+            
+            ax6.set_xlabel('Month', fontweight='bold')
+            ax6.set_ylabel('Mean Ice Accretion [mm/h]', fontweight='bold')
+            ax6.set_title('Monthly Mean Ice Accretion', fontweight='bold')
+            ax6.set_xticks(x)
+            ax6.set_xticklabels(month_labels)
+            ax6.legend()
+            ax6.grid(True, alpha=0.3)
+            
+            # Plot 7: Hourly mean difference heatmap
+            ax7 = plt.subplot(4, 2, 7)
+            
+            # Calculate hourly means for each dataset
+            emd_hourly = emd_clean.groupby([emd_clean.index.month, emd_clean.index.hour]).mean().unstack()
+            newa_hourly = newa_clean.groupby([newa_clean.index.month, newa_clean.index.hour]).mean().unstack()
+            
+            # Calculate difference (NEWA - EMD)
+            hourly_diff = newa_hourly - emd_hourly
+            
+            # Create heatmap
+            im = ax7.imshow(hourly_diff.values, cmap='RdBu_r', aspect='auto', interpolation='nearest')
+            
+            # Set labels
+            ax7.set_xticks(range(24))
+            ax7.set_xticklabels(range(24))
+            ax7.set_yticks(range(len(hourly_diff.index)))
+            ax7.set_yticklabels([months[i-1] for i in hourly_diff.index])
+            
+            ax7.set_xlabel('Hour of Day', fontweight='bold')
+            ax7.set_ylabel('Month', fontweight='bold')
+            ax7.set_title('Hourly Mean Difference (NEWA - EMD) [mm/h]', fontweight='bold')
+            
+            # Add colorbar
+            cbar = plt.colorbar(im, ax=ax7)
+            cbar.set_label('Difference [mm/h]', rotation=270, labelpad=20)
+            
+            # Plot 8: Non-zero event analysis
+            ax8 = plt.subplot(4, 2, 8)
+            
+            # Define threshold for non-zero events
+            threshold = 0.01  # mm/h
+            
+            emd_nonzero = (emd_clean > threshold).sum()
+            newa_nonzero = (newa_clean > threshold).sum()
+            total_points = len(emd_clean)
+            
+            # Monthly non-zero percentages
+            emd_monthly_nonzero = (emd_clean > threshold).groupby(emd_clean.index.month).mean() * 100
+            newa_monthly_nonzero = (newa_clean > threshold).groupby(newa_clean.index.month).mean() * 100
+            
+            month_labels_nonzero = [months[i-1] for i in emd_monthly_nonzero.index]
+            x_nonzero = np.arange(len(month_labels_nonzero))
+            
+            ax8.bar(x_nonzero - width/2, emd_monthly_nonzero.values, width, label='EMD', alpha=0.7, color='blue')
+            ax8.bar(x_nonzero + width/2, newa_monthly_nonzero.values, width, label='NEWA', alpha=0.7, color='red')
+            
+            ax8.set_xlabel('Month', fontweight='bold')
+            ax8.set_ylabel('Non-Zero Events [%]', fontweight='bold')
+            ax8.set_title(f'Non-Zero Accretion Events (>{threshold} mm/h)', fontweight='bold')
+            ax8.set_xticks(x_nonzero)
+            ax8.set_xticklabels(month_labels_nonzero)
+            ax8.legend()
+            ax8.grid(True, alpha=0.3)
+            
+            # Add overall statistics text
+            overall_stats = f"""
+            EMD non-zero events: {emd_nonzero}/{total_points} ({emd_nonzero/total_points*100:.1f}%)
+            NEWA non-zero events: {newa_nonzero}/{total_points} ({newa_nonzero/total_points*100:.1f}%)
+            """
+            ax8.text(0.02, 0.98, overall_stats, transform=ax8.transAxes, fontsize=9,
+                    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+            
+            # Add main title
+            plt.suptitle(f'Ice Accretion Comparison: EMD vs NEWA at {height:.0f}m (Icing Season)\n'
+                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km\n'
+                        f'Period: {common_start.strftime("%Y-%m-%d")} to {common_end.strftime("%Y-%m-%d")}',
+                        fontsize=16, fontweight='bold', y=0.98)
+            
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.92, hspace=0.4, wspace=0.3)
+            
+            # Save the plot
+            comparison_plot_path = os.path.join(base_dir, f'ice_accretion_comparison_{height:.0f}m.png')
+            plt.savefig(comparison_plot_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            
+            print(f"Saved comprehensive comparison plot: {comparison_plot_path}")
+            
+            # Create a summary statistics table plot
+            fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+            ax.axis('off')
+            
+            # Prepare statistics table
+            table_data = [
+                ['Statistic', 'Value', 'Unit', 'Description'],
+                ['Data Points', f'{len(emd_clean)}', '-', 'Number of valid hourly observations'],
+                ['EMD Mean', f'{mean_emd:.4f}', 'mm/h', 'Mean ice accretion rate - EMD'],
+                ['NEWA Mean', f'{np.mean(newa_clean):.4f}', 'mm/h', 'Mean ice accretion rate - NEWA'],
+                ['Bias (NEWA - EMD)', f'{bias:.4f}', 'mm/h', 'Systematic difference'],
+                ['Relative Bias', f'{relative_bias:.1f}', '%', 'Bias as percentage of EMD mean'],
+                ['MAE', f'{mae:.4f}', 'mm/h', 'Mean Absolute Error'],
+                ['Relative MAE', f'{relative_mae:.1f}', '%', 'MAE as percentage of EMD mean'],
+                ['RMSE', f'{rmse:.4f}', 'mm/h', 'Root Mean Square Error'],
+                ['Relative RMSE', f'{relative_rmse:.1f}', '%', 'RMSE as percentage of EMD mean'],
+                ['Correlation (r)', f'{correlation:.4f}', '-', 'Pearson correlation coefficient'],
+                ['Correlation p-value', f'{correlation_p:.4f}', '-', 'Statistical significance'],
+                ['Spearman ρ', f'{spearman_corr:.4f}', '-', 'Rank correlation coefficient'],
+                ['R²', f'{r2:.4f}', '-', 'Coefficient of determination'],
+                ['Agreement (±0.1 mm/h)', f'{agreement_percentage:.1f}', '%', 'Percentage within threshold']
+            ]
+            
+            # Create table
+            table = ax.table(cellText=table_data[1:], colLabels=table_data[0], 
+                           cellLoc='left', loc='center', bbox=[0, 0, 1, 1])
+            table.auto_set_font_size(False)
+            table.set_fontsize(11)
+            table.scale(1, 2)
+            
+            # Style the table
+            for i in range(len(table_data)):
+                for j in range(len(table_data[0])):
+                    cell = table[(i, j)]
+                    if i == 0:  # Header row
+                        cell.set_facecolor('#4CAF50')
+                        cell.set_text_props(weight='bold', color='white')
+                    elif i % 2 == 0:  # Even rows
+                        cell.set_facecolor('#F5F5F5')
+            
+            ax.set_title(f'Ice Accretion Comparison Statistics Summary at {height:.0f}m\n'
+                        f'EMD vs NEWA (Icing Season Only)\n'
+                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                        fontsize=14, fontweight='bold', pad=20)
+            
+            plt.tight_layout()
+            
+            stats_table_path = os.path.join(base_dir, f'ice_accretion_statistics_{height:.0f}m.png')
+            plt.savefig(stats_table_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            
+            print(f"Saved statistics table: {stats_table_path}")
+            
+            print(f"\n=== PLOT SUMMARY ===")
+            print(f"Created 2 files in: {base_dir}")
+            print(f"  1. Comprehensive comparison plot: ice_accretion_comparison_{height:.0f}m.png")
+            print(f"  2. Statistics summary table: ice_accretion_statistics_{height:.0f}m.png")
         
         print(f"\n✓ Ice accretion comparison completed successfully!")
         return results

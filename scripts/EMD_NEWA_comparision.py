@@ -103,11 +103,36 @@ emd_coords = (19.960, 59.600)  # EMD's data coordinates
 #     non_zero_percentage=80
 # )
 
-EMD_NEWA_pdf = fn.pdf_emd_newa(
+# EMD_NEWA_pdf = fn.pdf_emd_newa(
+#     emd_data=emd_data,
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     height=height_level,
+#     emd_coordinates=emd_coords,
+#     ice_load_threshold=0,
+#     non_zero_percentage=50
+# )
+
+EMD_NEWA_acc1 = fn.compare_ice_accretion_emd_newa(
     emd_data=emd_data,
     dataset_with_ice_load=dataset_with_ice_load,
     height=height_level,
-    emd_coordinates=emd_coords,
-    ice_load_threshold=0,
-    non_zero_percentage=50
+    emd_coordinates=emd_coords
 )
+
+# EMD_NEWA_acc2 = fn.emd_newa_accretion_typical(
+#     emd_data=emd_data,
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     height=height_level,
+#     emd_coordinates=emd_coords,
+#     ice_accretion_threshold=0,
+#     non_zero_percentage=80
+# )
+
+# EMD_NEWA_acc3 = fn.pdf_emd_newa_accretion(
+#     emd_data=emd_data,
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     height=height_level,
+#     emd_coordinates=emd_coords,
+#     ice_accretion_threshold=0,
+#     non_zero_percentage=50
+# )
