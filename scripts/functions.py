@@ -1,3 +1,6 @@
+
+
+
 import pandas as pd
 import xarray as xr
 import numpy as np
@@ -1772,6 +1775,83 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
         traceback.print_exc()
         return None
 
+
+# WIND ROSE
+
+def wind_rose(dataset, height_level=0, wd_variable='WD', save_plot=True, bins=16, title=None, output_dir="results/figures/wind_rose"):
+    """
+    Plot wind rose for wind direction (WD) at a specified height from an xarray dataset.
+    Parameters:
+    -----------
+    dataset : xarray.Dataset
+        Dataset containing wind direction variable (WD)
+    height_level : int, optional
+        Height index to use (default: 0)
+    wd_variable : str, optional
+        Name of wind direction variable (default: 'WD')
+    save_plot : bool, optional
+        Whether to save the plot (default: True)
+    bins : int, optional
+        Number of wind direction bins (default: 16)
+    title : str, optional
+        Title for the plot
+    output_dir : str, optional
+        Directory to save the plot
+    Returns:
+    -----------
+    None
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import os
+
+    # Extract wind direction data at specified height
+    if wd_variable not in dataset.data_vars:
+        raise ValueError(f"Variable '{wd_variable}' not found in dataset.")
+    wd_data = dataset[wd_variable].isel(height=height_level).values.flatten()
+
+    # Remove NaNs
+    wd_data = wd_data[~np.isnan(wd_data)]
+
+    # Bin wind directions
+    bin_edges = np.linspace(0, 360, bins + 1)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    counts, _ = np.histogram(wd_data, bins=bin_edges)
+    total = counts.sum()
+    percentages = counts / total * 100
+
+    # Convert to polar coordinates
+    theta = np.deg2rad(bin_centers)
+    width = 2 * np.pi / bins
+
+    # Plot
+    fig, ax = plt.subplots(subplot_kw={'projection': 'polar'}, figsize=(8, 8))
+    bars = ax.bar(theta, percentages, width=width, bottom=0.0, color='steelblue', edgecolor='black', alpha=0.7)
+    ax.set_theta_zero_location('N')
+    ax.set_theta_direction(-1)
+    # Show both compass directions and degree values
+    compass_labels = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+    compass_degrees = np.arange(0, 360, 45)
+    ax.set_xticks(np.deg2rad(compass_degrees))
+    ax.set_xticklabels([f'{label}\n{deg}°' for label, deg in zip(compass_labels, compass_degrees)])
+    # Show radial grid labels (percentages)
+    max_pct = percentages.max()
+    yticks = np.linspace(0, max_pct, num=5)
+    ax.set_yticks(yticks)
+    ax.set_yticklabels([f'{y:.1f}%' for y in yticks])
+    ax.set_ylabel('Frequency (%)', labelpad=30, fontsize=12)
+    if title is None:
+        title = f"Wind Rose at Height Index {height_level}"
+    ax.set_title(title, va='bottom', fontsize=14)
+
+    # Save plot (do not show)
+    output_dir = os.path.join("results", "figures", "geographical_maps")
+    if save_plot:
+        os.makedirs(output_dir, exist_ok=True)
+        plot_path = os.path.join(output_dir, f"wind_rose_height_{height_level}.png")
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight', facecolor='white')
+        print(f"Wind rose plot saved to: {plot_path}")
+    plt.close()
 
 # TEMPERATURE AND HUMIDITY CRITERIA
 
@@ -11362,10 +11442,9 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
         traceback.print_exc()
         return None
 
-def compare_ice_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_plots=True):
+def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_plots=True, accretion_threshold=0.0, non_zero_percentage=0.0):
     """
     Compare ice accretion data between EMD observations and NEWA model dataset.
-    
     Parameters:
     -----------
     emd_data : pandas.DataFrame
@@ -11378,61 +11457,53 @@ def compare_ice_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_
         EMD coordinates as (longitude, latitude) in degrees
     save_plots : bool, optional
         Whether to save plots to file (default: True)
-        
+    accretion_threshold : float, optional
+        Minimum accretion threshold (g/h) for filtering (default: 0.0)
+    non_zero_percentage : float, optional
+        Minimum percentage (0-100) of hours that must be > 0 in both datasets for a temporal period to be included (default: 0.0)
     Returns:
     --------
     dict
         Dictionary containing comparison statistics and analysis results
     """
-    
     print(f"=== ICE ACCRETION COMPARISON: EMD vs NEWA at {height}m ===")
-    
     try:
+        import matplotlib.pyplot as plt
         import numpy as np
         import pandas as pd
-        import matplotlib.pyplot as plt
-        import os
         from scipy import stats
         from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-        
+
         # Validate height input
         if height not in [50, 100, 150]:
             raise ValueError(f"Height must be 50, 100, or 150 meters. Got: {height}")
-        
+
         # Check if EMD data contains required column
-        # Handle both integer and float height values from NEWA dataset
-        emd_column = f"iceInten.{int(height)}"  # Convert to int to avoid .0 suffix
+        emd_column = f"iceInten.{int(height)}"
         if emd_column not in emd_data.columns:
             available_ice_cols = [col for col in emd_data.columns if 'iceInten' in col.lower() or 'accre' in col.lower()]
             raise ValueError(f"Column '{emd_column}' not found in EMD data. Available accretion columns: {available_ice_cols}")
-        
+
         # Verify NEWA dataset height
         if 'ACCRE_CYL' not in dataset_with_ice_load.data_vars:
             raise ValueError("'ACCRE_CYL' variable not found in NEWA dataset")
-        
+
         # Get height information from NEWA dataset
         height_levels = dataset_with_ice_load.height.values
         height_idx = None
         for i, h in enumerate(height_levels):
-            if abs(h - height) < 1:  # Allow 1m tolerance
+            if abs(h - height) < 1:
                 height_idx = i
                 break
-        
         if height_idx is None:
             raise ValueError(f"Height {height}m not found in NEWA dataset. Available heights: {height_levels}")
-        
+
         print(f"Using NEWA height level {height_idx} ({height_levels[height_idx]}m)")
-        
+
         # Get EMD coordinates
         emd_lon, emd_lat = emd_coordinates
         print(f"EMD coordinates: {emd_lon:.4f}°E, {emd_lat:.4f}°N")
-        
-        # Find the closest grid cell to EMD coordinates
-        if 'XLAT' not in dataset_with_ice_load and 'XLAT' not in dataset_with_ice_load.coords:
-            raise ValueError("'XLAT' coordinate not found in NEWA dataset")
-        if 'XLON' not in dataset_with_ice_load and 'XLON' not in dataset_with_ice_load.coords:
-            raise ValueError("'XLON' coordinate not found in NEWA dataset")
-        
+
         # Extract coordinates - handle both data variables and coordinates
         if 'XLAT' in dataset_with_ice_load.coords:
             lats = dataset_with_ice_load.coords['XLAT'].values
@@ -11440,47 +11511,36 @@ def compare_ice_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_
         else:
             lats = dataset_with_ice_load['XLAT'].values
             lons = dataset_with_ice_load['XLON'].values
-        
-        print(f"NEWA grid covers:")
-        print(f"  Longitude range: {lons.min():.4f}° to {lons.max():.4f}°E")
-        print(f"  Latitude range: {lats.min():.4f}° to {lats.max():.4f}°N")
-        print(f"  Grid shape: {lats.shape}")
-        
-        # Calculate distance from EMD to each grid point
-        # Using Euclidean distance in degrees (appropriate for small domains)
+
+        # Find the closest grid cell to EMD coordinates
         distance_squared = (lons - emd_lon)**2 + (lats - emd_lat)**2
-        
-        # Find the index of the closest grid cell
         closest_indices = np.unravel_index(np.argmin(distance_squared), distance_squared.shape)
         closest_sn, closest_we = closest_indices
-        
+
         # Get the actual coordinates of the closest grid cell
         closest_lon = lons[closest_sn, closest_we]
         closest_lat = lats[closest_sn, closest_we]
         closest_distance_deg = np.sqrt(distance_squared[closest_sn, closest_we])
-        
-        # More accurate distance conversion accounting for latitude
-        # At EMD latitude (59.6°N), longitude degrees are shorter
         lat_correction = np.cos(np.radians(emd_lat))
         closest_distance_km = closest_distance_deg * 111.32 * lat_correction
-        
+
         print(f"Closest NEWA grid cell:")
         print(f"  Grid indices: south_north={closest_sn}, west_east={closest_we}")
         print(f"  Grid coordinates: {closest_lon:.4f}°E, {closest_lat:.4f}°N")
         print(f"  Distance from EMD: {closest_distance_km:.2f} km")
-        
+
         # Extract NEWA ice accretion data at specified height and closest grid cell
         newa_ice_accretion = dataset_with_ice_load['ACCRE_CYL'].isel(height=height_idx, south_north=closest_sn, west_east=closest_we)
-        
-        # Convert to pandas DataFrame for easier manipulation
         newa_df = newa_ice_accretion.to_dataframe(name='ACCRE_CYL').reset_index()
         newa_df['time'] = pd.to_datetime(newa_df['time'])
         newa_df = newa_df.set_index('time')
-        
+        # Convert NEWA accretion from kg/30min to g/h
+        newa_df['ACCRE_CYL'] = newa_df['ACCRE_CYL'] * 2 * 1000
+
         print(f"NEWA data extracted from grid cell ({closest_sn}, {closest_we})")
         print(f"Closest cell coordinates: {closest_lon:.4f}°E, {closest_lat:.4f}°N")
         print(f"Distance from EMD location: {closest_distance_km:.2f} km")
-        
+
         # Prepare EMD data
         if not isinstance(emd_data.index, pd.DatetimeIndex):
             if 'time' in emd_data.columns:
@@ -11491,91 +11551,91 @@ def compare_ice_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_
                 raise ValueError("EMD data must have datetime index or 'time' column")
         else:
             emd_df = emd_data.copy()
-        
+
         print(f"EMD data period: {emd_df.index.min()} to {emd_df.index.max()}")
         print(f"NEWA data period: {newa_df.index.min()} to {newa_df.index.max()}")
-        
+
         # Find common time period
         common_start = max(emd_df.index.min(), newa_df.index.min())
         common_end = min(emd_df.index.max(), newa_df.index.max())
-        
+
         print(f"Common period: {common_start} to {common_end}")
-        
+
         # Filter to common period
         emd_common = emd_df.loc[common_start:common_end, emd_column].copy()
         newa_common = newa_df.loc[common_start:common_end, 'ACCRE_CYL'].copy()
-        
+
         # Resample NEWA data to hourly to match EMD (from 30min to 1h)
-        print("Resampling NEWA data from 30min to 1h resolution...")
+        print("Resampling NEWA data from 30min to 1h resolution and converting units...")
         newa_hourly = newa_common.resample('1H').mean()
-        
+
         # Align time indices
         common_times = emd_common.index.intersection(newa_hourly.index)
         emd_aligned = emd_common.loc[common_times]
         newa_aligned = newa_hourly.loc[common_times]
-        
+
         print(f"Aligned data points: {len(common_times)}")
-        print(f"EMD ice accretion range: {emd_aligned.min():.3f} to {emd_aligned.max():.3f}")
-        print(f"NEWA ice accretion range: {newa_aligned.min():.3f} to {newa_aligned.max():.3f}")
-        
+        print(f"EMD ice accretion range: {emd_aligned.min():.3f} to {emd_aligned.max():.3f} g/h")
+        print(f"NEWA ice accretion range: {newa_aligned.min():.3f} to {newa_aligned.max():.3f} g/h")
+
         # Remove NaN values and filter out non-icing months (June-October)
         valid_mask = ~(np.isnan(emd_aligned) | np.isnan(newa_aligned))
         emd_clean_all = emd_aligned[valid_mask]
         newa_clean_all = newa_aligned[valid_mask]
-        
+
         # Filter out non-icing months (June=6, July=7, August=8, September=9, October=10)
         non_icing_months = [6, 7, 8, 9, 10]
         icing_mask = ~emd_clean_all.index.month.isin(non_icing_months)
         emd_clean = emd_clean_all[icing_mask]
         newa_clean = newa_clean_all[icing_mask]
-        
+
         print(f"Valid data points after NaN removal: {len(emd_clean_all)}")
         print(f"Icing season data points (excluding Jun-Oct): {len(emd_clean)}")
         print(f"Excluded {len(emd_clean_all) - len(emd_clean)} non-icing season points")
-        
+
         if len(emd_clean) < 10:
             print("Warning: Very few valid data points for comparison!")
             return None
-        
+
         # Calculate comparison statistics
         print("\nCalculating comparison statistics...")
-        
+
         # Basic statistics
         bias = np.mean(newa_clean - emd_clean)
         mae = mean_absolute_error(emd_clean, newa_clean)
         rmse = np.sqrt(mean_squared_error(emd_clean, newa_clean))
-        
+
         # Correlation
         correlation, correlation_p = stats.pearsonr(emd_clean, newa_clean)
         spearman_corr, spearman_p = stats.spearmanr(emd_clean, newa_clean)
-        
+
         # R-squared
         r2 = r2_score(emd_clean, newa_clean)
-        
+
         # Relative metrics
         mean_emd = np.mean(emd_clean)
         relative_bias = (bias / mean_emd) * 100 if mean_emd != 0 else np.nan
         relative_mae = (mae / mean_emd) * 100 if mean_emd != 0 else np.nan
         relative_rmse = (rmse / mean_emd) * 100 if mean_emd != 0 else np.nan
-        
+
         # Agreement statistics
-        agreement_threshold = 0.1  # mm/h
+        agreement_threshold = 0.1  # g/h
         within_threshold = np.sum(np.abs(newa_clean - emd_clean) <= agreement_threshold)
         agreement_percentage = (within_threshold / len(emd_clean)) * 100
-        
+
         # Print statistics
         print(f"\n=== COMPARISON STATISTICS ===")
         print(f"Data points: {len(emd_clean)}")
-        print(f"EMD mean: {mean_emd:.3f} mm/h")
-        print(f"NEWA mean: {np.mean(newa_clean):.3f} mm/h")
-        print(f"Bias (NEWA - EMD): {bias:.3f} mm/h ({relative_bias:.1f}%)")
-        print(f"MAE: {mae:.3f} mm/h ({relative_mae:.1f}%)")
-        print(f"RMSE: {rmse:.3f} mm/h ({relative_rmse:.1f}%)")
+        print(f"EMD mean: {mean_emd:.3f} g/h")
+        print(f"NEWA mean: {np.mean(newa_clean):.3f} g/h")
+        print(f"Bias (NEWA - EMD): {bias:.3f} g/h ({relative_bias:.1f}%)")
+        print(f"MAE: {mae:.3f} g/h ({relative_mae:.1f}%)")
+        print(f"RMSE: {rmse:.3f} g/h ({relative_rmse:.1f}%)")
         print(f"Correlation: {correlation:.3f} (p={correlation_p:.4f})")
         print(f"Spearman correlation: {spearman_corr:.3f} (p={spearman_p:.4f})")
         print(f"R²: {r2:.3f}")
-        print(f"Agreement within ±{agreement_threshold} mm/h: {agreement_percentage:.1f}%")
-        
+        print(f"Agreement within ±{agreement_threshold} g/h: {agreement_percentage:.1f}%")
+
         # Prepare results dictionary
         results = {
             'height': height,
@@ -11611,285 +11671,393 @@ def compare_ice_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_
                 'time': common_times
             }
         }
-        
+
+
         # Create plots if requested
         if save_plots:
-            print(f"\nCreating comparison plots...")
-            
-            # Create results directory
-            base_dir = os.path.join("results", "figures", "EMD", "Ice_Accretion", "comparison_EMD_NEWA", f"{height:.0f}m")
+            print(f"\nCreating requested comparison plots...")
+            threshold_str = f"threshold_{accretion_threshold:.3f}" if accretion_threshold > 0 else "no_threshold"
+            nonzero_str = f"nonzero_{non_zero_percentage:.0f}pct" if non_zero_percentage > 0 else "no_nonzero_filter"
+            base_dir = os.path.join("results", "figures", "EMD", "Ice_Accretion", "NEWA_EMD_comparison", f"{height:.0f}m_{threshold_str}_{nonzero_str}")
             os.makedirs(base_dir, exist_ok=True)
-            
-            # Create comprehensive comparison plot
-            fig = plt.figure(figsize=(20, 24))
-            
-            # Plot 1: Scatter plot with regression line
-            ax1 = plt.subplot(4, 2, 1)
-            
-            # Create scatter plot
-            scatter = ax1.scatter(emd_clean, newa_clean, alpha=0.6, s=15, c='blue', edgecolors='darkblue', linewidth=0.1)
-            
-            # Add 1:1 line
-            min_val = min(emd_clean.min(), newa_clean.min())
-            max_val = max(emd_clean.max(), newa_clean.max())
-            ax1.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, label='1:1 Line')
-            
-            # Add regression line
-            from sklearn.linear_model import LinearRegression
-            reg = LinearRegression()
-            X_reg = emd_clean.values.reshape(-1, 1)
-            reg.fit(X_reg, newa_clean.values)
-            regression_line = reg.predict(X_reg)
-            ax1.plot(emd_clean, regression_line, 'g-', linewidth=2, label=f'Regression (R²={r2:.3f})')
-            
-            ax1.set_xlabel('EMD Ice Accretion [mm/h]', fontweight='bold')
-            ax1.set_ylabel('NEWA Ice Accretion [mm/h]', fontweight='bold')
-            ax1.set_title('Scatter Plot: NEWA vs EMD Ice Accretion', fontweight='bold')
+
+            # Plot 1A: Time series comparison with lines only
+            print("1A. Creating full time series comparison (lines only)...")
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
+            ax1.plot(emd_clean.index, emd_clean.values, 'b-', alpha=0.7, linewidth=0.5, label=f'EMD Hourly ({emd_column})')
+            ax1.plot(newa_clean.index, newa_clean.values, 'r-', alpha=0.7, linewidth=0.5, label=f'NEWA Hourly (ACCRE_CYL)')
+            ax1.set_ylabel('Ice Accretion (g/h)')
+            ax1.set_title(f'Hourly Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
-            
-            # Add statistics text
-            stats_text = f'n = {len(emd_clean)}\nBias = {bias:.3f} mm/h\nMAE = {mae:.3f} mm/h\nRMSE = {rmse:.3f} mm/h\nr = {correlation:.3f}'
-            ax1.text(0.05, 0.95, stats_text, transform=ax1.transAxes, fontsize=10,
-                    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-            
-            # Plot 2: Time series comparison (first 30 days for visibility)
-            ax2 = plt.subplot(4, 2, 2)
-            
-            # Take a subset for better visualization
-            if len(emd_clean) > 720:  # More than 30 days
-                subset_size = 720  # 30 days of hourly data
-                subset_idx = np.random.choice(len(emd_clean), subset_size, replace=False)
-                subset_idx = np.sort(subset_idx)
-                emd_subset = emd_clean.iloc[subset_idx]
-                newa_subset = newa_clean.iloc[subset_idx]
-                time_subset = emd_subset.index
-            else:
-                emd_subset = emd_clean
-                newa_subset = newa_clean
-                time_subset = emd_clean.index
-            
-            ax2.plot(time_subset, emd_subset, 'b-', linewidth=1, alpha=0.8, label='EMD')
-            ax2.plot(time_subset, newa_subset, 'r-', linewidth=1, alpha=0.8, label='NEWA')
-            
-            ax2.set_xlabel('Time', fontweight='bold')
-            ax2.set_ylabel('Ice Accretion [mm/h]', fontweight='bold')
-            ax2.set_title(f'Time Series Comparison (Sample: {len(emd_subset)} points)', fontweight='bold')
+            emd_daily_avg = emd_clean.resample('D').mean()
+            newa_daily_avg = newa_clean.resample('D').mean()
+            ax2.plot(emd_daily_avg.index, emd_daily_avg.values, 'b-', alpha=0.8, linewidth=1.0, label=f'EMD Daily Mean ({emd_column})')
+            ax2.plot(newa_daily_avg.index, newa_daily_avg.values, 'r-', alpha=0.8, linewidth=1.0, label=f'NEWA Daily Mean (ACCRE_CYL)')
+            ax2.set_ylabel('Ice Accretion (g/h)')
+            ax2.set_title(f'Daily Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
             ax2.legend()
             ax2.grid(True, alpha=0.3)
-            plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45)
-            
-            # Plot 3: Residuals plot
-            ax3 = plt.subplot(4, 2, 3)
-            
-            residuals = newa_clean - emd_clean
-            ax3.scatter(emd_clean, residuals, alpha=0.6, s=15, c='purple')
-            ax3.axhline(y=0, color='r', linestyle='--', linewidth=2)
-            ax3.axhline(y=residuals.mean(), color='g', linestyle='-', linewidth=2, label=f'Mean Residual = {residuals.mean():.3f}')
-            
-            ax3.set_xlabel('EMD Ice Accretion [mm/h]', fontweight='bold')
-            ax3.set_ylabel('Residuals (NEWA - EMD) [mm/h]', fontweight='bold')
-            ax3.set_title('Residuals vs EMD Accretion', fontweight='bold')
+            emd_weekly_avg = emd_clean.resample('W').mean()
+            newa_weekly_avg = newa_clean.resample('W').mean()
+            ax3.plot(emd_weekly_avg.index, emd_weekly_avg.values, 'b-', alpha=0.9, linewidth=1.5, label=f'EMD Weekly Mean ({emd_column})')
+            ax3.plot(newa_weekly_avg.index, newa_weekly_avg.values, 'r-', alpha=0.9, linewidth=1.5, label=f'NEWA Weekly Mean (ACCRE_CYL)')
+            ax3.set_xlabel('Time')
+            ax3.set_ylabel('Ice Accretion (g/h)')
+            ax3.set_title(f'Weekly Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
             ax3.legend()
             ax3.grid(True, alpha=0.3)
-            
-            # Plot 4: Histogram of residuals
-            ax4 = plt.subplot(4, 2, 4)
-            
-            ax4.hist(residuals, bins=50, alpha=0.7, color='purple', edgecolor='black')
-            ax4.axvline(x=0, color='r', linestyle='--', linewidth=2, label='Zero Line')
-            ax4.axvline(x=residuals.mean(), color='g', linestyle='-', linewidth=2, label=f'Mean = {residuals.mean():.3f}')
-            
-            ax4.set_xlabel('Residuals (NEWA - EMD) [mm/h]', fontweight='bold')
-            ax4.set_ylabel('Frequency', fontweight='bold')
-            ax4.set_title('Distribution of Residuals', fontweight='bold')
-            ax4.legend()
-            ax4.grid(True, alpha=0.3)
-            
-            # Plot 5: Box plots comparison
-            ax5 = plt.subplot(4, 2, 5)
-            
-            box_data = [emd_clean.values, newa_clean.values]
-            labels = ['EMD', 'NEWA']
-            colors = ['lightblue', 'lightcoral']
-            
-            box_plot = ax5.boxplot(box_data, labels=labels, patch_artist=True,
-                                  showmeans=True, meanline=True,
-                                  boxprops=dict(alpha=0.7),
-                                  medianprops=dict(color='red', linewidth=2),
-                                  meanprops=dict(color='black', linewidth=2, linestyle='--'))
-            
-            for patch, color in zip(box_plot['boxes'], colors):
-                patch.set_facecolor(color)
-            
-            ax5.set_ylabel('Ice Accretion [mm/h]', fontweight='bold')
-            ax5.set_title('Distribution Comparison', fontweight='bold')
-            ax5.grid(True, alpha=0.3)
-            
-            # Plot 6: Monthly statistics
-            ax6 = plt.subplot(4, 2, 6)
-            
-            # Calculate monthly statistics
-            emd_monthly = emd_clean.groupby(emd_clean.index.month).mean()
-            newa_monthly = newa_clean.groupby(newa_clean.index.month).mean()
-            
-            months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            month_labels = [months[i-1] for i in emd_monthly.index]
-            
-            x = np.arange(len(month_labels))
-            width = 0.35
-            
-            ax6.bar(x - width/2, emd_monthly.values, width, label='EMD', alpha=0.7, color='blue')
-            ax6.bar(x + width/2, newa_monthly.values, width, label='NEWA', alpha=0.7, color='red')
-            
-            ax6.set_xlabel('Month', fontweight='bold')
-            ax6.set_ylabel('Mean Ice Accretion [mm/h]', fontweight='bold')
-            ax6.set_title('Monthly Mean Ice Accretion', fontweight='bold')
-            ax6.set_xticks(x)
-            ax6.set_xticklabels(month_labels)
-            ax6.legend()
-            ax6.grid(True, alpha=0.3)
-            
-            # Plot 7: Hourly mean difference heatmap
-            ax7 = plt.subplot(4, 2, 7)
-            
-            # Calculate hourly means for each dataset
-            emd_hourly = emd_clean.groupby([emd_clean.index.month, emd_clean.index.hour]).mean().unstack()
-            newa_hourly = newa_clean.groupby([newa_clean.index.month, newa_clean.index.hour]).mean().unstack()
-            
-            # Calculate difference (NEWA - EMD)
-            hourly_diff = newa_hourly - emd_hourly
-            
-            # Create heatmap
-            im = ax7.imshow(hourly_diff.values, cmap='RdBu_r', aspect='auto', interpolation='nearest')
-            
-            # Set labels
-            ax7.set_xticks(range(24))
-            ax7.set_xticklabels(range(24))
-            ax7.set_yticks(range(len(hourly_diff.index)))
-            ax7.set_yticklabels([months[i-1] for i in hourly_diff.index])
-            
-            ax7.set_xlabel('Hour of Day', fontweight='bold')
-            ax7.set_ylabel('Month', fontweight='bold')
-            ax7.set_title('Hourly Mean Difference (NEWA - EMD) [mm/h]', fontweight='bold')
-            
-            # Add colorbar
-            cbar = plt.colorbar(im, ax=ax7)
-            cbar.set_label('Difference [mm/h]', rotation=270, labelpad=20)
-            
-            # Plot 8: Non-zero event analysis
-            ax8 = plt.subplot(4, 2, 8)
-            
-            # Define threshold for non-zero events
-            threshold = 0.01  # mm/h
-            
-            emd_nonzero = (emd_clean > threshold).sum()
-            newa_nonzero = (newa_clean > threshold).sum()
-            total_points = len(emd_clean)
-            
-            # Monthly non-zero percentages
-            emd_monthly_nonzero = (emd_clean > threshold).groupby(emd_clean.index.month).mean() * 100
-            newa_monthly_nonzero = (newa_clean > threshold).groupby(newa_clean.index.month).mean() * 100
-            
-            month_labels_nonzero = [months[i-1] for i in emd_monthly_nonzero.index]
-            x_nonzero = np.arange(len(month_labels_nonzero))
-            
-            ax8.bar(x_nonzero - width/2, emd_monthly_nonzero.values, width, label='EMD', alpha=0.7, color='blue')
-            ax8.bar(x_nonzero + width/2, newa_monthly_nonzero.values, width, label='NEWA', alpha=0.7, color='red')
-            
-            ax8.set_xlabel('Month', fontweight='bold')
-            ax8.set_ylabel('Non-Zero Events [%]', fontweight='bold')
-            ax8.set_title(f'Non-Zero Accretion Events (>{threshold} mm/h)', fontweight='bold')
-            ax8.set_xticks(x_nonzero)
-            ax8.set_xticklabels(month_labels_nonzero)
-            ax8.legend()
-            ax8.grid(True, alpha=0.3)
-            
-            # Add overall statistics text
-            overall_stats = f"""
-            EMD non-zero events: {emd_nonzero}/{total_points} ({emd_nonzero/total_points*100:.1f}%)
-            NEWA non-zero events: {newa_nonzero}/{total_points} ({newa_nonzero/total_points*100:.1f}%)
-            """
-            ax8.text(0.02, 0.98, overall_stats, transform=ax8.transAxes, fontsize=9,
-                    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
-            
-            # Add main title
-            plt.suptitle(f'Ice Accretion Comparison: EMD vs NEWA at {height:.0f}m (Icing Season)\n'
-                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km\n'
-                        f'Period: {common_start.strftime("%Y-%m-%d")} to {common_end.strftime("%Y-%m-%d")}',
-                        fontsize=16, fontweight='bold', y=0.98)
-            
+            plt.suptitle(f'Multi-Scale Ice Accretion Comparison: EMD vs NEWA at {height}m (Lines Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=16, y=0.98)
             plt.tight_layout()
-            plt.subplots_adjust(top=0.92, hspace=0.4, wspace=0.3)
-            
-            # Save the plot
-            comparison_plot_path = os.path.join(base_dir, f'ice_accretion_comparison_{height:.0f}m.png')
-            plt.savefig(comparison_plot_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.subplots_adjust(top=0.92)
+            timeseries_lines_path = os.path.join(base_dir, f'multi_scale_timeseries_lines_{height:.0f}m.png')
+            plt.savefig(timeseries_lines_path, dpi=150, facecolor='white')
             plt.close()
-            
-            print(f"Saved comprehensive comparison plot: {comparison_plot_path}")
-            
-            # Create a summary statistics table plot
-            fig, ax = plt.subplots(1, 1, figsize=(12, 8))
-            ax.axis('off')
-            
-            # Prepare statistics table
-            table_data = [
-                ['Statistic', 'Value', 'Unit', 'Description'],
-                ['Data Points', f'{len(emd_clean)}', '-', 'Number of valid hourly observations'],
-                ['EMD Mean', f'{mean_emd:.4f}', 'mm/h', 'Mean ice accretion rate - EMD'],
-                ['NEWA Mean', f'{np.mean(newa_clean):.4f}', 'mm/h', 'Mean ice accretion rate - NEWA'],
-                ['Bias (NEWA - EMD)', f'{bias:.4f}', 'mm/h', 'Systematic difference'],
-                ['Relative Bias', f'{relative_bias:.1f}', '%', 'Bias as percentage of EMD mean'],
-                ['MAE', f'{mae:.4f}', 'mm/h', 'Mean Absolute Error'],
-                ['Relative MAE', f'{relative_mae:.1f}', '%', 'MAE as percentage of EMD mean'],
-                ['RMSE', f'{rmse:.4f}', 'mm/h', 'Root Mean Square Error'],
-                ['Relative RMSE', f'{relative_rmse:.1f}', '%', 'RMSE as percentage of EMD mean'],
-                ['Correlation (r)', f'{correlation:.4f}', '-', 'Pearson correlation coefficient'],
-                ['Correlation p-value', f'{correlation_p:.4f}', '-', 'Statistical significance'],
-                ['Spearman ρ', f'{spearman_corr:.4f}', '-', 'Rank correlation coefficient'],
-                ['R²', f'{r2:.4f}', '-', 'Coefficient of determination'],
-                ['Agreement (±0.1 mm/h)', f'{agreement_percentage:.1f}', '%', 'Percentage within threshold']
-            ]
-            
-            # Create table
-            table = ax.table(cellText=table_data[1:], colLabels=table_data[0], 
-                           cellLoc='left', loc='center', bbox=[0, 0, 1, 1])
-            table.auto_set_font_size(False)
-            table.set_fontsize(11)
-            table.scale(1, 2)
-            
-            # Style the table
-            for i in range(len(table_data)):
-                for j in range(len(table_data[0])):
-                    cell = table[(i, j)]
-                    if i == 0:  # Header row
-                        cell.set_facecolor('#4CAF50')
-                        cell.set_text_props(weight='bold', color='white')
-                    elif i % 2 == 0:  # Even rows
-                        cell.set_facecolor('#F5F5F5')
-            
-            ax.set_title(f'Ice Accretion Comparison Statistics Summary at {height:.0f}m\n'
-                        f'EMD vs NEWA (Icing Season Only)\n'
-                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=14, fontweight='bold', pad=20)
-            
+            print(f"Saved: {timeseries_lines_path}")
+
+            # Plot 1B: Time series comparison with scatter only
+            print("1B. Creating full time series comparison (scatter only)...")
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
+            ax1.scatter(emd_clean.index, emd_clean.values, c='blue', s=0.5, alpha=0.6, label=f'EMD Hourly ({emd_column})')
+            ax1.scatter(newa_clean.index, newa_clean.values, c='red', s=0.5, alpha=0.6, label=f'NEWA Hourly (ACCRE_CYL)')
+            ax1.set_ylabel('Ice Accretion (g/h)')
+            ax1.set_title(f'Hourly Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+            ax2.scatter(emd_daily_avg.index, emd_daily_avg.values, c='blue', s=3, alpha=0.7, label=f'EMD Daily Mean ({emd_column})')
+            ax2.scatter(newa_daily_avg.index, newa_daily_avg.values, c='red', s=3, alpha=0.7, label=f'NEWA Daily Mean (ACCRE_CYL)')
+            ax2.set_ylabel('Ice Accretion (g/h)')
+            ax2.set_title(f'Daily Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+            ax3.scatter(emd_weekly_avg.index, emd_weekly_avg.values, c='blue', s=10, alpha=0.8, label=f'EMD Weekly Mean ({emd_column})')
+            ax3.scatter(newa_weekly_avg.index, newa_weekly_avg.values, c='red', s=10, alpha=0.8, label=f'NEWA Weekly Mean (ACCRE_CYL)')
+            ax3.set_xlabel('Time')
+            ax3.set_ylabel('Ice Accretion (g/h)')
+            ax3.set_title(f'Weekly Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+            plt.suptitle(f'Multi-Scale Ice Accretion Comparison: EMD vs NEWA at {height}m (Scatter Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=16, y=0.98)
             plt.tight_layout()
-            
-            stats_table_path = os.path.join(base_dir, f'ice_accretion_statistics_{height:.0f}m.png')
-            plt.savefig(stats_table_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.subplots_adjust(top=0.92)
+            timeseries_scatter_path = os.path.join(base_dir, f'multi_scale_timeseries_scatter_{height:.0f}m.png')
+            plt.savefig(timeseries_scatter_path, dpi=150, facecolor='white')
             plt.close()
-            
-            print(f"Saved statistics table: {stats_table_path}")
-            
-            print(f"\n=== PLOT SUMMARY ===")
-            print(f"Created 2 files in: {base_dir}")
-            print(f"  1. Comprehensive comparison plot: ice_accretion_comparison_{height:.0f}m.png")
-            print(f"  2. Statistics summary table: ice_accretion_statistics_{height:.0f}m.png")
-        
+            print(f"Saved: {timeseries_scatter_path}")
+
+            # Plot 2A: Difference over time with lines only
+            print("2A. Creating difference time series (lines only)...")
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
+            differences = newa_clean - emd_clean
+            ax1.plot(differences.index, differences.values, 'g-', alpha=0.7, linewidth=0.5)
+            ax1.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
+            ax1.axhline(y=bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Mean Bias: {bias:.3f} g/h')
+            ax1.set_ylabel('Difference (NEWA - EMD) [g/h]')
+            ax1.set_title(f'Hourly Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+            daily_differences_ts = newa_daily_avg - emd_daily_avg
+            daily_bias = daily_differences_ts.mean()
+            ax2.plot(daily_differences_ts.index, daily_differences_ts.values, 'g-', alpha=0.8, linewidth=1.0)
+            ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
+            ax2.axhline(y=daily_bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Daily Mean Bias: {daily_bias:.3f} g/h')
+            ax2.set_ylabel('Difference (NEWA - EMD) [g/h]')
+            ax2.set_title(f'Daily Mean Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+            weekly_differences_ts = newa_weekly_avg - emd_weekly_avg
+            weekly_bias = weekly_differences_ts.mean()
+            ax3.plot(weekly_differences_ts.index, weekly_differences_ts.values, 'g-', alpha=0.9, linewidth=1.5)
+            ax3.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
+            ax3.axhline(y=weekly_bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Weekly Mean Bias: {weekly_bias:.3f} g/h')
+            ax3.set_xlabel('Time')
+            ax3.set_ylabel('Difference (NEWA - EMD) [g/h]')
+            ax3.set_title(f'Weekly Mean Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+            plt.suptitle(f'Multi-Scale Ice Accretion Differences: NEWA - EMD at {height}m (Lines Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=16, y=0.98)
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.92)
+            differences_lines_path = os.path.join(base_dir, f'multi_scale_differences_lines_{height:.0f}m.png')
+            plt.savefig(differences_lines_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {differences_lines_path}")
+
+            # Plot 2B: Difference over time with scatter only
+            print("2B. Creating difference time series (scatter only)...")
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
+            ax1.scatter(differences.index, differences.values, c='green', s=0.5, alpha=0.6)
+            ax1.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
+            ax1.axhline(y=bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Mean Bias: {bias:.3f} g/h')
+            ax1.set_ylabel('Difference (NEWA - EMD) [g/h]')
+            ax1.set_title(f'Hourly Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+            ax2.scatter(daily_differences_ts.index, daily_differences_ts.values, c='green', s=3, alpha=0.7)
+            ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
+            ax2.axhline(y=daily_bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Daily Mean Bias: {daily_bias:.3f} g/h')
+            ax2.set_ylabel('Difference (NEWA - EMD) [g/h]')
+            ax2.set_title(f'Daily Mean Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+            ax3.scatter(weekly_differences_ts.index, weekly_differences_ts.values, c='green', s=10, alpha=0.8)
+            ax3.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
+            ax3.axhline(y=weekly_bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Weekly Mean Bias: {weekly_bias:.3f} g/h')
+            ax3.set_xlabel('Time')
+            ax3.set_ylabel('Difference (NEWA - EMD) [g/h]')
+            ax3.set_title(f'Weekly Mean Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+            plt.suptitle(f'Multi-Scale Ice Accretion Differences: NEWA - EMD at {height}m (Scatter Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=16, y=0.98)
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.92)
+            differences_scatter_path = os.path.join(base_dir, f'multi_scale_differences_scatter_{height:.0f}m.png')
+            plt.savefig(differences_scatter_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {differences_scatter_path}")
+
+            # Plot 3: EMD vs NEWA scatter plot with 45° line and linear regression
+            print("3. Creating EMD vs NEWA scatter plot with regression analysis...")
+            fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+            scatter = ax.scatter(newa_clean.values, emd_clean.values, alpha=0.6, s=20, c='blue', edgecolors='none', label='Data points')
+            min_val = min(np.min(newa_clean), np.min(emd_clean))
+            max_val = max(np.max(newa_clean), np.max(emd_clean))
+            plot_range = max_val - min_val
+            margin = plot_range * 0.05
+            xlim = [min_val - margin, max_val + margin]
+            ylim = [min_val - margin, max_val + margin]
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
+            ax.plot(xlim, ylim, 'k--', linewidth=2, alpha=0.8, label='Perfect agreement (1:1 line)')
+            from scipy.stats import linregress
+            slope, intercept, r_value, p_value, std_err = linregress(newa_clean.values, emd_clean.values)
+            regression_x = np.array(xlim)
+            regression_y = slope * regression_x + intercept
+            ax.plot(regression_x, regression_y, 'r-', linewidth=2, alpha=0.8, label=f'Linear regression (y = {slope:.3f}x + {intercept:.3f})')
+            stats_text = (f'N = {len(emd_clean)}\nR² = {r2:.3f}\nCorrelation = {correlation:.3f}\nRMSE = {rmse:.3f} g/h\nMAE = {mae:.3f} g/h\nBias = {bias:.3f} g/h\nSlope = {slope:.3f}\nIntercept = {intercept:.3f}')
+            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=11, verticalalignment='top', horizontalalignment='left', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
+            ax.set_xlabel(f'NEWA Ice Accretion (g/h) at {height}m', fontsize=12)
+            ax.set_ylabel(f'EMD Ice Accretion (g/h) at {height}m', fontsize=12)
+            ax.set_title(f'EMD vs NEWA Ice Accretion Scatter Plot at {height}m (Icing Season Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, pad=15)
+            ax.grid(True, alpha=0.3)
+            ax.legend(loc='lower right', fontsize=10)
+            ax.set_aspect('equal', adjustable='box')
+            plt.tight_layout()
+            scatter_regression_path = os.path.join(base_dir, f'emd_vs_newa_scatter_{height:.0f}m.png')
+            plt.savefig(scatter_regression_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {scatter_regression_path}")
+
+            # Plot 4: EMD vs NEWA scatter plot (non-zero values only)
+            print("4. Creating EMD vs NEWA scatter plot (non-zero values only)...")
+            non_zero_mask = (emd_clean > 0) & (newa_clean > 0)
+            emd_nonzero = emd_clean[non_zero_mask]
+            newa_nonzero = newa_clean[non_zero_mask]
+            print(f"Non-zero data: {len(emd_nonzero)} points out of {len(emd_clean)} total")
+            if len(emd_nonzero) > 1:
+                fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+                sc = ax.scatter(newa_nonzero.values, emd_nonzero.values, c='blue', alpha=0.6, s=20, edgecolors='none', label='Data points')
+                min_val = min(emd_nonzero.min(), newa_nonzero.min())
+                max_val = max(emd_nonzero.max(), newa_nonzero.max())
+                plot_range = max_val - min_val
+                margin = plot_range * 0.05
+                xlim = [min_val - margin, max_val + margin]
+                ylim = [min_val - margin, max_val + margin]
+                ax.set_xlim(xlim)
+                ax.set_ylim(ylim)
+                ax.plot(xlim, ylim, 'k--', linewidth=2, alpha=0.8, label='Perfect agreement (1:1 line)')
+                slope, intercept, r_value, p_value, std_err = stats.linregress(newa_nonzero.values, emd_nonzero.values)
+                regression_x = np.array(xlim)
+                regression_y = slope * regression_x + intercept
+                ax.plot(regression_x, regression_y, 'r-', linewidth=2, alpha=0.8, label=f'Linear regression (y = {slope:.3f}x + {intercept:.3f})')
+                ax.set_xlabel(f'NEWA Ice Accretion (g/h) at {height}m', fontsize=12)
+                ax.set_ylabel(f'EMD Ice Accretion (g/h) at {height}m', fontsize=12)
+                ax.set_title(f'EMD vs NEWA Ice Accretion Scatter Plot at {height}m (Non-Zero Values Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, pad=15)
+                ax.grid(True, alpha=0.3)
+                ax.legend(loc='lower right', fontsize=10)
+                ax.set_aspect('equal', adjustable='box')
+                stats_text = (f'N = {len(emd_nonzero)}\nR² = {r_value**2:.3f}\nCorrelation = {np.corrcoef(emd_nonzero, newa_nonzero)[0,1]:.3f}\nRMSE = {np.sqrt(np.mean((newa_nonzero - emd_nonzero)**2)):.3f} g/h\nMAE = {np.mean(np.abs(newa_nonzero - emd_nonzero)):.3f} g/h\nBias = {np.mean(newa_nonzero - emd_nonzero):.3f} g/h\nSlope = {slope:.3f}\nIntercept = {intercept:.3f}')
+                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=11, verticalalignment='top', horizontalalignment='left', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
+                plt.tight_layout()
+                nonzero_scatter_path = os.path.join(base_dir, f'emd_vs_newa_scatter_nonzero_{height:.0f}m.png')
+                plt.savefig(nonzero_scatter_path, dpi=150, facecolor='white')
+                plt.close()
+                print(f"Saved: {nonzero_scatter_path}")
+                print(f"\nNon-zero scatter plot statistics:")
+                print(f"  Sample size: {len(emd_nonzero)}")
+                print(f"  EMD range (non-zero): {emd_nonzero.min():.6f} to {emd_nonzero.max():.6f} g/h")
+                print(f"  NEWA range (non-zero): {newa_nonzero.min():.6f} to {newa_nonzero.max():.6f} g/h")
+                print(f"  Correlation: {np.corrcoef(emd_nonzero, newa_nonzero)[0,1]:.3f}")
+                print(f"  Linear regression: y = {slope:.3f}x + {intercept:.3f}")
+                print(f"  R-squared: {r_value**2:.3f}")
+                print(f"  Standard error: {std_err:.3f}")
+            else:
+                print("Insufficient non-zero data for scatter plot")
+
+            # Plot 5: Zero values analysis - Bar plot
+            print("5. Creating zero values analysis bar plot...")
+            emd_zero_count = (emd_clean == 0).sum()
+            newa_zero_count = (newa_clean == 0).sum()
+            total_timestamps = len(emd_clean)
+            emd_zero_percentage = (emd_zero_count / total_timestamps) * 100
+            newa_zero_percentage = (newa_zero_count / total_timestamps) * 100
+            fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+            datasets = ['EMD', 'NEWA']
+            zero_percentages = [emd_zero_percentage, newa_zero_percentage]
+            zero_counts = [emd_zero_count, newa_zero_count]
+            colors = ['steelblue', 'orange']
+            bars = ax.bar(datasets, zero_percentages, color=colors, alpha=0.7, edgecolor='black', linewidth=1)
+            for i, (bar, count, percentage) in enumerate(zip(bars, zero_counts, zero_percentages)):
+                height_b = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=11)
+            ax.set_ylabel('Percentage of Zero Values (%)', fontsize=12, fontweight='bold')
+            ax.set_title(f'Zero Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold')
+            ax.grid(True, alpha=0.3, axis='y')
+            ax.set_ylim(0, max(zero_percentages) * 1.15)
+            stats_text = f'Summary:\n'
+            stats_text += f'EMD zeros: {emd_zero_count:,} ({emd_zero_percentage:.1f}%)\n'
+            stats_text += f'NEWA zeros: {newa_zero_count:,} ({newa_zero_percentage:.1f}%)\n'
+            stats_text += f'Both zero: {((emd_clean == 0) & (newa_clean == 0)).sum():,}\n'
+            stats_text += f'Either zero: {((emd_clean == 0) | (newa_clean == 0)).sum():,}'
+            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=10)
+            plt.tight_layout()
+            zero_analysis_path = os.path.join(base_dir, f'zero_values_analysis_{height:.0f}m.png')
+            plt.savefig(zero_analysis_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {zero_analysis_path}")
+
+            # Plot 6: Box plot for positive values only
+            print("6. Creating box plot for positive values distribution...")
+            positive_mask = (emd_clean > 0) & (newa_clean > 0)
+            emd_positive = emd_clean[positive_mask]
+            newa_positive = newa_clean[positive_mask]
+            if len(emd_positive) > 0 and len(newa_positive) > 0:
+                fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+                box_data = [emd_positive.values, newa_positive.values]
+                labels = ['EMD', 'NEWA']
+                colors = ['steelblue', 'orange']
+                box_plot = ax.boxplot(box_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
+                for patch, color in zip(box_plot['boxes'], colors):
+                    patch.set_facecolor(color)
+                ax.set_ylabel('Ice Accretion [g/h]', fontsize=12, fontweight='bold')
+                ax.set_title(f'Distribution of Positive Ice Accretion Values at {height}m\nPositive values: EMD={len(emd_positive):,}, NEWA={len(newa_positive):,}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold')
+                ax.grid(True, alpha=0.3)
+                emd_stats = {
+                    'count': len(emd_positive),
+                    'mean': emd_positive.mean(),
+                    'std': emd_positive.std(),
+                    'min': emd_positive.min(),
+                    'q25': emd_positive.quantile(0.25),
+                    'median': emd_positive.median(),
+                    'q75': emd_positive.quantile(0.75),
+                    'max': emd_positive.max()
+                }
+                newa_stats = {
+                    'count': len(newa_positive),
+                    'mean': newa_positive.mean(),
+                    'std': newa_positive.std(),
+                    'min': newa_positive.min(),
+                    'q25': newa_positive.quantile(0.25),
+                    'median': newa_positive.median(),
+                    'q75': newa_positive.quantile(0.75),
+                    'max': newa_positive.max()
+                }
+                stats_text = 'Positive Values Statistics:\n\n'
+                stats_text += f'EMD (n={emd_stats["count"]:,}):\n'
+                stats_text += f'  Mean: {emd_stats["mean"]:.4f} g/h\n'
+                stats_text += f'  Std:  {emd_stats["std"]:.4f} g/h\n'
+                stats_text += f'  Min:  {emd_stats["min"]:.4f} g/h\n'
+                stats_text += f'  Q25:  {emd_stats["q25"]:.4f} g/h\n'
+                stats_text += f'  Med:  {emd_stats["median"]:.4f} g/h\n'
+                stats_text += f'  Q75:  {emd_stats["q75"]:.4f} g/h\n'
+                stats_text += f'  Max:  {emd_stats["max"]:.4f} g/h\n\n'
+                stats_text += f'NEWA (n={newa_stats["count"]:,}):\n'
+                stats_text += f'  Mean: {newa_stats["mean"]:.4f} g/h\n'
+                stats_text += f'  Std:  {newa_stats["std"]:.4f} g/h\n'
+                stats_text += f'  Min:  {newa_stats["min"]:.4f} g/h\n'
+                stats_text += f'  Q25:  {newa_stats["q25"]:.4f} g/h\n'
+                stats_text += f'  Med:  {newa_stats["median"]:.4f} g/h\n'
+                stats_text += f'  Q75:  {newa_stats["q75"]:.4f} g/h\n'
+                stats_text += f'  Max:  {newa_stats["max"]:.4f} g/h'
+                ax.text(1.02, 1.0, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='top', fontsize=9, family='monospace')
+                legend_text = 'Box Plot Elements:\n'
+                legend_text += '━ Red line: Median\n'
+                legend_text += '┅ Black line: Mean\n'
+                legend_text += '□ Box: Q25-Q75 (IQR)\n'
+                legend_text += '┬ Whiskers: 1.5×IQR\n'
+                legend_text += '○ Outliers'
+                ax.text(0.02, 0.98, legend_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8), verticalalignment='top', fontsize=9)
+                plt.tight_layout()
+                positive_boxplot_path = os.path.join(base_dir, f'positive_values_boxplot_{height:.0f}m.png')
+                plt.savefig(positive_boxplot_path, dpi=150, facecolor='white', bbox_inches='tight')
+                plt.close()
+                print(f"Saved: {positive_boxplot_path}")
+                print(f"\nPositive values distribution statistics:")
+                print(f"  EMD positive values: {len(emd_positive):,} timestamps")
+                print(f"    Mean ± Std: {emd_stats['mean']:.4f} ± {emd_stats['std']:.4f} g/h")
+                print(f"    Median [Q25, Q75]: {emd_stats['median']:.4f} [{emd_stats['q25']:.4f}, {emd_stats['q75']:.4f}] g/h")
+                print(f"    Range: {emd_stats['min']:.4f} to {emd_stats['max']:.4f} g/h")
+                print(f"  NEWA positive values: {len(newa_positive):,} timestamps")
+                print(f"    Mean ± Std: {newa_stats['mean']:.4f} ± {newa_stats['std']:.4f} g/h")
+                print(f"    Median [Q25, Q75]: {newa_stats['median']:.4f} [{newa_stats['q25']:.4f}, {newa_stats['q75']:.4f}] g/h")
+                print(f"    Range: {newa_stats['min']:.4f} to {newa_stats['max']:.4f} g/h")
+            else:
+                print("No positive values available for box plot analysis")
+
+            # Plot 7: Hourly mean differences grid (all months included)
+            print("7. Creating hourly mean differences grid (all months)...")
+            emd_daily_means = emd_clean_all.resample('D').mean()
+            newa_daily_means = newa_clean_all.resample('D').mean()
+            common_daily_dates = emd_daily_means.index.intersection(newa_daily_means.index)
+            emd_daily_aligned = emd_daily_means.loc[common_daily_dates]
+            newa_daily_aligned = newa_daily_means.loc[common_daily_dates]
+            daily_differences_all = newa_daily_aligned - emd_daily_aligned
+            grid_df = pd.DataFrame({'date': daily_differences_all.index, 'difference': daily_differences_all.values})
+            grid_df['year'] = grid_df['date'].dt.year
+            grid_df['day_of_year'] = grid_df['date'].dt.dayofyear
+            pivot_grid = grid_df.pivot(index='year', columns='day_of_year', values='difference')
+            if pivot_grid.shape[1] < 365:
+                for day in range(1, 366):
+                    if day not in pivot_grid.columns:
+                        pivot_grid[day] = np.nan
+            pivot_grid = pivot_grid.reindex(columns=sorted(pivot_grid.columns)[:365])
+            grid_array = pivot_grid.values
+            plt.figure(figsize=(24, 14))
+            vmax = np.nanmax(np.abs(grid_array))
+            vmin = -vmax
+            im = plt.imshow(grid_array, cmap='seismic', aspect='auto', interpolation='nearest', vmin=vmin, vmax=vmax)
+            plt.gca().set_xticks(np.arange(-0.5, grid_array.shape[1], 1), minor=True)
+            plt.gca().set_yticks(np.arange(-0.5, grid_array.shape[0], 1), minor=True)
+            plt.grid(which="minor", color="black", linestyle='-', linewidth=0.1, alpha=0.2)
+            cbar = plt.colorbar(im, shrink=0.6, pad=0.02)
+            cbar.set_label('Hourly Mean Ice Accretion Difference (NEWA - EMD) [g/h]', fontsize=14)
+            cbar.ax.tick_params(labelsize=12)
+            plt.xlabel('Day of Year', fontsize=14)
+            plt.ylabel('Year', fontsize=14)
+            plt.title(f'Daily Mean Ice Accretion Differences Grid: NEWA - EMD at {height}m (All Months)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km\nEach cell = daily mean difference for that specific year and day', fontsize=16, pad=20)
+            year_indices = np.arange(0, len(pivot_grid.index))
+            year_step = max(1, len(pivot_grid.index)//15)
+            year_ticks = year_indices[::year_step]
+            plt.yticks(year_ticks, [pivot_grid.index[i] for i in year_ticks], fontsize=12)
+            month_starts = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
+            month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            plt.xticks(month_starts, month_labels, rotation=0, fontsize=12)
+            ax2 = plt.gca().secondary_xaxis('top')
+            day_ticks = np.arange(0, 366, 30)
+            ax2.set_xticks(day_ticks)
+            ax2.set_xlabel('Day of Year', fontsize=12)
+            ax2.tick_params(labelsize=10)
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.85)
+            daily_grid_path = os.path.join(base_dir, f'hourly_mean_grid_all_months_{height:.0f}m.png')
+            plt.savefig(daily_grid_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {daily_grid_path}")
+
         print(f"\n✓ Ice accretion comparison completed successfully!")
+        print(f"Results saved to: {base_dir}")
         return results
-        
+
     except Exception as e:
         print(f"Error in ice accretion comparison: {e}")
         import traceback
@@ -11994,12 +12162,12 @@ def emd_newa_accretion_typical(emd_data, dataset_with_ice_load, height, emd_coor
         
         # Extract NEWA ice accretion data at specified height and closest grid cell
         newa_ice_accretion = dataset_with_ice_load['ACCRE_CYL'].isel(height=height_idx, south_north=closest_sn, west_east=closest_we)
-        
-        # Convert to pandas DataFrame for easier manipulation
         newa_df = newa_ice_accretion.to_dataframe(name='ACCRE_CYL').reset_index()
         newa_df['time'] = pd.to_datetime(newa_df['time'])
         newa_df = newa_df.set_index('time')
-        
+        # Convert NEWA accretion from kg/30min to g/h
+        newa_df['ACCRE_CYL'] = newa_df['ACCRE_CYL'] * 2 * 1000
+
         # Prepare EMD data
         if not isinstance(emd_data.index, pd.DatetimeIndex):
             if 'time' in emd_data.columns:
@@ -12010,21 +12178,304 @@ def emd_newa_accretion_typical(emd_data, dataset_with_ice_load, height, emd_coor
                 raise ValueError("EMD data must have datetime index or 'time' column")
         else:
             emd_df = emd_data.copy()
-        
-        # Similar processing as emd_newa_typical but with accretion data
-        # (Full implementation would follow the same pattern)
-        
-        # Create directory structure with threshold and non-zero percentage information
-        threshold_str = f"threshold_{ice_accretion_threshold:.3f}" if ice_accretion_threshold > 0 else "no_threshold"
-        nonzero_str = f"nonzero_{non_zero_percentage:.0f}pct" if non_zero_percentage > 0 else "no_nonzero_filter"
-        base_dir = os.path.join("results", "figures", "EMD", "Ice_Accretion", "MeanDWM", f"{height:.0f}m_{threshold_str}_{nonzero_str}")
-        os.makedirs(base_dir, exist_ok=True)
-        
-        print(f"✓ Typical accretion patterns analysis completed successfully!")
+
+        # Find common time period
+        common_start = max(emd_df.index.min(), newa_df.index.min())
+        common_end = min(emd_df.index.max(), newa_df.index.max())
+        print(f"Common period: {common_start} to {common_end}")
+
+        emd_common = emd_df.loc[common_start:common_end, emd_column].copy()
+        newa_common = newa_df.loc[common_start:common_end, 'ACCRE_CYL'].copy()
+        print("Resampling NEWA data from 30min to 1h resolution and converting units...")
+        newa_hourly = newa_common.resample('1H').mean()
+
+        common_times = emd_common.index.intersection(newa_hourly.index)
+        emd_aligned = emd_common.loc[common_times]
+        newa_aligned = newa_hourly.loc[common_times]
+
+        valid_mask = ~(np.isnan(emd_aligned) | np.isnan(newa_aligned))
+        emd_clean_all = emd_aligned[valid_mask]
+        newa_clean_all = newa_aligned[valid_mask]
+
+        non_icing_months = [6, 7, 8, 9, 10]
+        icing_mask = ~emd_clean_all.index.month.isin(non_icing_months)
+        emd_clean = emd_clean_all[icing_mask]
+        newa_clean = newa_clean_all[icing_mask]
+
+        print(f"Valid data points after NaN removal: {len(emd_clean_all)}")
+        print(f"Icing season data points (excluding Jun-Oct): {len(emd_clean)}")
+
+        if len(emd_clean) < 10:
+            print("Warning: Very few valid data points for analysis!")
+            return None
+
+        # 1. TYPICAL DAY ANALYSIS
+        print("1. Calculating typical day patterns...")
+        emd_daily_means = emd_clean.resample('D').mean()
+        newa_daily_means = newa_clean.resample('D').mean()
+        emd_daily_clean = emd_daily_means.dropna()
+        newa_daily_clean = newa_daily_means.dropna()
+        common_daily_dates = emd_daily_clean.index.intersection(newa_daily_clean.index)
+        emd_daily_temp = emd_daily_clean.loc[common_daily_dates]
+        newa_daily_temp = newa_daily_clean.loc[common_daily_dates]
+        threshold_mask_daily = (emd_daily_temp >= ice_accretion_threshold) & (newa_daily_temp >= ice_accretion_threshold)
+        emd_daily_filtered = emd_daily_temp[threshold_mask_daily]
+        newa_daily_filtered = newa_daily_temp[threshold_mask_daily]
+        if non_zero_percentage > 0:
+            print(f"  Applying {non_zero_percentage}% non-zero filter to daily data...")
+            daily_non_zero_mask = []
+            for date in emd_daily_filtered.index:
+                day_start = date
+                day_end = date + pd.Timedelta(days=1) - pd.Timedelta(hours=1)
+                emd_day_hours = emd_clean[(emd_clean.index >= day_start) & (emd_clean.index <= day_end)]
+                newa_day_hours = newa_clean[(newa_clean.index >= day_start) & (newa_clean.index <= day_end)]
+                if len(emd_day_hours) > 0 and len(newa_day_hours) > 0:
+                    emd_nonzero_pct = (emd_day_hours > 0).mean() * 100
+                    newa_nonzero_pct = (newa_day_hours > 0).mean() * 100
+                    daily_non_zero_mask.append(emd_nonzero_pct >= non_zero_percentage and newa_nonzero_pct >= non_zero_percentage)
+                else:
+                    daily_non_zero_mask.append(False)
+            daily_non_zero_mask = pd.Series(daily_non_zero_mask, index=emd_daily_filtered.index)
+            emd_daily_aligned = emd_daily_filtered[daily_non_zero_mask]
+            newa_daily_aligned = newa_daily_filtered[daily_non_zero_mask]
+            print(f"  Daily means after non-zero filter ({non_zero_percentage}%): {len(emd_daily_aligned)} days")
+        else:
+            emd_daily_aligned = emd_daily_filtered
+            newa_daily_aligned = newa_daily_filtered
+        print(f"  Daily means before threshold filter: {len(emd_daily_temp)} days")
+        print(f"  Daily means after threshold filter (>= {ice_accretion_threshold} g/h): {len(emd_daily_filtered)} days")
+        print(f"  Daily means final count: {len(emd_daily_aligned)} days")
+
+        # 2. TYPICAL WEEK ANALYSIS
+        print("2. Calculating typical week patterns...")
+        emd_weekly_means = emd_clean.resample('W').mean()
+        newa_weekly_means = newa_clean.resample('W').mean()
+        emd_weekly_clean = emd_weekly_means.dropna()
+        newa_weekly_clean = newa_weekly_means.dropna()
+        common_weekly_dates = emd_weekly_clean.index.intersection(newa_weekly_clean.index)
+        emd_weekly_temp = emd_weekly_clean.loc[common_weekly_dates]
+        newa_weekly_temp = newa_weekly_clean.loc[common_weekly_dates]
+        threshold_mask_weekly = (emd_weekly_temp >= ice_accretion_threshold) & (newa_weekly_temp >= ice_accretion_threshold)
+        emd_weekly_filtered = emd_weekly_temp[threshold_mask_weekly]
+        newa_weekly_filtered = newa_weekly_temp[threshold_mask_weekly]
+        if non_zero_percentage > 0:
+            print(f"  Applying {non_zero_percentage}% non-zero filter to weekly data...")
+            weekly_non_zero_mask = []
+            for week_end in emd_weekly_filtered.index:
+                week_start = week_end - pd.Timedelta(days=6, hours=23)
+                emd_week_hours = emd_clean[(emd_clean.index >= week_start) & (emd_clean.index <= week_end)]
+                newa_week_hours = newa_clean[(newa_clean.index >= week_start) & (newa_clean.index <= week_end)]
+                if len(emd_week_hours) > 0 and len(newa_week_hours) > 0:
+                    emd_nonzero_pct = (emd_week_hours > 0).mean() * 100
+                    newa_nonzero_pct = (newa_week_hours > 0).mean() * 100
+                    weekly_non_zero_mask.append(emd_nonzero_pct >= non_zero_percentage and newa_nonzero_pct >= non_zero_percentage)
+                else:
+                    weekly_non_zero_mask.append(False)
+            weekly_non_zero_mask = pd.Series(weekly_non_zero_mask, index=emd_weekly_filtered.index)
+            emd_weekly_aligned = emd_weekly_filtered[weekly_non_zero_mask]
+            newa_weekly_aligned = newa_weekly_filtered[weekly_non_zero_mask]
+            print(f"  Weekly means after non-zero filter ({non_zero_percentage}%): {len(emd_weekly_aligned)} weeks")
+        else:
+            emd_weekly_aligned = emd_weekly_filtered
+            newa_weekly_aligned = newa_weekly_filtered
+        print(f"  Weekly means before threshold filter: {len(emd_weekly_temp)} weeks")
+        print(f"  Weekly means after threshold filter (>= {ice_accretion_threshold} g/h): {len(emd_weekly_filtered)} weeks")
+        print(f"  Weekly means final count: {len(emd_weekly_aligned)} weeks")
+
+        # 3. TYPICAL YEAR ANALYSIS
+        print("3. Calculating typical year patterns...")
+        emd_yearly_means = emd_clean.resample('Y').mean()
+        newa_yearly_means = newa_clean.resample('Y').mean()
+        emd_yearly_clean = emd_yearly_means.dropna()
+        newa_yearly_clean = newa_yearly_means.dropna()
+        common_yearly_dates = emd_yearly_clean.index.intersection(newa_yearly_clean.index)
+        emd_yearly_temp = emd_yearly_clean.loc[common_yearly_dates]
+        newa_yearly_temp = newa_yearly_clean.loc[common_yearly_dates]
+        threshold_mask_yearly = (emd_yearly_temp >= ice_accretion_threshold) & (newa_yearly_temp >= ice_accretion_threshold)
+        emd_yearly_filtered = emd_yearly_temp[threshold_mask_yearly]
+        newa_yearly_filtered = newa_yearly_temp[threshold_mask_yearly]
+        if non_zero_percentage > 0:
+            print(f"  Applying {non_zero_percentage}% non-zero filter to yearly data...")
+            yearly_non_zero_mask = []
+            for year_end in emd_yearly_filtered.index:
+                year_start = year_end.replace(month=1, day=1, hour=0)
+                year_end_actual = year_end.replace(month=12, day=31, hour=23)
+                emd_year_hours = emd_clean[(emd_clean.index >= year_start) & (emd_clean.index <= year_end_actual)]
+                newa_year_hours = newa_clean[(newa_clean.index >= year_start) & (newa_clean.index <= year_end_actual)]
+                if len(emd_year_hours) > 0 and len(newa_year_hours) > 0:
+                    emd_nonzero_pct = (emd_year_hours > 0).mean() * 100
+                    newa_nonzero_pct = (newa_year_hours > 0).mean() * 100
+                    yearly_non_zero_mask.append(emd_nonzero_pct >= non_zero_percentage and newa_nonzero_pct >= non_zero_percentage)
+                else:
+                    yearly_non_zero_mask.append(False)
+            yearly_non_zero_mask = pd.Series(yearly_non_zero_mask, index=emd_yearly_filtered.index)
+            emd_yearly_aligned = emd_yearly_filtered[yearly_non_zero_mask]
+            newa_yearly_aligned = newa_yearly_filtered[yearly_non_zero_mask]
+            print(f"  Yearly means after non-zero filter ({non_zero_percentage}%): {len(emd_yearly_aligned)} years")
+        else:
+            emd_yearly_aligned = emd_yearly_filtered
+            newa_yearly_aligned = newa_yearly_filtered
+        print(f"  Yearly means before threshold filter: {len(emd_yearly_temp)} years")
+        print(f"  Yearly means after threshold filter (>= {ice_accretion_threshold} g/h): {len(emd_yearly_filtered)} years")
+        print(f"  Yearly means final count: {len(emd_yearly_aligned)} years")
+
+        if len(emd_daily_aligned) == 0:
+            print(f"Warning: No daily data above threshold {ice_accretion_threshold} g/h. Consider lowering the threshold.")
+            return None
+        if len(emd_weekly_aligned) == 0:
+            print(f"Warning: No weekly data above threshold {ice_accretion_threshold} g/h. Consider lowering the threshold.")
+        if len(emd_yearly_aligned) == 0:
+            print(f"Warning: No yearly data above threshold {ice_accretion_threshold} g/h. Consider lowering the threshold.")
+
+        def calculate_stats(data):
+            return {
+                'count': len(data),
+                'mean': data.mean(),
+                'std': data.std(),
+                'min': data.min(),
+                'q25': data.quantile(0.25),
+                'median': data.median(),
+                'q75': data.quantile(0.75),
+                'max': data.max()
+            }
+
+        emd_daily_stats = calculate_stats(emd_daily_aligned)
+        newa_daily_stats = calculate_stats(newa_daily_aligned)
+        emd_weekly_stats = calculate_stats(emd_weekly_aligned)
+        newa_weekly_stats = calculate_stats(newa_weekly_aligned)
+        emd_yearly_stats = calculate_stats(emd_yearly_aligned)
+        newa_yearly_stats = calculate_stats(newa_yearly_aligned)
+
+        print(f"\n=== TYPICAL ACCRETION PATTERNS STATISTICS ===")
+        print(f"Filters Applied:")
+        print(f"  Ice Accretion Threshold: >={ice_accretion_threshold} g/h")
+        print(f"  Non-Zero Percentage: >={non_zero_percentage}% hours > 0")
+        print(f"Daily means - EMD: {emd_daily_stats['mean']:.4f} +/- {emd_daily_stats['std']:.4f} g/h (n={emd_daily_stats['count']})")
+        print(f"Daily means - NEWA: {newa_daily_stats['mean']:.4f} +/- {newa_daily_stats['std']:.4f} g/h (n={newa_daily_stats['count']})")
+        print(f"Weekly means - EMD: {emd_weekly_stats['mean']:.4f} +/- {emd_weekly_stats['std']:.4f} g/h (n={emd_weekly_stats['count']})")
+        print(f"Weekly means - NEWA: {newa_weekly_stats['mean']:.4f} +/- {newa_weekly_stats['std']:.4f} g/h (n={newa_weekly_stats['count']})")
+        print(f"Yearly means - EMD: {emd_yearly_stats['mean']:.4f} +/- {emd_yearly_stats['std']:.4f} g/h (n={emd_yearly_stats['count']})")
+        print(f"Yearly means - NEWA: {newa_yearly_stats['mean']:.4f} +/- {newa_yearly_stats['std']:.4f} g/h (n={newa_yearly_stats['count']})")
+
+        if save_plots:
+            print(f"\nCreating typical accretion patterns box plots...")
+            threshold_str = f"threshold_{ice_accretion_threshold:.3f}" if ice_accretion_threshold > 0 else "no_threshold"
+            nonzero_str = f"nonzero_{non_zero_percentage:.0f}pct" if non_zero_percentage > 0 else "no_nonzero_filter"
+            base_dir = os.path.join("results", "figures", "EMD", "Ice_Accretion", "MeanDWM", f"{height:.0f}m_{threshold_str}_{nonzero_str}")
+            os.makedirs(base_dir, exist_ok=True)
+            fig, axes = plt.subplots(1, 3, figsize=(18, 8))
+            colors = ['steelblue', 'orange']
+            labels = ['EMD', 'NEWA']
+            ax1 = axes[0]
+            daily_data = [emd_daily_aligned.values, newa_daily_aligned.values]
+            box_plot_daily = ax1.boxplot(daily_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
+            for patch, color in zip(box_plot_daily['boxes'], colors):
+                patch.set_facecolor(color)
+            ax1.set_ylabel('Mean Daily Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=12, fontweight='bold')
+            ax1.set_title(f'Typical Day Comparison at {height}m\nDistribution of Daily Means of Hourly Ice Accretion (n={len(emd_daily_aligned)})', fontsize=11, fontweight='bold')
+            ax1.grid(True, alpha=0.3)
+            ax2 = axes[1]
+            weekly_data = [emd_weekly_aligned.values, newa_weekly_aligned.values]
+            box_plot_weekly = ax2.boxplot(weekly_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
+            for patch, color in zip(box_plot_weekly['boxes'], colors):
+                patch.set_facecolor(color)
+            ax2.set_ylabel('Mean Weekly Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=12, fontweight='bold')
+            ax2.set_title(f'Typical Week Comparison at {height}m\nDistribution of Weekly Means of Hourly Ice Accretion (n={len(emd_weekly_aligned)})', fontsize=11, fontweight='bold')
+            ax2.grid(True, alpha=0.3)
+            ax3 = axes[2]
+            yearly_data = [emd_yearly_aligned.values, newa_yearly_aligned.values]
+            box_plot_yearly = ax3.boxplot(yearly_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
+            for patch, color in zip(box_plot_yearly['boxes'], colors):
+                patch.set_facecolor(color)
+            ax3.set_ylabel('Mean Yearly Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=12, fontweight='bold')
+            ax3.set_title(f'Typical Year Comparison at {height}m\nDistribution of Yearly Means of Hourly Ice Accretion (n={len(emd_yearly_aligned)})', fontsize=11, fontweight='bold')
+            ax3.grid(True, alpha=0.3)
+            threshold_text = f"Ice Accretion Threshold: >={ice_accretion_threshold} g/h" if ice_accretion_threshold > 0 else "No Ice Accretion Threshold"
+            nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
+            fig.suptitle(f'Typical Accretion Patterns Analysis: EMD vs NEWA at {height}m (Icing Season Only)\nTemporal Means of Hourly Ice Accretion Values\n{threshold_text} | {nonzero_text}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold', y=0.96)
+            legend_text = 'Box Plot Elements:\n━ Red line: Median\n┅ Black line: Mean\n□ Box: Q25-Q75 (IQR)\n┬ Whiskers: 1.5×IQR\n○ Outliers'
+            fig.text(0.02, 0.02, legend_text, fontsize=9, bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8), verticalalignment='bottom')
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.80, bottom=0.15)
+            typical_patterns_path = os.path.join(base_dir, f'typical_accretion_patterns_comparison_{height:.0f}m.png')
+            plt.savefig(typical_patterns_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {typical_patterns_path}")
+            fig, ax = plt.subplots(1, 1, figsize=(14, 10))
+            ax.axis('off')
+            stats_table_data = []
+            stats_table_data.append(['Temporal Scale', 'Dataset', 'Count', 'Mean', 'Std', 'Min', 'Q25', 'Median', 'Q75', 'Max'])
+            stats_table_data.append(['Daily', 'EMD', f"{emd_daily_stats['count']}", f"{emd_daily_stats['mean']:.4f}", f"{emd_daily_stats['std']:.4f}", f"{emd_daily_stats['min']:.4f}", f"{emd_daily_stats['q25']:.4f}", f"{emd_daily_stats['median']:.4f}", f"{emd_daily_stats['q75']:.4f}", f"{emd_daily_stats['max']:.4f}"])
+            stats_table_data.append(['', 'NEWA', f"{newa_daily_stats['count']}", f"{newa_daily_stats['mean']:.4f}", f"{newa_daily_stats['std']:.4f}", f"{newa_daily_stats['min']:.4f}", f"{newa_daily_stats['q25']:.4f}", f"{newa_daily_stats['median']:.4f}", f"{newa_daily_stats['q75']:.4f}", f"{newa_daily_stats['max']:.4f}"])
+            stats_table_data.append(['Weekly', 'EMD', f"{emd_weekly_stats['count']}", f"{emd_weekly_stats['mean']:.4f}", f"{emd_weekly_stats['std']:.4f}", f"{emd_weekly_stats['min']:.4f}", f"{emd_weekly_stats['q25']:.4f}", f"{emd_weekly_stats['median']:.4f}", f"{emd_weekly_stats['q75']:.4f}", f"{emd_weekly_stats['max']:.4f}"])
+            stats_table_data.append(['', 'NEWA', f"{newa_weekly_stats['count']}", f"{newa_weekly_stats['mean']:.4f}", f"{newa_weekly_stats['std']:.4f}", f"{newa_weekly_stats['min']:.4f}", f"{newa_weekly_stats['q25']:.4f}", f"{newa_weekly_stats['median']:.4f}", f"{newa_weekly_stats['q75']:.4f}", f"{newa_weekly_stats['max']:.4f}"])
+            stats_table_data.append(['Yearly', 'EMD', f"{emd_yearly_stats['count']}", f"{emd_yearly_stats['mean']:.4f}", f"{emd_yearly_stats['std']:.4f}", f"{emd_yearly_stats['min']:.4f}", f"{emd_yearly_stats['q25']:.4f}", f"{emd_yearly_stats['median']:.4f}", f"{emd_yearly_stats['q75']:.4f}", f"{emd_yearly_stats['max']:.4f}"])
+            stats_table_data.append(['', 'NEWA', f"{newa_yearly_stats['count']}", f"{newa_yearly_stats['mean']:.4f}", f"{newa_yearly_stats['std']:.4f}", f"{newa_yearly_stats['min']:.4f}", f"{newa_yearly_stats['q25']:.4f}", f"{newa_yearly_stats['median']:.4f}", f"{newa_yearly_stats['q75']:.4f}", f"{newa_yearly_stats['max']:.4f}"])
+            table = ax.table(cellText=stats_table_data[1:], colLabels=stats_table_data[0], cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
+            table.auto_set_font_size(False)
+            table.set_fontsize(10)
+            table.scale(1, 2)
+            for i in range(len(stats_table_data)):
+                for j in range(len(stats_table_data[0])):
+                    cell = table[(i, j)]
+                    if i == 0:
+                        cell.set_facecolor('#4CAF50')
+                        cell.set_text_props(weight='bold', color='white')
+                    elif j == 1 and i > 0 and stats_table_data[i][j] == 'EMD':
+                        cell.set_facecolor('#E3F2FD')
+                    elif j == 1 and i > 0 and stats_table_data[i][j] == 'NEWA':
+                        cell.set_facecolor('#FFF3E0')
+            threshold_text = f"Ice Accretion Threshold: >={ice_accretion_threshold} g/h" if ice_accretion_threshold > 0 else "No Ice Accretion Threshold"
+            nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
+            ax.set_title(f'Typical Accretion Patterns Statistics Summary at {height}m\nTemporal Means of Hourly Ice Accretion Values in g/h (Icing Season Only)\n{threshold_text} | {nonzero_text}', fontsize=14, fontweight='bold', pad=20)
+            plt.tight_layout()
+            stats_table_path = os.path.join(base_dir, f'typical_accretion_patterns_statistics_{height:.0f}m.png')
+            plt.savefig(stats_table_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {stats_table_path}")
+            print(f"\n=== PLOT SUMMARY ===")
+            print(f"Created 2 plots:")
+            print(f"  1. Typical accretion patterns box plot comparison: {typical_patterns_path}")
+            print(f"  2. Detailed statistics table: {stats_table_path}")
+
+        results = {
+            'height': height,
+            'ice_accretion_threshold': ice_accretion_threshold,
+            'non_zero_percentage': non_zero_percentage,
+            'emd_coordinates': {'longitude': emd_lon, 'latitude': emd_lat},
+            'newa_grid_cell': {
+                'south_north_index': int(closest_sn),
+                'west_east_index': int(closest_we),
+                'longitude': float(closest_lon),
+                'latitude': float(closest_lat),
+                'distance_from_emd_km': float(closest_distance_km)
+            },
+            'typical_patterns': {
+                'daily': {
+                    'emd_stats': emd_daily_stats,
+                    'newa_stats': newa_daily_stats,
+                    'emd_data': emd_daily_aligned,
+                    'newa_data': newa_daily_aligned
+                },
+                'weekly': {
+                    'emd_stats': emd_weekly_stats,
+                    'newa_stats': newa_weekly_stats,
+                    'emd_data': emd_weekly_aligned,
+                    'newa_data': newa_weekly_aligned
+                },
+                'yearly': {
+                    'emd_stats': emd_yearly_stats,
+                    'newa_stats': newa_yearly_stats,
+                    'emd_data': emd_yearly_aligned,
+                    'newa_data': newa_yearly_aligned
+                }
+            }
+        }
+
+        print(f"\n✓ Typical accretion patterns analysis completed successfully!")
         print(f"Results saved to: {base_dir}")
-        
-        return {'message': 'Function implementation follows same pattern as emd_newa_typical'}
-        
+        return results
+
     except Exception as e:
         print(f"Error in typical accretion patterns analysis: {e}")
         import traceback
@@ -12048,7 +12499,7 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
     save_plots : bool, optional
         Whether to save plots to file (default: True)
     ice_accretion_threshold : float, optional
-        Minimum mean hourly ice accretion threshold (mm/h). Only temporal periods where both datasets
+        Minimum mean hourly ice accretion threshold (g/h). Only temporal periods where both datasets
         have mean hourly ice accretion >= threshold are included in analysis (default: 0.0)
     non_zero_percentage : float, optional
         Minimum percentage (0-100) of hours that must be > 0 in both datasets for a temporal period
@@ -12060,10 +12511,11 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
         Dictionary containing PDF analysis results and statistics
     """
     
+
     print(f"=== PROBABILITY DENSITY FUNCTION ANALYSIS: EMD vs NEWA ICE ACCRETION at {height}m ===")
     print(f"Ice accretion threshold: {ice_accretion_threshold} mm/h (minimum mean hourly ice accretion for inclusion)")
     print(f"Non-zero percentage threshold: {non_zero_percentage}% (minimum percentage of hours > 0 required)")
-    
+
     try:
         import numpy as np
         import pandas as pd
@@ -12071,21 +12523,21 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
         import os
         from scipy import stats
         from sklearn.neighbors import KernelDensity
-        
+
         # Validate height input
         if height not in [50, 100, 150]:
             raise ValueError(f"Height must be 50, 100, or 150 meters. Got: {height}")
-        
+
         # Check if EMD data contains required column
         emd_column = f"iceInten.{int(height)}"
         if emd_column not in emd_data.columns:
             available_ice_cols = [col for col in emd_data.columns if 'iceInten' in col.lower() or 'accre' in col.lower()]
             raise ValueError(f"Column '{emd_column}' not found in EMD data. Available accretion columns: {available_ice_cols}")
-        
+
         # Verify NEWA dataset height
-        if 'ACCRE_CYL' not in dataset_with_ice_load.data_vars:
+        if 'ACCRE_CYL' not in ACCRE_CYL.data_vars:
             raise ValueError("'ACCRE_CYL' variable not found in NEWA dataset")
-        
+
         # Get height information from NEWA dataset
         height_levels = dataset_with_ice_load.height.values
         height_idx = None
@@ -12093,26 +12545,362 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
             if abs(h - height) < 1:  # Allow 1m tolerance
                 height_idx = i
                 break
-        
+
         if height_idx is None:
             raise ValueError(f"Height {height}m not found in NEWA dataset. Available heights: {height_levels}")
-        
+
         print(f"Using NEWA height level {height_idx} ({height_levels[height_idx]}m)")
-        
-        # Similar processing as pdf_emd_newa but with accretion data
-        # (Full implementation would follow the same pattern)
-        
-        # Create directory structure
-        threshold_str = f"threshold_{ice_accretion_threshold:.3f}" if ice_accretion_threshold > 0 else "no_threshold"
-        nonzero_str = f"nonzero_{non_zero_percentage:.0f}pct" if non_zero_percentage > 0 else "no_nonzero_filter"
-        base_dir = os.path.join("results", "figures", "EMD", "Ice_Accretion", "pdf_EMD_NEWA", f"{height:.0f}m_{threshold_str}_{nonzero_str}")
-        os.makedirs(base_dir, exist_ok=True)
-        
-        print(f"✓ PDF accretion analysis completed successfully!")
+
+        # Get EMD coordinates and find closest NEWA grid cell
+        emd_lon, emd_lat = emd_coordinates
+        print(f"EMD coordinates: {emd_lon:.4f}°E, {emd_lat:.4f}°N")
+
+        # Extract coordinates - handle both data variables and coordinates
+        if 'XLAT' in dataset_with_ice_load.coords:
+            lats = dataset_with_ice_load.coords['XLAT'].values
+            lons = dataset_with_ice_load.coords['XLON'].values
+        else:
+            lats = dataset_with_ice_load['XLAT'].values
+            lons = dataset_with_ice_load['XLON'].values
+
+        # Find the closest grid cell to EMD coordinates
+        distance_squared = (lons - emd_lon)**2 + (lats - emd_lat)**2
+        closest_indices = np.unravel_index(np.argmin(distance_squared), distance_squared.shape)
+        closest_sn, closest_we = closest_indices
+
+        # Get the actual coordinates of the closest grid cell
+        closest_lon = lons[closest_sn, closest_we]
+        closest_lat = lats[closest_sn, closest_we]
+        closest_distance_deg = np.sqrt(distance_squared[closest_sn, closest_we])
+        lat_correction = np.cos(np.radians(emd_lat))
+        closest_distance_km = closest_distance_deg * 111.32 * lat_correction
+
+        print(f"Closest NEWA grid cell:")
+        print(f"  Grid indices: south_north={closest_sn}, west_east={closest_we}")
+        print(f"  Grid coordinates: {closest_lon:.4f}°E, {closest_lat:.4f}°N")
+        print(f"  Distance from EMD: {closest_distance_km:.2f} km")
+
+
+        # Extract NEWA accretion data at specified height and closest grid cell
+        newa_accretion = dataset_with_ice_load['ACCRE_CYL'].isel(height=height_idx, south_north=closest_sn, west_east=closest_we)
+
+        # Convert to pandas DataFrame for easier manipulation
+        newa_df = newa_accretion.to_dataframe(name='ACCRE_CYL').reset_index()
+        newa_df['time'] = pd.to_datetime(newa_df['time'])
+        newa_df = newa_df.set_index('time')
+
+        # Convert NEWA accretion from kg/30min to g/h
+        # Each value is kg per 30min, so multiply by 2 (to get kg/h) and then by 1000 (to get g/h)
+        newa_df['ACCRE_CYL'] = newa_df['ACCRE_CYL'] * 2 * 1000
+
+        # Now both EMD iceInten and NEWA ACCRE_CYL are in grams per hour
+
+        # Prepare EMD data
+        if not isinstance(emd_data.index, pd.DatetimeIndex):
+            if 'time' in emd_data.columns:
+                emd_df = emd_data.copy()
+                emd_df['time'] = pd.to_datetime(emd_df['time'])
+                emd_df = emd_df.set_index('time')
+            else:
+                raise ValueError("EMD data must have datetime index or 'time' column")
+        else:
+            emd_df = emd_data.copy()
+
+        # Find common time period
+        common_start = max(emd_df.index.min(), newa_df.index.min())
+        common_end = min(emd_df.index.max(), newa_df.index.max())
+
+        print(f"Common period: {common_start} to {common_end}")
+
+        # Filter to common period
+        emd_common = emd_df.loc[common_start:common_end, emd_column].copy()
+        newa_common = newa_df.loc[common_start:common_end, 'ACCRE_CYL'].copy()
+
+
+        # Resample NEWA data to hourly to match EMD (from 30min to 1h)
+        print("Resampling NEWA data from 30min to 1h resolution and converting units...")
+        # Already converted to g/h above, so just resample
+        newa_hourly = newa_common.resample('1H').mean()
+
+        # Align time indices
+        common_times = emd_common.index.intersection(newa_hourly.index)
+        emd_aligned = emd_common.loc[common_times]
+        newa_aligned = newa_hourly.loc[common_times]
+
+        # Remove NaN values and filter out non-icing months (June-October)
+        valid_mask = ~(np.isnan(emd_aligned) | np.isnan(newa_aligned))
+        emd_clean_all = emd_aligned[valid_mask]
+        newa_clean_all = newa_aligned[valid_mask]
+
+        # Filter out non-icing months (June=6, July=7, August=8, September=9, October=10)
+        non_icing_months = [6, 7, 8, 9, 10]
+        icing_mask = ~emd_clean_all.index.month.isin(non_icing_months)
+        emd_clean = emd_clean_all[icing_mask]
+        newa_clean = newa_clean_all[icing_mask]
+
+        print(f"Valid data points after NaN removal: {len(emd_clean_all)}")
+        print(f"Icing season data points (excluding Jun-Oct): {len(emd_clean)}")
+
+        if len(emd_clean) < 10:
+            print("Warning: Very few valid data points for analysis!")
+            return None
+
+        # Apply filtering based on ice_accretion_threshold and non_zero_percentage
+        print(f"\nApplying filters to hourly data...")
+
+        # Create daily aggregations to apply filters
+        emd_daily_means = emd_clean.resample('D').mean()
+        newa_daily_means = newa_clean.resample('D').mean()
+
+        # Remove NaN values from daily means
+        emd_daily_clean = emd_daily_means.dropna()
+        newa_daily_clean = newa_daily_means.dropna()
+
+        # Align daily data
+        common_daily_dates = emd_daily_clean.index.intersection(newa_daily_clean.index)
+        emd_daily_temp = emd_daily_clean.loc[common_daily_dates]
+        newa_daily_temp = newa_daily_clean.loc[common_daily_dates]
+
+        # Apply ice accretion threshold filter (threshold is now in grams/hour)
+        threshold_mask_daily = (emd_daily_temp >= ice_accretion_threshold) & (newa_daily_temp >= ice_accretion_threshold)
+        valid_days = emd_daily_temp[threshold_mask_daily].index
+
+        # Apply non-zero percentage filter if specified
+        if non_zero_percentage > 0:
+            print(f"  Applying {non_zero_percentage}% non-zero filter...")
+            filtered_days = []
+            for date in valid_days:
+                day_start = date
+                day_end = date + pd.Timedelta(days=1) - pd.Timedelta(hours=1)
+                emd_day_hours = emd_clean[(emd_clean.index >= day_start) & (emd_clean.index <= day_end)]
+                newa_day_hours = newa_clean[(newa_clean.index >= day_start) & (newa_clean.index <= day_end)]
+                if len(emd_day_hours) > 0 and len(newa_day_hours) > 0:
+                    emd_nonzero_pct = (emd_day_hours > 0).mean() * 100
+                    newa_nonzero_pct = (newa_day_hours > 0).mean() * 100
+                    if emd_nonzero_pct >= non_zero_percentage and newa_nonzero_pct >= non_zero_percentage:
+                        filtered_days.append(date)
+            valid_days = pd.DatetimeIndex(filtered_days)
+            print(f"  Days after non-zero filter: {len(valid_days)}")
+
+        print(f"  Days before threshold filter: {len(emd_daily_temp)}")
+        print(f"  Days after filters: {len(valid_days)}")
+
+        # Filter hourly data to only include valid days
+        emd_filtered = []
+        newa_filtered = []
+        for date in valid_days:
+            day_start = date
+            day_end = date + pd.Timedelta(days=1) - pd.Timedelta(hours=1)
+            emd_day_hours = emd_clean[(emd_clean.index >= day_start) & (emd_clean.index <= day_end)]
+            newa_day_hours = newa_clean[(newa_clean.index >= day_start) & (newa_clean.index <= day_end)]
+            emd_filtered.extend(emd_day_hours.values)
+            newa_filtered.extend(newa_day_hours.values)
+
+        emd_final = np.array(emd_filtered)
+        newa_final = np.array(newa_filtered)
+
+        print(f"  Final hourly data points for PDF: {len(emd_final)} (EMD), {len(newa_final)} (NEWA)")
+
+        if len(emd_final) < 50:
+            print("Warning: Very few data points for PDF analysis!")
+            return None
+
+        # Calculate basic statistics
+        def calculate_stats(data, name):
+            stats_dict = {
+                'count': len(data),
+                'mean': np.mean(data),
+                'std': np.std(data),
+                'min': np.min(data),
+                'q25': np.percentile(data, 25),
+                'median': np.median(data),
+                'q75': np.percentile(data, 75),
+                'max': np.max(data),
+                'skewness': stats.skew(data),
+                'kurtosis': stats.kurtosis(data)
+            }
+            print(f"{name} statistics: mean={stats_dict['mean']:.4f}, std={stats_dict['std']:.4f}, skew={stats_dict['skewness']:.3f}")
+            return stats_dict
+
+        emd_stats = calculate_stats(emd_final, "EMD")
+        newa_stats = calculate_stats(newa_final, "NEWA")
+
+        # Create plots if requested
+        if save_plots:
+            print(f"\nCreating PDF plots...")
+            threshold_str = f"threshold_{ice_accretion_threshold:.3f}" if ice_accretion_threshold > 0 else "no_threshold"
+            nonzero_str = f"nonzero_{non_zero_percentage:.0f}pct" if non_zero_percentage > 0 else "no_nonzero_filter"
+            base_dir = os.path.join("results", "figures", "EMD", "Ice_Accretion", "pdf_EMD_NEWA", f"{height:.0f}m_{threshold_str}_{nonzero_str}")
+            os.makedirs(base_dir, exist_ok=True)
+
+            data_min = min(np.min(emd_final), np.min(newa_final))
+            data_max = max(np.max(emd_final), np.max(newa_final))
+            x_range = np.linspace(data_min, data_max, 1000)
+
+            fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+            ax1 = axes[0, 0]
+            bins = np.linspace(data_min, data_max, 50)
+            ax1.hist(emd_final, bins=bins, alpha=0.6, density=True, color='steelblue', edgecolor='darkblue', linewidth=1, label=f'EMD (n={len(emd_final)})')
+            ax1.hist(newa_final, bins=bins, alpha=0.6, density=True, color='orange', edgecolor='darkorange', linewidth=1, label=f'NEWA (n={len(newa_final)})')
+            ax1.set_xlabel('Ice Accretion [g/h]', fontweight='bold')
+            ax1.set_ylabel('Probability Density', fontweight='bold')
+            ax1.set_title('Probability Density Functions - Histograms', fontweight='bold')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+
+            ax2 = axes[0, 1]
+            if len(emd_final) > 10:
+                kde_emd = stats.gaussian_kde(emd_final)
+                ax2.plot(x_range, kde_emd(x_range), 'steelblue', linewidth=3, label=f'EMD (μ={emd_stats["mean"]:.3f}, σ={emd_stats["std"]:.3f})')
+            if len(newa_final) > 10:
+                kde_newa = stats.gaussian_kde(newa_final)
+                ax2.plot(x_range, kde_newa(x_range), 'orange', linewidth=3, label=f'NEWA (μ={newa_stats["mean"]:.3f}, σ={newa_stats["std"]:.3f})')
+            ax2.axvline(emd_stats['mean'], color='steelblue', linestyle='--', alpha=0.8, label='EMD Mean')
+            ax2.axvline(newa_stats['mean'], color='orange', linestyle='--', alpha=0.8, label='NEWA Mean')
+            ax2.set_xlabel('Ice Accretion [g/h]', fontweight='bold')
+            ax2.set_ylabel('Probability Density', fontweight='bold')
+            ax2.set_title('Kernel Density Estimation (KDE) Comparison', fontweight='bold')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+
+            ax3 = axes[1, 0]
+            n_quantiles = min(len(emd_final), len(newa_final), 1000)
+            quantiles = np.linspace(0.01, 0.99, n_quantiles)
+            emd_quantiles = np.quantile(emd_final, quantiles)
+            newa_quantiles = np.quantile(newa_final, quantiles)
+            ax3.scatter(emd_quantiles, newa_quantiles, alpha=0.6, s=20, color='purple')
+            min_val = min(np.min(emd_quantiles), np.min(newa_quantiles))
+            max_val = max(np.max(emd_quantiles), np.max(newa_quantiles))
+            ax3.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, label='Perfect Agreement')
+            qq_correlation = np.corrcoef(emd_quantiles, newa_quantiles)[0, 1]
+            ax3.set_xlabel('EMD Quantiles [g/h]', fontweight='bold')
+            ax3.set_ylabel('NEWA Quantiles [g/h]', fontweight='bold')
+            ax3.set_title(f'Q-Q Plot (r = {qq_correlation:.3f})', fontweight='bold')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+
+            ax4 = axes[1, 1]
+            box_data = [emd_final, newa_final]
+            labels = ['EMD', 'NEWA']
+            colors = ['steelblue', 'orange']
+            box_plot = ax4.boxplot(box_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
+            for patch, color in zip(box_plot['boxes'], colors):
+                patch.set_facecolor(color)
+            ax4.set_ylabel('Ice Accretion [g/h]', fontweight='bold')
+            ax4.set_title('Distribution Comparison (Box Plots)', fontweight='bold')
+            ax4.grid(True, alpha=0.3)
+
+            threshold_text = f"Ice Accretion Threshold: >={ice_accretion_threshold} g/h" if ice_accretion_threshold > 0 else "No Ice Accretion Threshold"
+            nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
+            fig.suptitle(f'Probability Density Function Analysis: EMD vs NEWA at {height}m\nIce Accretion Distribution Comparison (Icing Season Only)\n{threshold_text} | {nonzero_text}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold', y=0.95)
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.85)
+            pdf_plot_path = os.path.join(base_dir, f'pdf_comparison_{height:.0f}m.png')
+            plt.savefig(pdf_plot_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {pdf_plot_path}")
+
+            fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+            ax.axis('off')
+            stats_data = [
+                ['Statistic', 'EMD', 'NEWA', 'Difference (NEWA - EMD)'],
+                ['Count', f"{emd_stats['count']}", f"{newa_stats['count']}", f"{newa_stats['count'] - emd_stats['count']}"] ,
+                ['Mean', f"{emd_stats['mean']:.4f}", f"{newa_stats['mean']:.4f}", f"{newa_stats['mean'] - emd_stats['mean']:.4f}"],
+                ['Std Dev', f"{emd_stats['std']:.4f}", f"{newa_stats['std']:.4f}", f"{newa_stats['std'] - emd_stats['std']:.4f}"],
+                ['Minimum', f"{emd_stats['min']:.4f}", f"{newa_stats['min']:.4f}", f"{newa_stats['min'] - emd_stats['min']:.4f}"],
+                ['Q25', f"{emd_stats['q25']:.4f}", f"{newa_stats['q25']:.4f}", f"{newa_stats['q25'] - emd_stats['q25']:.4f}"],
+                ['Median', f"{emd_stats['median']:.4f}", f"{newa_stats['median']:.4f}", f"{newa_stats['median'] - emd_stats['median']:.4f}"],
+                ['Q75', f"{emd_stats['q75']:.4f}", f"{newa_stats['q75']:.4f}", f"{newa_stats['q75'] - emd_stats['q75']:.4f}"],
+                ['Maximum', f"{emd_stats['max']:.4f}", f"{newa_stats['max']:.4f}", f"{newa_stats['max'] - emd_stats['max']:.4f}"],
+                ['Skewness', f"{emd_stats['skewness']:.4f}", f"{newa_stats['skewness']:.4f}", f"{newa_stats['skewness'] - emd_stats['skewness']:.4f}"],
+                ['Kurtosis', f"{emd_stats['kurtosis']:.4f}", f"{newa_stats['kurtosis']:.4f}", f"{newa_stats['kurtosis'] - emd_stats['kurtosis']:.4f}"],
+                ['Q-Q Correlation', '-', '-', f"{qq_correlation:.4f}"]
+            ]
+            table = ax.table(cellText=stats_data[1:], colLabels=stats_data[0], cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
+            table.auto_set_font_size(False)
+            table.set_fontsize(11)
+            table.scale(1, 2)
+            for i in range(len(stats_data)):
+                for j in range(len(stats_data[0])):
+                    cell = table[(i, j)]
+                    if i == 0:
+                        cell.set_facecolor('#4CAF50')
+                        cell.set_text_props(weight='bold', color='white')
+                    elif j == 1:
+                        cell.set_facecolor('#E3F2FD')
+                    elif j == 2:
+                        cell.set_facecolor('#FFF3E0')
+                    elif j == 3:
+                        cell.set_facecolor('#F3E5F5')
+            threshold_text = f"Ice Accretion Threshold: >={ice_accretion_threshold} mm/h" if ice_accretion_threshold > 0 else "No Ice Accretion Threshold"
+            nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
+            ax.set_title(f'PDF Statistical Comparison Summary at {height}m\nIce Accretion Distribution Statistics [g/h] (Icing Season Only)\n{threshold_text} | {nonzero_text}', fontsize=14, fontweight='bold', pad=20)
+            plt.tight_layout()
+            stats_table_path = os.path.join(base_dir, f'pdf_statistics_{height:.0f}m.png')
+            plt.savefig(stats_table_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {stats_table_path}")
+            print(f"\n=== PLOT SUMMARY ===")
+            print(f"Created 2 plots:")
+            print(f"  1. PDF comparison plot: {pdf_plot_path}")
+            print(f"  2. Statistical summary table: {stats_table_path}")
+
+        print(f"\n=== STATISTICAL TESTS ===")
+        ks_statistic, ks_p_value = stats.ks_2samp(emd_final, newa_final)
+        print(f"Kolmogorov-Smirnov test:")
+        print(f"  Statistic: {ks_statistic:.4f}")
+        print(f"  P-value: {ks_p_value:.4f}")
+        print(f"  Interpretation: {'Distributions are significantly different' if ks_p_value < 0.05 else 'No significant difference in distributions'}")
+        mw_statistic, mw_p_value = stats.mannwhitneyu(emd_final, newa_final, alternative='two-sided')
+        print(f"\nMann-Whitney U test:")
+        print(f"  Statistic: {mw_statistic:.0f}")
+        print(f"  P-value: {mw_p_value:.4f}")
+        print(f"  Interpretation: {'Medians are significantly different' if mw_p_value < 0.05 else 'No significant difference in medians'}")
+
+        results = {
+            'height': height,
+            'ice_accretion_threshold': ice_accretion_threshold,
+            'non_zero_percentage': non_zero_percentage,
+            'emd_coordinates': {'longitude': emd_lon, 'latitude': emd_lat},
+            'newa_grid_cell': {
+                'south_north_index': int(closest_sn),
+                'west_east_index': int(closest_we),
+                'longitude': float(closest_lon),
+                'latitude': float(closest_lat),
+                'distance_from_emd_km': float(closest_distance_km)
+            },
+            'data_counts': {
+                'emd_final': len(emd_final),
+                'newa_final': len(newa_final),
+                'valid_days': len(valid_days)
+            },
+            'statistics': {
+                'emd_stats': emd_stats,
+                'newa_stats': newa_stats,
+                'qq_correlation': float(qq_correlation)
+            },
+            'statistical_tests': {
+                'ks_test': {
+                    'statistic': float(ks_statistic),
+                    'p_value': float(ks_p_value),
+                    'significant': ks_p_value < 0.05
+                },
+                'mann_whitney_test': {
+                    'statistic': float(mw_statistic),
+                    'p_value': float(mw_p_value),
+                    'significant': mw_p_value < 0.05
+                }
+            },
+            'filtered_data': {
+                'emd_data': emd_final,
+                'newa_data': newa_final
+            }
+        }
+
+        print(f"\n✓ PDF accretion analysis completed successfully!")
         print(f"Results saved to: {base_dir}")
-        
-        return {'message': 'Function implementation follows same pattern as pdf_emd_newa'}
-        
+        return results
+
     except Exception as e:
         print(f"Error in PDF accretion analysis: {e}")
         import traceback

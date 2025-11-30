@@ -133,6 +133,14 @@ else:
 #     save_plots=True
 # )
 
+# WIND ROSE
+
+results_wind_rose = fn.wind_rose(
+    dataset=dataset,
+    height_level=height,
+    title=f"Wind Rose at {height_level} m",
+    bins =32,
+)
 
 # ICING TEMPERATURE AND HUMIDITY CRITERIA
 

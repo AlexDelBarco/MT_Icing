@@ -99,7 +99,7 @@ emd_coords = (19.960, 59.600)  # EMD's data coordinates
 #     dataset_with_ice_load=dataset_with_ice_load,
 #     height=height_level,
 #     emd_coordinates=emd_coords,
-#     ice_load_threshold=0,
+#     ice_load_threshold=0, # in g/h, day/week/year with accretion > threshold
 #     non_zero_percentage=80
 # )
 
@@ -109,23 +109,25 @@ emd_coords = (19.960, 59.600)  # EMD's data coordinates
 #     height=height_level,
 #     emd_coordinates=emd_coords,
 #     ice_load_threshold=0,
-#     non_zero_percentage=50
+#     non_zero_percentage=50 #Filtered by percentage of hours with ice accretion > 0 in a day, taking only valid days
 # )
 
-EMD_NEWA_acc1 = fn.compare_ice_accretion_emd_newa(
-    emd_data=emd_data,
-    dataset_with_ice_load=dataset_with_ice_load,
-    height=height_level,
-    emd_coordinates=emd_coords
-)
+# EMD_NEWA_acc1 = fn.compare_accretion_emd_newa(
+#     emd_data=emd_data,
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     height=height_level,
+#     emd_coordinates=emd_coords,
+#     accretion_threshold=0,  # in g/h
+#     non_zero_percentage=0
+# )
 
 # EMD_NEWA_acc2 = fn.emd_newa_accretion_typical(
 #     emd_data=emd_data,
 #     dataset_with_ice_load=dataset_with_ice_load,
 #     height=height_level,
 #     emd_coordinates=emd_coords,
-#     ice_accretion_threshold=0,
-#     non_zero_percentage=80
+#     ice_accretion_threshold=0.1,  # in g/h, day/week/year with accretion > threshold
+#     non_zero_percentage=0
 # )
 
 # EMD_NEWA_acc3 = fn.pdf_emd_newa_accretion(
@@ -133,6 +135,6 @@ EMD_NEWA_acc1 = fn.compare_ice_accretion_emd_newa(
 #     dataset_with_ice_load=dataset_with_ice_load,
 #     height=height_level,
 #     emd_coordinates=emd_coords,
-#     ice_accretion_threshold=0,
-#     non_zero_percentage=50
+#     ice_accretion_threshold=0.1,  # in g/h
+#     non_zero_percentage=0 #Filtered by percentage of hours with ice accretion > 0 in a day, taking only valid days
 # )
