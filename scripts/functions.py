@@ -11894,8 +11894,9 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             else:
                 print("Insufficient non-zero data for scatter plot")
 
-            # Plot 5: Zero values analysis - Bar plot
-            print("5. Creating zero values analysis bar plot...")
+
+            # Plot 5A: Zero values analysis - Bar plot
+            print("5A. Creating zero values analysis bar plot...")
             emd_zero_count = (emd_clean == 0).sum()
             newa_zero_count = (newa_clean == 0).sum()
             total_timestamps = len(emd_clean)
@@ -11921,10 +11922,71 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             stats_text += f'Either zero: {((emd_clean == 0) | (newa_clean == 0)).sum():,}'
             ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=10)
             plt.tight_layout()
+
+            # Ensure saving directory exists
+            os.makedirs(base_dir, exist_ok=True)
             zero_analysis_path = os.path.join(base_dir, f'zero_values_analysis_{height:.0f}m.png')
             plt.savefig(zero_analysis_path, dpi=150, facecolor='white')
             plt.close()
             print(f"Saved: {zero_analysis_path}")
+
+            # Plot 5B: Negative values analysis - Bar plot
+            print("5B. Creating negative values analysis bar plot...")
+            emd_neg_count = (emd_clean < 0).sum()
+            newa_neg_count = (newa_clean < 0).sum()
+            emd_neg_percentage = (emd_neg_count / total_timestamps) * 100
+            newa_neg_percentage = (newa_neg_count / total_timestamps) * 100
+            fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+            neg_percentages = [emd_neg_percentage, newa_neg_percentage]
+            neg_counts = [emd_neg_count, newa_neg_count]
+            bars = ax.bar(datasets, neg_percentages, color=colors, alpha=0.7, edgecolor='black', linewidth=1)
+            for i, (bar, count, percentage) in enumerate(zip(bars, neg_counts, neg_percentages)):
+                height_b = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=11)
+            ax.set_ylabel('Percentage of Negative Values (%)', fontsize=12, fontweight='bold')
+            ax.set_title(f'Negative Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold')
+            ax.grid(True, alpha=0.3, axis='y')
+            ax.set_ylim(0, max(neg_percentages) * 1.15)
+            stats_text = f'Summary:\n'
+            stats_text += f'EMD negatives: {emd_neg_count:,} ({emd_neg_percentage:.1f}%)\n'
+            stats_text += f'NEWA negatives: {newa_neg_count:,} ({newa_neg_percentage:.1f}%)\n'
+            stats_text += f'Both negative: {((emd_clean < 0) & (newa_clean < 0)).sum():,}\n'
+            stats_text += f'Either negative: {((emd_clean < 0) | (newa_clean < 0)).sum():,}'
+            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=10)
+            plt.tight_layout()
+            neg_analysis_path = os.path.join(base_dir, f'negative_values_analysis_{height:.0f}m.png')
+            plt.savefig(neg_analysis_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {neg_analysis_path}")
+
+            # Plot 5C: Positive values analysis - Bar plot
+            print("5C. Creating positive values analysis bar plot...")
+            emd_pos_count = (emd_clean > 0).sum()
+            newa_pos_count = (newa_clean > 0).sum()
+            emd_pos_percentage = (emd_pos_count / total_timestamps) * 100
+            newa_pos_percentage = (newa_pos_count / total_timestamps) * 100
+            fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+            pos_percentages = [emd_pos_percentage, newa_pos_percentage]
+            pos_counts = [emd_pos_count, newa_pos_count]
+            bars = ax.bar(datasets, pos_percentages, color=colors, alpha=0.7, edgecolor='black', linewidth=1)
+            for i, (bar, count, percentage) in enumerate(zip(bars, pos_counts, pos_percentages)):
+                height_b = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=11)
+            ax.set_ylabel('Percentage of Positive Values (%)', fontsize=12, fontweight='bold')
+            ax.set_title(f'Positive Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold')
+            ax.grid(True, alpha=0.3, axis='y')
+            ax.set_ylim(0, max(pos_percentages) * 1.15)
+            stats_text = f'Summary:\n'
+            stats_text += f'EMD positives: {emd_pos_count:,} ({emd_pos_percentage:.1f}%)\n'
+            stats_text += f'NEWA positives: {newa_pos_count:,} ({newa_pos_percentage:.1f}%)\n'
+            stats_text += f'Both positive: {((emd_clean > 0) & (newa_clean > 0)).sum():,}\n'
+            stats_text += f'Either positive: {((emd_clean > 0) | (newa_clean > 0)).sum():,}'
+            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=10)
+            plt.tight_layout()
+            pos_analysis_path = os.path.join(base_dir, f'positive_values_analysis_{height:.0f}m.png')
+            plt.savefig(pos_analysis_path, dpi=150, facecolor='white')
+            plt.close()
+            print(f"Saved: {pos_analysis_path}")
 
             # Plot 6: Box plot for positive values only
             print("6. Creating box plot for positive values distribution...")
@@ -12535,7 +12597,7 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
             raise ValueError(f"Column '{emd_column}' not found in EMD data. Available accretion columns: {available_ice_cols}")
 
         # Verify NEWA dataset height
-        if 'ACCRE_CYL' not in ACCRE_CYL.data_vars:
+        if 'ACCRE_CYL' not in dataset_with_ice_load.data_vars:
             raise ValueError("'ACCRE_CYL' variable not found in NEWA dataset")
 
         # Get height information from NEWA dataset
