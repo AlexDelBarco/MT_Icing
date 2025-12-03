@@ -11202,142 +11202,131 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
             data_min = min(np.min(emd_final), np.min(newa_final))
             data_max = max(np.max(emd_final), np.max(newa_final))
             x_range = np.linspace(data_min, data_max, 1000)
-            
-            # Create comprehensive PDF plot
-            fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-            
-            # Plot 1: Overlapping histograms with KDE
+
+            fig, axes = plt.subplots(2, 3, figsize=(24, 12))
             ax1 = axes[0, 0]
-            
-            # Plot histograms with transparency
             bins = np.linspace(data_min, data_max, 50)
-            ax1.hist(emd_final, bins=bins, alpha=0.6, density=True, color='steelblue', 
-                    edgecolor='darkblue', linewidth=1, label=f'EMD (n={len(emd_final)})')
-            ax1.hist(newa_final, bins=bins, alpha=0.6, density=True, color='orange', 
-                    edgecolor='darkorange', linewidth=1, label=f'NEWA (n={len(newa_final)})')
-            
+            ax1.hist(emd_final, bins=bins, alpha=0.6, density=True, color='steelblue', edgecolor='darkblue', linewidth=1, label=f'EMD (n={len(emd_final)})')
+            ax1.hist(newa_final, bins=bins, alpha=0.6, density=True, color='orange', edgecolor='darkorange', linewidth=1, label=f'NEWA (n={len(newa_final)})')
             ax1.set_xlabel('Ice Load [kg/m]', fontweight='bold')
             ax1.set_ylabel('Probability Density', fontweight='bold')
             ax1.set_title('Probability Density Functions - Histograms', fontweight='bold')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
-            
-            # Plot 2: KDE only (cleaner view)
+
             ax2 = axes[0, 1]
-            
             if len(emd_final) > 10:
                 kde_emd = stats.gaussian_kde(emd_final)
-                ax2.plot(x_range, kde_emd(x_range), 'steelblue', linewidth=3, 
-                        label=f'EMD (μ={emd_stats["mean"]:.3f}, σ={emd_stats["std"]:.3f})')
-            
+                ax2.plot(x_range, kde_emd(x_range), 'steelblue', linewidth=3, label=f'EMD (μ={emd_stats["mean"]:.3f}, σ={emd_stats["std"]:.3f})')
             if len(newa_final) > 10:
                 kde_newa = stats.gaussian_kde(newa_final)
-                ax2.plot(x_range, kde_newa(x_range), 'orange', linewidth=3, 
-                        label=f'NEWA (μ={newa_stats["mean"]:.3f}, σ={newa_stats["std"]:.3f})')
-            
-            # Add vertical lines for means
+                ax2.plot(x_range, kde_newa(x_range), 'orange', linewidth=3, label=f'NEWA (μ={newa_stats["mean"]:.3f}, σ={newa_stats["std"]:.3f})')
             ax2.axvline(emd_stats['mean'], color='steelblue', linestyle='--', alpha=0.8, label='EMD Mean')
             ax2.axvline(newa_stats['mean'], color='orange', linestyle='--', alpha=0.8, label='NEWA Mean')
-            
             ax2.set_xlabel('Ice Load [kg/m]', fontweight='bold')
             ax2.set_ylabel('Probability Density', fontweight='bold')
             ax2.set_title('Kernel Density Estimation (KDE) Comparison', fontweight='bold')
             ax2.legend()
             ax2.grid(True, alpha=0.3)
+
+            # New log-log PDF comparison plot
+            ax3 = axes[0, 2]
+            # Filter out zero values for log-log plot
+            emd_nonzero = emd_final[emd_final > 0]
+            newa_nonzero = newa_final[newa_final > 0]
             
-            # Plot 3: Q-Q plot for distribution comparison
-            ax3 = axes[1, 0]
+            if len(emd_nonzero) > 10 and len(newa_nonzero) > 10:
+                # Create log-spaced bins for PDF calculation
+                log_min = max(1e-6, min(np.min(emd_nonzero), np.min(newa_nonzero)))
+                log_max = max(np.max(emd_nonzero), np.max(newa_nonzero))
+                bins = np.logspace(np.log10(log_min), np.log10(log_max), 50)
+                
+                # Calculate PDF (normalized histogram)
+                emd_counts, _ = np.histogram(emd_nonzero, bins=bins)
+                newa_counts, _ = np.histogram(newa_nonzero, bins=bins)
+                
+                # Normalize to get PDF
+                bin_widths = np.diff(bins)
+                emd_pdf = emd_counts / (len(emd_nonzero) * bin_widths)
+                newa_pdf = newa_counts / (len(newa_nonzero) * bin_widths)
+                
+                # Plot centers
+                bin_centers = (bins[:-1] + bins[1:]) / 2
+                
+                # Remove zeros for log-log plot
+                emd_nonzero_pdf = emd_pdf > 0
+                newa_nonzero_pdf = newa_pdf > 0
+                
+                ax3.loglog(bin_centers[emd_nonzero_pdf], emd_pdf[emd_nonzero_pdf], 'o-', 
+                          color='steelblue', linewidth=2, markersize=4, alpha=0.8,
+                          label=f'EMD PDF (n={len(emd_nonzero)})')
+                ax3.loglog(bin_centers[newa_nonzero_pdf], newa_pdf[newa_nonzero_pdf], 's-', 
+                          color='orange', linewidth=2, markersize=4, alpha=0.8,
+                          label=f'NEWA PDF (n={len(newa_nonzero)})')
+                ax3.axvline(np.mean(emd_nonzero), color='steelblue', linestyle='--', alpha=0.8, label='EMD Mean')
+                ax3.axvline(np.mean(newa_nonzero), color='orange', linestyle='--', alpha=0.8, label='NEWA Mean')
+            else:
+                ax3.text(0.5, 0.5, 'Insufficient non-zero data\nfor log-log PDF', 
+                        ha='center', va='center', transform=ax3.transAxes, fontsize=12)
             
-            # Create Q-Q plot data
+            ax3.set_xlabel('Ice Load [kg/m]', fontweight='bold')
+            ax3.set_ylabel('Probability Density', fontweight='bold')
+            ax3.set_title('PDF Comparison (Log-Log Scale)', fontweight='bold')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3, which="both")
+
+            ax4 = axes[1, 0]
             n_quantiles = min(len(emd_final), len(newa_final), 1000)
             quantiles = np.linspace(0.01, 0.99, n_quantiles)
-            
             emd_quantiles = np.quantile(emd_final, quantiles)
             newa_quantiles = np.quantile(newa_final, quantiles)
-            
-            # Plot Q-Q
-            ax3.scatter(emd_quantiles, newa_quantiles, alpha=0.6, s=20, color='purple')
-            
-            # Add perfect correlation line
+            ax4.scatter(emd_quantiles, newa_quantiles, alpha=0.6, s=20, color='purple')
             min_val = min(np.min(emd_quantiles), np.min(newa_quantiles))
             max_val = max(np.max(emd_quantiles), np.max(newa_quantiles))
-            ax3.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, 
-                    label='Perfect Agreement')
-            
-            # Calculate correlation
+            ax4.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, label='Perfect Agreement')
             qq_correlation = np.corrcoef(emd_quantiles, newa_quantiles)[0, 1]
-            
-            ax3.set_xlabel('EMD Quantiles [kg/m]', fontweight='bold')
-            ax3.set_ylabel('NEWA Quantiles [kg/m]', fontweight='bold')
-            ax3.set_title(f'Q-Q Plot (r = {qq_correlation:.3f})', fontweight='bold')
-            ax3.legend()
-            ax3.grid(True, alpha=0.3)
-            
-            # Plot 4: Box plots for comparison
-            ax4 = axes[1, 1]
-            
+            ax4.set_xlabel('EMD Quantiles [kg/m]', fontweight='bold')
+            ax4.set_ylabel('NEWA Quantiles [kg/m]', fontweight='bold')
+            ax4.set_title(f'Q-Q Plot (r = {qq_correlation:.3f})', fontweight='bold')
+            ax4.legend()
+            ax4.grid(True, alpha=0.3)
+
+            ax5 = axes[1, 1]
             box_data = [emd_final, newa_final]
             labels = ['EMD', 'NEWA']
             colors = ['steelblue', 'orange']
-            
-            box_plot = ax4.boxplot(box_data, labels=labels, patch_artist=True,
-                                  showmeans=True, meanline=True,
-                                  boxprops=dict(alpha=0.7),
-                                  medianprops=dict(color='red', linewidth=2),
-                                  meanprops=dict(color='black', linewidth=2, linestyle='--'))
-            
-            # Color the boxes
+            box_plot = ax5.boxplot(box_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
             for patch, color in zip(box_plot['boxes'], colors):
                 patch.set_facecolor(color)
+            ax5.set_ylabel('Ice Load [kg/m]', fontweight='bold')
+            ax5.set_title('Distribution Comparison (Box Plots)', fontweight='bold')
+            ax5.grid(True, alpha=0.3)
+
+            # Add statistical summary table to the last subplot (axes[1, 2])
+            ax6 = axes[1, 2]
+            ax6.axis('off')
             
-            ax4.set_ylabel('Ice Load [kg/m]', fontweight='bold')
-            ax4.set_title('Distribution Comparison (Box Plots)', fontweight='bold')
-            ax4.grid(True, alpha=0.3)
-            
-            # Add overall title with filtering information
-            threshold_text = f"Ice Load Threshold: >={ice_load_threshold} kg/m" if ice_load_threshold > 0 else "No Ice Load Threshold"
-            nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
-            
-            fig.suptitle(f'Probability Density Function Analysis: EMD vs NEWA at {height}m\n'
-                        f'Ice Load Distribution Comparison (Icing Season Only)\n'
-                        f'{threshold_text} | {nonzero_text}\n'
-                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=14, fontweight='bold', y=0.95)
-            
-            plt.tight_layout()
-            plt.subplots_adjust(top=0.85)
-            
-            pdf_plot_path = os.path.join(base_dir, f'pdf_comparison_{height:.0f}m.png')
-            plt.savefig(pdf_plot_path, dpi=150, facecolor='white', bbox_inches='tight')
-            plt.close()
-            print(f"Saved: {pdf_plot_path}")
-            
-            # Create a statistical comparison table
-            fig, ax = plt.subplots(1, 1, figsize=(12, 8))
-            ax.axis('off')
-            
-            # Prepare statistics table
+            # Create statistical summary table
             stats_data = [
-                ['Statistic', 'EMD', 'NEWA', 'Difference (NEWA - EMD)'],
-                ['Count', f"{emd_stats['count']}", f"{newa_stats['count']}", f"{newa_stats['count'] - emd_stats['count']}"],
-                ['Mean', f"{emd_stats['mean']:.4f}", f"{newa_stats['mean']:.4f}", f"{newa_stats['mean'] - emd_stats['mean']:.4f}"],
-                ['Std Dev', f"{emd_stats['std']:.4f}", f"{newa_stats['std']:.4f}", f"{newa_stats['std'] - emd_stats['std']:.4f}"],
-                ['Minimum', f"{emd_stats['min']:.4f}", f"{newa_stats['min']:.4f}", f"{newa_stats['min'] - emd_stats['min']:.4f}"],
-                ['Q25', f"{emd_stats['q25']:.4f}", f"{newa_stats['q25']:.4f}", f"{newa_stats['q25'] - emd_stats['q25']:.4f}"],
-                ['Median', f"{emd_stats['median']:.4f}", f"{newa_stats['median']:.4f}", f"{newa_stats['median'] - emd_stats['median']:.4f}"],
-                ['Q75', f"{emd_stats['q75']:.4f}", f"{newa_stats['q75']:.4f}", f"{newa_stats['q75'] - emd_stats['q75']:.4f}"],
-                ['Maximum', f"{emd_stats['max']:.4f}", f"{newa_stats['max']:.4f}", f"{newa_stats['max'] - emd_stats['max']:.4f}"],
-                ['Skewness', f"{emd_stats['skewness']:.4f}", f"{newa_stats['skewness']:.4f}", f"{newa_stats['skewness'] - emd_stats['skewness']:.4f}"],
-                ['Kurtosis', f"{emd_stats['kurtosis']:.4f}", f"{newa_stats['kurtosis']:.4f}", f"{newa_stats['kurtosis'] - emd_stats['kurtosis']:.4f}"],
-                ['Q-Q Correlation', '-', '-', f"{qq_correlation:.4f}"]
+                ['Statistic', 'EMD', 'NEWA'],
+                ['Count', f"{emd_stats['count']}", f"{newa_stats['count']}"],
+                ['Mean', f"{emd_stats['mean']:.3f}", f"{newa_stats['mean']:.3f}"],
+                ['Std Dev', f"{emd_stats['std']:.3f}", f"{newa_stats['std']:.3f}"],
+                ['Minimum', f"{emd_stats['min']:.3f}", f"{newa_stats['min']:.3f}"],
+                ['Q25', f"{emd_stats['q25']:.3f}", f"{newa_stats['q25']:.3f}"],
+                ['Median', f"{emd_stats['median']:.3f}", f"{newa_stats['median']:.3f}"],
+                ['Q75', f"{emd_stats['q75']:.3f}", f"{newa_stats['q75']:.3f}"],
+                ['Maximum', f"{emd_stats['max']:.3f}", f"{newa_stats['max']:.3f}"],
+                ['Skewness', f"{emd_stats['skewness']:.3f}", f"{newa_stats['skewness']:.3f}"],
+                ['Kurtosis', f"{emd_stats['kurtosis']:.3f}", f"{newa_stats['kurtosis']:.3f}"],
+                ['Q-Q Corr', f"{qq_correlation:.3f}", '-']
             ]
             
-            # Create table
-            table = ax.table(cellText=stats_data[1:], colLabels=stats_data[0], 
-                           cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
+            table = ax6.table(cellText=stats_data[1:], colLabels=stats_data[0], 
+                             cellLoc='center', loc='center', bbox=[0.05, 0.1, 0.9, 0.8])
             table.auto_set_font_size(False)
-            table.set_fontsize(11)
-            table.scale(1, 2)
+            table.set_fontsize(9)
+            table.scale(1, 1.5)
             
             # Style the table
             for i in range(len(stats_data)):
@@ -11346,32 +11335,32 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
                     if i == 0:  # Header row
                         cell.set_facecolor('#4CAF50')
                         cell.set_text_props(weight='bold', color='white')
-                    elif j == 1:  # EMD column
+                    elif j == 0:  # EMD column
                         cell.set_facecolor('#E3F2FD')
-                    elif j == 2:  # NEWA column
+                    elif j == 1:  # NEWA column
                         cell.set_facecolor('#FFF3E0')
-                    elif j == 3:  # Difference column
-                        cell.set_facecolor('#F3E5F5')
-            
+
+            ax6.set_title('Statistical Summary', fontweight='bold', pad=20)
+
             threshold_text = f"Ice Load Threshold: >={ice_load_threshold} kg/m" if ice_load_threshold > 0 else "No Ice Load Threshold"
             nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
             
-            ax.set_title(f'PDF Statistical Comparison Summary at {height}m\n'
-                        f'Ice Load Distribution Statistics [kg/m] (Icing Season Only)\n'
-                        f'{threshold_text} | {nonzero_text}',
-                        fontsize=14, fontweight='bold', pad=20)
+            fig.suptitle(f'PDF Analysis: EMD vs NEWA Ice Load at {height}m - 6 Comprehensive Plots\n'
+                        f'Distribution Comparison (Icing Season Only) | {threshold_text} | {nonzero_text}\n'
+                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                        fontsize=16, fontweight='bold', y=0.96)
             
             plt.tight_layout()
+            plt.subplots_adjust(top=0.88)
             
-            stats_table_path = os.path.join(base_dir, f'pdf_statistics_{height:.0f}m.png')
-            plt.savefig(stats_table_path, dpi=150, facecolor='white', bbox_inches='tight')
+            pdf_plot_path = os.path.join(base_dir, f'pdf_comparison_{height:.0f}m.png')
+            plt.savefig(pdf_plot_path, dpi=150, facecolor='white', bbox_inches='tight')
             plt.close()
-            print(f"Saved: {stats_table_path}")
+            print(f"Saved: {pdf_plot_path}")
             
             print(f"\n=== PLOT SUMMARY ===")
-            print(f"Created 2 plots:")
+            print(f"Created 1 comprehensive plot with 6 subplots:")
             print(f"  1. PDF comparison plot: {pdf_plot_path}")
-            print(f"  2. Statistical summary table: {stats_table_path}")
         
         # Perform statistical tests
         print(f"\n=== STATISTICAL TESTS ===")
@@ -12799,7 +12788,7 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
             data_max = max(np.max(emd_final), np.max(newa_final))
             x_range = np.linspace(data_min, data_max, 1000)
 
-            fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+            fig, axes = plt.subplots(2, 3, figsize=(24, 12))
             ax1 = axes[0, 0]
             bins = np.linspace(data_min, data_max, 50)
             ax1.hist(emd_final, bins=bins, alpha=0.6, density=True, color='steelblue', edgecolor='darkblue', linewidth=1, label=f'EMD (n={len(emd_final)})')
@@ -12825,36 +12814,122 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
             ax2.legend()
             ax2.grid(True, alpha=0.3)
 
-            ax3 = axes[1, 0]
+            # New log-log PDF comparison plot
+            ax3 = axes[0, 2]
+            # Filter out zero values for log-log plot
+            emd_nonzero = emd_final[emd_final > 0]
+            newa_nonzero = newa_final[newa_final > 0]
+            
+            if len(emd_nonzero) > 10 and len(newa_nonzero) > 10:
+                # Create log-spaced bins for PDF calculation
+                log_min = max(1e-6, min(np.min(emd_nonzero), np.min(newa_nonzero)))
+                log_max = max(np.max(emd_nonzero), np.max(newa_nonzero))
+                bins = np.logspace(np.log10(log_min), np.log10(log_max), 50)
+                
+                # Calculate PDF (normalized histogram)
+                emd_counts, _ = np.histogram(emd_nonzero, bins=bins)
+                newa_counts, _ = np.histogram(newa_nonzero, bins=bins)
+                
+                # Normalize to get PDF
+                bin_widths = np.diff(bins)
+                emd_pdf = emd_counts / (len(emd_nonzero) * bin_widths)
+                newa_pdf = newa_counts / (len(newa_nonzero) * bin_widths)
+                
+                # Plot centers
+                bin_centers = (bins[:-1] + bins[1:]) / 2
+                
+                # Remove zeros for log-log plot
+                emd_nonzero_pdf = emd_pdf > 0
+                newa_nonzero_pdf = newa_pdf > 0
+                
+                ax3.loglog(bin_centers[emd_nonzero_pdf], emd_pdf[emd_nonzero_pdf], 'o-', 
+                          color='steelblue', linewidth=2, markersize=4, alpha=0.8,
+                          label=f'EMD PDF (n={len(emd_nonzero)})')
+                ax3.loglog(bin_centers[newa_nonzero_pdf], newa_pdf[newa_nonzero_pdf], 's-', 
+                          color='orange', linewidth=2, markersize=4, alpha=0.8,
+                          label=f'NEWA PDF (n={len(newa_nonzero)})')
+                ax3.axvline(np.mean(emd_nonzero), color='steelblue', linestyle='--', alpha=0.8, label='EMD Mean')
+                ax3.axvline(np.mean(newa_nonzero), color='orange', linestyle='--', alpha=0.8, label='NEWA Mean')
+            else:
+                ax3.text(0.5, 0.5, 'Insufficient non-zero data\nfor log-log PDF', 
+                        ha='center', va='center', transform=ax3.transAxes, fontsize=12)
+            
+            ax3.set_xlabel('Ice Accretion [g/h]', fontweight='bold')
+            ax3.set_ylabel('Probability Density', fontweight='bold')
+            ax3.set_title('PDF Comparison (Log-Log Scale)', fontweight='bold')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3, which="both")
+
+            ax4 = axes[1, 0]
             n_quantiles = min(len(emd_final), len(newa_final), 1000)
             quantiles = np.linspace(0.01, 0.99, n_quantiles)
             emd_quantiles = np.quantile(emd_final, quantiles)
             newa_quantiles = np.quantile(newa_final, quantiles)
-            ax3.scatter(emd_quantiles, newa_quantiles, alpha=0.6, s=20, color='purple')
+            ax4.scatter(emd_quantiles, newa_quantiles, alpha=0.6, s=20, color='purple')
             min_val = min(np.min(emd_quantiles), np.min(newa_quantiles))
             max_val = max(np.max(emd_quantiles), np.max(newa_quantiles))
-            ax3.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, label='Perfect Agreement')
+            ax4.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, label='Perfect Agreement')
             qq_correlation = np.corrcoef(emd_quantiles, newa_quantiles)[0, 1]
-            ax3.set_xlabel('EMD Quantiles [g/h]', fontweight='bold')
-            ax3.set_ylabel('NEWA Quantiles [g/h]', fontweight='bold')
-            ax3.set_title(f'Q-Q Plot (r = {qq_correlation:.3f})', fontweight='bold')
-            ax3.legend()
-            ax3.grid(True, alpha=0.3)
+            ax4.set_xlabel('EMD Quantiles [g/h]', fontweight='bold')
+            ax4.set_ylabel('NEWA Quantiles [g/h]', fontweight='bold')
+            ax4.set_title(f'Q-Q Plot (r = {qq_correlation:.3f})', fontweight='bold')
+            ax4.legend()
+            ax4.grid(True, alpha=0.3)
 
-            ax4 = axes[1, 1]
+            ax5 = axes[1, 1]
             box_data = [emd_final, newa_final]
             labels = ['EMD', 'NEWA']
             colors = ['steelblue', 'orange']
-            box_plot = ax4.boxplot(box_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
+            box_plot = ax5.boxplot(box_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
             for patch, color in zip(box_plot['boxes'], colors):
                 patch.set_facecolor(color)
-            ax4.set_ylabel('Ice Accretion [g/h]', fontweight='bold')
-            ax4.set_title('Distribution Comparison (Box Plots)', fontweight='bold')
-            ax4.grid(True, alpha=0.3)
+            ax5.set_ylabel('Ice Accretion [g/h]', fontweight='bold')
+            ax5.set_title('Distribution Comparison (Box Plots)', fontweight='bold')
+            ax5.grid(True, alpha=0.3)
+
+            # Add statistical summary table to the last subplot (axes[1, 2])
+            ax6 = axes[1, 2]
+            ax6.axis('off')
+            
+            # Create statistical summary table
+            stats_data = [
+                ['Statistic', 'EMD', 'NEWA'],
+                ['Count', f"{emd_stats['count']}", f"{newa_stats['count']}"],
+                ['Mean', f"{emd_stats['mean']:.3f}", f"{newa_stats['mean']:.3f}"],
+                ['Std Dev', f"{emd_stats['std']:.3f}", f"{newa_stats['std']:.3f}"],
+                ['Min', f"{emd_stats['min']:.3f}", f"{newa_stats['min']:.3f}"],
+                ['Q25', f"{emd_stats['q25']:.3f}", f"{newa_stats['q25']:.3f}"],
+                ['Median', f"{emd_stats['median']:.3f}", f"{newa_stats['median']:.3f}"],
+                ['Q75', f"{emd_stats['q75']:.3f}", f"{newa_stats['q75']:.3f}"],
+                ['Max', f"{emd_stats['max']:.3f}", f"{newa_stats['max']:.3f}"],
+                ['Skewness', f"{emd_stats['skewness']:.3f}", f"{newa_stats['skewness']:.3f}"],
+                ['Kurtosis', f"{emd_stats['kurtosis']:.3f}", f"{newa_stats['kurtosis']:.3f}"],
+                ['Q-Q r', '-', f"{qq_correlation:.3f}"]
+            ]
+            
+            table = ax6.table(cellText=stats_data[1:], colLabels=stats_data[0], 
+                             cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
+            table.auto_set_font_size(False)
+            table.set_fontsize(10)
+            table.scale(1, 1.5)
+            
+            # Style the table
+            for i in range(len(stats_data)):
+                for j in range(len(stats_data[0])):
+                    cell = table[(i, j)]
+                    if i == 0:  # Header row
+                        cell.set_facecolor('#4CAF50')
+                        cell.set_text_props(weight='bold', color='white')
+                    elif j == 1:  # EMD column
+                        cell.set_facecolor('#E3F2FD')
+                    elif j == 2:  # NEWA column
+                        cell.set_facecolor('#FFF3E0')
+                        
+            ax6.set_title('Statistical Summary', fontweight='bold', pad=10)
 
             threshold_text = f"Ice Accretion Threshold: >={ice_accretion_threshold} g/h" if ice_accretion_threshold > 0 else "No Ice Accretion Threshold"
             nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
-            fig.suptitle(f'Probability Density Function Analysis: EMD vs NEWA at {height}m\nIce Accretion Distribution Comparison (Icing Season Only)\n{threshold_text} | {nonzero_text}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold', y=0.95)
+            fig.suptitle(f'Probability Density Function Analysis: EMD vs NEWA at {height}m\nIce Accretion Distribution Comparison (Icing Season Only) - 6 Analysis Views\n{threshold_text} | {nonzero_text}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold', y=0.95)
             plt.tight_layout()
             plt.subplots_adjust(top=0.85)
             pdf_plot_path = os.path.join(base_dir, f'pdf_comparison_{height:.0f}m.png')
@@ -12904,7 +12979,12 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
             print(f"Saved: {stats_table_path}")
             print(f"\n=== PLOT SUMMARY ===")
             print(f"Created 2 plots:")
-            print(f"  1. PDF comparison plot: {pdf_plot_path}")
+            print(f"  1. PDF comparison plot (5 subplots): {pdf_plot_path}")
+            print(f"     - Histograms")
+            print(f"     - Linear KDE comparison") 
+            print(f"     - Log-log KDE comparison")
+            print(f"     - Q-Q plot")
+            print(f"     - Box plots")
             print(f"  2. Statistical summary table: {stats_table_path}")
 
         print(f"\n=== STATISTICAL TESTS ===")
