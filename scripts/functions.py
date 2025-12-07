@@ -10475,10 +10475,29 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
         
         print(f"Valid data points after NaN removal: {len(emd_clean_all)}")
         print(f"Icing season data points (excluding Jun-Oct): {len(emd_clean)}")
+        print(f"Excluded {len(emd_clean_all) - len(emd_clean)} non-icing season points")
         
         if len(emd_clean) < 10:
             print("Warning: Very few valid data points for analysis!")
             return None
+
+        # Apply hourly threshold filtering
+        if ice_load_threshold > 0:
+            print(f"Applying hourly threshold filter (>= {ice_load_threshold} kg/m)...")
+            hourly_threshold_mask = (emd_clean >= ice_load_threshold) & (newa_clean >= ice_load_threshold)
+            emd_threshold_filtered = emd_clean[hourly_threshold_mask]
+            newa_threshold_filtered = newa_clean[hourly_threshold_mask]
+            
+            print(f"Hours after threshold filter (>= {ice_load_threshold} kg/m): {len(emd_threshold_filtered)}")
+            print(f"Excluded {len(emd_clean) - len(emd_threshold_filtered)} hours below threshold")
+        else:
+            print("No hourly threshold filter applied (ice_load_threshold = 0)")
+            emd_threshold_filtered = emd_clean.copy()
+            newa_threshold_filtered = newa_clean.copy()
+
+        # Use threshold-filtered data for the rest of the analysis
+        emd_clean = emd_threshold_filtered.copy()
+        newa_clean = newa_threshold_filtered.copy()
         
         # Create DataFrames with time components for typical pattern analysis
         emd_df_analysis = pd.DataFrame({
@@ -10508,9 +10527,9 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
         # 1. TYPICAL DAY ANALYSIS (hourly averages for each day, then statistics across all days)
         print("1. Calculating typical day patterns...")
         
-        # Calculate daily mean ice load for each specific day
-        emd_daily_means = emd_clean.resample('D').mean()
-        newa_daily_means = newa_clean.resample('D').mean()
+        # Calculate daily mean ice load using threshold-filtered data
+        emd_daily_means = emd_threshold_filtered.resample('D').mean()
+        newa_daily_means = newa_threshold_filtered.resample('D').mean()
         
         # Remove NaN values from daily means
         emd_daily_clean = emd_daily_means.dropna()
@@ -10518,13 +10537,8 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
         
         # Align daily data
         common_daily_dates = emd_daily_clean.index.intersection(newa_daily_clean.index)
-        emd_daily_temp = emd_daily_clean.loc[common_daily_dates]
-        newa_daily_temp = newa_daily_clean.loc[common_daily_dates]
-        
-        # Apply ice load threshold filter for daily means
-        threshold_mask_daily = (emd_daily_temp >= ice_load_threshold) & (newa_daily_temp >= ice_load_threshold)
-        emd_daily_filtered = emd_daily_temp[threshold_mask_daily]
-        newa_daily_filtered = newa_daily_temp[threshold_mask_daily]
+        emd_daily_filtered = emd_daily_clean.loc[common_daily_dates]
+        newa_daily_filtered = newa_daily_clean.loc[common_daily_dates]
         
         # Apply non-zero percentage filter for daily data
         if non_zero_percentage > 0:
@@ -10537,8 +10551,8 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
                 day_end = date + pd.Timedelta(days=1) - pd.Timedelta(hours=1)
                 
                 # Extract hourly data for this day
-                emd_day_hours = emd_clean[(emd_clean.index >= day_start) & (emd_clean.index <= day_end)]
-                newa_day_hours = newa_clean[(newa_clean.index >= day_start) & (newa_clean.index <= day_end)]
+                emd_day_hours = emd_threshold_filtered[(emd_threshold_filtered.index >= day_start) & (emd_threshold_filtered.index <= day_end)]
+                newa_day_hours = newa_threshold_filtered[(newa_threshold_filtered.index >= day_start) & (newa_threshold_filtered.index <= day_end)]
                 
                 if len(emd_day_hours) > 0 and len(newa_day_hours) > 0:
                     # Calculate percentage of non-zero hours for both datasets
@@ -10566,9 +10580,9 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
         # 2. TYPICAL WEEK ANALYSIS (weekly averages for each week, then statistics across all weeks)
         print("2. Calculating typical week patterns...")
         
-        # Calculate weekly mean ice load for each specific week
-        emd_weekly_means = emd_clean.resample('W').mean()
-        newa_weekly_means = newa_clean.resample('W').mean()
+        # Calculate weekly mean ice load using threshold-filtered data
+        emd_weekly_means = emd_threshold_filtered.resample('W').mean()
+        newa_weekly_means = newa_threshold_filtered.resample('W').mean()
         
         # Remove NaN values from weekly means
         emd_weekly_clean = emd_weekly_means.dropna()
@@ -10576,13 +10590,8 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
         
         # Align weekly data
         common_weekly_dates = emd_weekly_clean.index.intersection(newa_weekly_clean.index)
-        emd_weekly_temp = emd_weekly_clean.loc[common_weekly_dates]
-        newa_weekly_temp = newa_weekly_clean.loc[common_weekly_dates]
-        
-        # Apply ice load threshold filter for weekly means
-        threshold_mask_weekly = (emd_weekly_temp >= ice_load_threshold) & (newa_weekly_temp >= ice_load_threshold)
-        emd_weekly_filtered = emd_weekly_temp[threshold_mask_weekly]
-        newa_weekly_filtered = newa_weekly_temp[threshold_mask_weekly]
+        emd_weekly_filtered = emd_weekly_clean.loc[common_weekly_dates]
+        newa_weekly_filtered = newa_weekly_clean.loc[common_weekly_dates]
         
         # Apply non-zero percentage filter for weekly data
         if non_zero_percentage > 0:
@@ -10594,8 +10603,8 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
                 week_start = week_end - pd.Timedelta(days=6, hours=23)  # 7 days total
                 
                 # Extract hourly data for this week
-                emd_week_hours = emd_clean[(emd_clean.index >= week_start) & (emd_clean.index <= week_end)]
-                newa_week_hours = newa_clean[(newa_clean.index >= week_start) & (newa_clean.index <= week_end)]
+                emd_week_hours = emd_threshold_filtered[(emd_threshold_filtered.index >= week_start) & (emd_threshold_filtered.index <= week_end)]
+                newa_week_hours = newa_threshold_filtered[(newa_threshold_filtered.index >= week_start) & (newa_threshold_filtered.index <= week_end)]
                 
                 if len(emd_week_hours) > 0 and len(newa_week_hours) > 0:
                     # Calculate percentage of non-zero hours for both datasets
@@ -10616,16 +10625,15 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
             emd_weekly_aligned = emd_weekly_filtered
             newa_weekly_aligned = newa_weekly_filtered
         
-        print(f"  Weekly means before threshold filter: {len(emd_weekly_temp)} weeks")
-        print(f"  Weekly means after threshold filter (>= {ice_load_threshold} kg/m): {len(emd_weekly_filtered)} weeks")
+        print(f"  Weekly means after threshold filter: {len(emd_weekly_filtered)} weeks")
         print(f"  Weekly means final count: {len(emd_weekly_aligned)} weeks")
         
         # 3. TYPICAL YEAR ANALYSIS (yearly averages for each year, then statistics across all years)
         print("3. Calculating typical year patterns...")
         
-        # Calculate yearly mean ice load for each specific year
-        emd_yearly_means = emd_clean.resample('Y').mean()
-        newa_yearly_means = newa_clean.resample('Y').mean()
+        # Calculate yearly mean ice load using threshold-filtered data
+        emd_yearly_means = emd_threshold_filtered.resample('Y').mean()
+        newa_yearly_means = newa_threshold_filtered.resample('Y').mean()
         
         # Remove NaN values from yearly means
         emd_yearly_clean = emd_yearly_means.dropna()
@@ -10633,13 +10641,8 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
         
         # Align yearly data
         common_yearly_dates = emd_yearly_clean.index.intersection(newa_yearly_clean.index)
-        emd_yearly_temp = emd_yearly_clean.loc[common_yearly_dates]
-        newa_yearly_temp = newa_yearly_clean.loc[common_yearly_dates]
-        
-        # Apply ice load threshold filter for yearly means
-        threshold_mask_yearly = (emd_yearly_temp >= ice_load_threshold) & (newa_yearly_temp >= ice_load_threshold)
-        emd_yearly_filtered = emd_yearly_temp[threshold_mask_yearly]
-        newa_yearly_filtered = newa_yearly_temp[threshold_mask_yearly]
+        emd_yearly_filtered = emd_yearly_clean.loc[common_yearly_dates]
+        newa_yearly_filtered = newa_yearly_clean.loc[common_yearly_dates]
         
         # Apply non-zero percentage filter for yearly data
         if non_zero_percentage > 0:
@@ -10652,8 +10655,8 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
                 year_end_actual = year_end.replace(month=12, day=31, hour=23)
                 
                 # Extract hourly data for this year
-                emd_year_hours = emd_clean[(emd_clean.index >= year_start) & (emd_clean.index <= year_end_actual)]
-                newa_year_hours = newa_clean[(newa_clean.index >= year_start) & (newa_clean.index <= year_end_actual)]
+                emd_year_hours = emd_threshold_filtered[(emd_threshold_filtered.index >= year_start) & (emd_threshold_filtered.index <= year_end_actual)]
+                newa_year_hours = newa_threshold_filtered[(newa_threshold_filtered.index >= year_start) & (newa_threshold_filtered.index <= year_end_actual)]
                 
                 if len(emd_year_hours) > 0 and len(newa_year_hours) > 0:
                     # Calculate percentage of non-zero hours for both datasets
@@ -10674,8 +10677,7 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
             emd_yearly_aligned = emd_yearly_filtered
             newa_yearly_aligned = newa_yearly_filtered
         
-        print(f"  Yearly means before threshold filter: {len(emd_yearly_temp)} years")
-        print(f"  Yearly means after threshold filter (>= {ice_load_threshold} kg/m): {len(emd_yearly_filtered)} years")
+        print(f"  Yearly means after threshold filter: {len(emd_yearly_filtered)} years")
         print(f"  Yearly means final count: {len(emd_yearly_aligned)} years")
         
         # Check if we have sufficient data after threshold filtering
@@ -11090,82 +11092,34 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
         
         print(f"Valid data points after NaN removal: {len(emd_clean_all)}")
         print(f"Icing season data points (excluding Jun-Oct): {len(emd_clean)}")
+        print(f"Excluded {len(emd_clean_all) - len(emd_clean)} non-icing season points")
         
         if len(emd_clean) < 10:
             print("Warning: Very few valid data points for analysis!")
             return None
         
-        # Apply filtering based on ice_load_threshold and non_zero_percentage
-        print(f"\nApplying filters to hourly data...")
-        
-        # Create daily aggregations to apply filters (similar to emd_newa_typical)
-        emd_daily_means = emd_clean.resample('D').mean()
-        newa_daily_means = newa_clean.resample('D').mean()
-        
-        # Remove NaN values from daily means
-        emd_daily_clean = emd_daily_means.dropna()
-        newa_daily_clean = newa_daily_means.dropna()
-        
-        # Align daily data
-        common_daily_dates = emd_daily_clean.index.intersection(newa_daily_clean.index)
-        emd_daily_temp = emd_daily_clean.loc[common_daily_dates]
-        newa_daily_temp = newa_daily_clean.loc[common_daily_dates]
-        
-        # Apply ice load threshold filter
-        threshold_mask_daily = (emd_daily_temp >= ice_load_threshold) & (newa_daily_temp >= ice_load_threshold)
-        valid_days = emd_daily_temp[threshold_mask_daily].index
-        
-        # Apply non-zero percentage filter if specified
-        if non_zero_percentage > 0:
-            print(f"  Applying {non_zero_percentage}% non-zero filter...")
-            filtered_days = []
+        # Apply hourly threshold filtering
+        if ice_load_threshold > 0:
+            print(f"Applying hourly threshold filter (>= {ice_load_threshold} kg/m)...")
+            hourly_threshold_mask = (emd_clean >= ice_load_threshold) & (newa_clean >= ice_load_threshold)
+            emd_threshold_filtered = emd_clean[hourly_threshold_mask]
+            newa_threshold_filtered = newa_clean[hourly_threshold_mask]
             
-            for date in valid_days:
-                # Get hourly data for this specific day from both datasets
-                day_start = date
-                day_end = date + pd.Timedelta(days=1) - pd.Timedelta(hours=1)
-                
-                # Extract hourly data for this day
-                emd_day_hours = emd_clean[(emd_clean.index >= day_start) & (emd_clean.index <= day_end)]
-                newa_day_hours = newa_clean[(newa_clean.index >= day_start) & (newa_clean.index <= day_end)]
-                
-                if len(emd_day_hours) > 0 and len(newa_day_hours) > 0:
-                    # Calculate percentage of non-zero hours for both datasets
-                    emd_nonzero_pct = (emd_day_hours > 0).mean() * 100
-                    newa_nonzero_pct = (newa_day_hours > 0).mean() * 100
-                    
-                    # Include day if both datasets meet the non-zero percentage requirement
-                    if emd_nonzero_pct >= non_zero_percentage and newa_nonzero_pct >= non_zero_percentage:
-                        filtered_days.append(date)
-            
-            valid_days = pd.DatetimeIndex(filtered_days)
-            print(f"  Days after non-zero filter: {len(valid_days)}")
+            print(f"Hours after threshold filter (>= {ice_load_threshold} kg/m): {len(emd_threshold_filtered)}")
+            print(f"Excluded {len(emd_clean) - len(emd_threshold_filtered)} hours below threshold")
+        else:
+            print("No hourly threshold filter applied (ice_load_threshold = 0)")
+            emd_threshold_filtered = emd_clean.copy()
+            newa_threshold_filtered = newa_clean.copy()
+
+        # Use threshold-filtered data for the rest of the analysis
+        emd_clean = emd_threshold_filtered.copy()
+        newa_clean = newa_threshold_filtered.copy()
         
-        print(f"  Days before threshold filter: {len(emd_daily_temp)}")
-        print(f"  Days after filters: {len(valid_days)}")
+        print(f"Final hourly data points for analysis: {len(emd_clean)}")
         
-        # Filter hourly data to only include valid days
-        emd_filtered = []
-        newa_filtered = []
-        
-        for date in valid_days:
-            day_start = date
-            day_end = date + pd.Timedelta(days=1) - pd.Timedelta(hours=1)
-            
-            # Extract hourly data for this day
-            emd_day_hours = emd_clean[(emd_clean.index >= day_start) & (emd_clean.index <= day_end)]
-            newa_day_hours = newa_clean[(newa_clean.index >= day_start) & (newa_clean.index <= day_end)]
-            
-            emd_filtered.extend(emd_day_hours.values)
-            newa_filtered.extend(newa_day_hours.values)
-        
-        emd_final = np.array(emd_filtered)
-        newa_final = np.array(newa_filtered)
-        
-        print(f"  Final hourly data points for PDF: {len(emd_final)} (EMD), {len(newa_final)} (NEWA)")
-        
-        if len(emd_final) < 50:
-            print("Warning: Very few data points for PDF analysis!")
+        if len(emd_clean) < 10:
+            print("Warning: Very few valid data points after filtering!")
             return None
         
         # Calculate basic statistics
@@ -11185,8 +11139,8 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
             print(f"{name} statistics: mean={stats_dict['mean']:.4f}, std={stats_dict['std']:.4f}, skew={stats_dict['skewness']:.3f}")
             return stats_dict
         
-        emd_stats = calculate_stats(emd_final, "EMD")
-        newa_stats = calculate_stats(newa_final, "NEWA")
+        emd_stats = calculate_stats(emd_clean.values, "EMD")
+        newa_stats = calculate_stats(newa_clean.values, "NEWA")
         
         # Create plots if requested
         if save_plots:
@@ -11199,6 +11153,8 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
             os.makedirs(base_dir, exist_ok=True)
             
             # Define common range for plotting
+            emd_final = emd_clean.values
+            newa_final = newa_clean.values
             data_min = min(np.min(emd_final), np.min(newa_final))
             data_max = max(np.max(emd_final), np.max(newa_final))
             x_range = np.linspace(data_min, data_max, 1000)
@@ -11395,7 +11351,7 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
             'data_counts': {
                 'emd_final': len(emd_final),
                 'newa_final': len(newa_final),
-                'valid_days': len(valid_days)
+                'hourly_data_points': len(emd_clean)
             },
             'statistics': {
                 'emd_stats': emd_stats,
@@ -11581,6 +11537,24 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
         print(f"Valid data points after NaN removal: {len(emd_clean_all)}")
         print(f"Icing season data points (excluding Jun-Oct): {len(emd_clean)}")
         print(f"Excluded {len(emd_clean_all) - len(emd_clean)} non-icing season points")
+
+        # Apply hourly threshold filtering
+        if accretion_threshold > 0:
+            print(f"Applying hourly threshold filter (>= {accretion_threshold} g/h)...")
+            hourly_threshold_mask = (emd_clean >= accretion_threshold) & (newa_clean >= accretion_threshold)
+            emd_threshold_filtered = emd_clean[hourly_threshold_mask]
+            newa_threshold_filtered = newa_clean[hourly_threshold_mask]
+            
+            print(f"Hours after threshold filter (>= {accretion_threshold} g/h): {len(emd_threshold_filtered)}")
+            print(f"Excluded {len(emd_clean) - len(emd_threshold_filtered)} hours below threshold")
+        else:
+            print("No hourly threshold filter applied (accretion_threshold = 0)")
+            emd_threshold_filtered = emd_clean.copy()
+            newa_threshold_filtered = newa_clean.copy()
+
+        # Use threshold-filtered data for the rest of the analysis
+        emd_clean = emd_threshold_filtered.copy()
+        newa_clean = newa_threshold_filtered.copy()
 
         if len(emd_clean) < 10:
             print("Warning: Very few valid data points for comparison!")
@@ -12262,24 +12236,36 @@ def emd_newa_accretion_typical(emd_data, dataset_with_ice_load, height, emd_coor
 
         # 1. TYPICAL DAY ANALYSIS
         print("1. Calculating typical day patterns...")
-        emd_daily_means = emd_clean.resample('D').mean()
-        newa_daily_means = newa_clean.resample('D').mean()
+        
+        # Apply hourly ice accretion threshold filter first
+        print(f"  Applying hourly threshold filter (>= {ice_accretion_threshold} g/h)...")
+        hourly_threshold_mask = (emd_clean >= ice_accretion_threshold) & (newa_clean >= ice_accretion_threshold)
+        emd_threshold_filtered = emd_clean[hourly_threshold_mask]
+        newa_threshold_filtered = newa_clean[hourly_threshold_mask]
+        
+        print(f"  Hours before threshold filter: {len(emd_clean)}")
+        print(f"  Hours after threshold filter: {len(emd_threshold_filtered)}")
+        
+        # Calculate daily means from threshold-filtered hourly data
+        emd_daily_means = emd_threshold_filtered.resample('D').mean()
+        newa_daily_means = newa_threshold_filtered.resample('D').mean()
         emd_daily_clean = emd_daily_means.dropna()
         newa_daily_clean = newa_daily_means.dropna()
         common_daily_dates = emd_daily_clean.index.intersection(newa_daily_clean.index)
         emd_daily_temp = emd_daily_clean.loc[common_daily_dates]
         newa_daily_temp = newa_daily_clean.loc[common_daily_dates]
-        threshold_mask_daily = (emd_daily_temp >= ice_accretion_threshold) & (newa_daily_temp >= ice_accretion_threshold)
-        emd_daily_filtered = emd_daily_temp[threshold_mask_daily]
-        newa_daily_filtered = newa_daily_temp[threshold_mask_daily]
+        
+        # Use all days since hourly filtering already applied
+        emd_daily_filtered = emd_daily_temp
+        newa_daily_filtered = newa_daily_temp
         if non_zero_percentage > 0:
             print(f"  Applying {non_zero_percentage}% non-zero filter to daily data...")
             daily_non_zero_mask = []
             for date in emd_daily_filtered.index:
                 day_start = date
                 day_end = date + pd.Timedelta(days=1) - pd.Timedelta(hours=1)
-                emd_day_hours = emd_clean[(emd_clean.index >= day_start) & (emd_clean.index <= day_end)]
-                newa_day_hours = newa_clean[(newa_clean.index >= day_start) & (newa_clean.index <= day_end)]
+                emd_day_hours = emd_threshold_filtered[(emd_threshold_filtered.index >= day_start) & (emd_threshold_filtered.index <= day_end)]
+                newa_day_hours = newa_threshold_filtered[(newa_threshold_filtered.index >= day_start) & (newa_threshold_filtered.index <= day_end)]
                 if len(emd_day_hours) > 0 and len(newa_day_hours) > 0:
                     emd_nonzero_pct = (emd_day_hours > 0).mean() * 100
                     newa_nonzero_pct = (newa_day_hours > 0).mean() * 100
@@ -12293,29 +12279,30 @@ def emd_newa_accretion_typical(emd_data, dataset_with_ice_load, height, emd_coor
         else:
             emd_daily_aligned = emd_daily_filtered
             newa_daily_aligned = newa_daily_filtered
-        print(f"  Daily means before threshold filter: {len(emd_daily_temp)} days")
-        print(f"  Daily means after threshold filter (>= {ice_accretion_threshold} g/h): {len(emd_daily_filtered)} days")
+        print(f"  Hours before threshold filter: {len(emd_clean)}")
+        print(f"  Hours after threshold filter: {len(emd_threshold_filtered)}")
         print(f"  Daily means final count: {len(emd_daily_aligned)} days")
 
         # 2. TYPICAL WEEK ANALYSIS
         print("2. Calculating typical week patterns...")
-        emd_weekly_means = emd_clean.resample('W').mean()
-        newa_weekly_means = newa_clean.resample('W').mean()
+        # Calculate weekly means from threshold-filtered hourly data
+        emd_weekly_means = emd_threshold_filtered.resample('W').mean()
+        newa_weekly_means = newa_threshold_filtered.resample('W').mean()
         emd_weekly_clean = emd_weekly_means.dropna()
         newa_weekly_clean = newa_weekly_means.dropna()
         common_weekly_dates = emd_weekly_clean.index.intersection(newa_weekly_clean.index)
         emd_weekly_temp = emd_weekly_clean.loc[common_weekly_dates]
         newa_weekly_temp = newa_weekly_clean.loc[common_weekly_dates]
-        threshold_mask_weekly = (emd_weekly_temp >= ice_accretion_threshold) & (newa_weekly_temp >= ice_accretion_threshold)
-        emd_weekly_filtered = emd_weekly_temp[threshold_mask_weekly]
-        newa_weekly_filtered = newa_weekly_temp[threshold_mask_weekly]
+        # Use all weeks since hourly filtering already applied
+        emd_weekly_filtered = emd_weekly_temp
+        newa_weekly_filtered = newa_weekly_temp
         if non_zero_percentage > 0:
             print(f"  Applying {non_zero_percentage}% non-zero filter to weekly data...")
             weekly_non_zero_mask = []
             for week_end in emd_weekly_filtered.index:
                 week_start = week_end - pd.Timedelta(days=6, hours=23)
-                emd_week_hours = emd_clean[(emd_clean.index >= week_start) & (emd_clean.index <= week_end)]
-                newa_week_hours = newa_clean[(newa_clean.index >= week_start) & (newa_clean.index <= week_end)]
+                emd_week_hours = emd_threshold_filtered[(emd_threshold_filtered.index >= week_start) & (emd_threshold_filtered.index <= week_end)]
+                newa_week_hours = newa_threshold_filtered[(newa_threshold_filtered.index >= week_start) & (newa_threshold_filtered.index <= week_end)]
                 if len(emd_week_hours) > 0 and len(newa_week_hours) > 0:
                     emd_nonzero_pct = (emd_week_hours > 0).mean() * 100
                     newa_nonzero_pct = (newa_week_hours > 0).mean() * 100
@@ -12335,24 +12322,25 @@ def emd_newa_accretion_typical(emd_data, dataset_with_ice_load, height, emd_coor
 
         # 3. TYPICAL YEAR ANALYSIS
         print("3. Calculating typical year patterns...")
-        emd_yearly_means = emd_clean.resample('Y').mean()
-        newa_yearly_means = newa_clean.resample('Y').mean()
+        # Calculate yearly means from threshold-filtered hourly data
+        emd_yearly_means = emd_threshold_filtered.resample('Y').mean()
+        newa_yearly_means = newa_threshold_filtered.resample('Y').mean()
         emd_yearly_clean = emd_yearly_means.dropna()
         newa_yearly_clean = newa_yearly_means.dropna()
         common_yearly_dates = emd_yearly_clean.index.intersection(newa_yearly_clean.index)
         emd_yearly_temp = emd_yearly_clean.loc[common_yearly_dates]
         newa_yearly_temp = newa_yearly_clean.loc[common_yearly_dates]
-        threshold_mask_yearly = (emd_yearly_temp >= ice_accretion_threshold) & (newa_yearly_temp >= ice_accretion_threshold)
-        emd_yearly_filtered = emd_yearly_temp[threshold_mask_yearly]
-        newa_yearly_filtered = newa_yearly_temp[threshold_mask_yearly]
+        # Use all years since hourly filtering already applied
+        emd_yearly_filtered = emd_yearly_temp
+        newa_yearly_filtered = newa_yearly_temp
         if non_zero_percentage > 0:
             print(f"  Applying {non_zero_percentage}% non-zero filter to yearly data...")
             yearly_non_zero_mask = []
             for year_end in emd_yearly_filtered.index:
                 year_start = year_end.replace(month=1, day=1, hour=0)
                 year_end_actual = year_end.replace(month=12, day=31, hour=23)
-                emd_year_hours = emd_clean[(emd_clean.index >= year_start) & (emd_clean.index <= year_end_actual)]
-                newa_year_hours = newa_clean[(newa_clean.index >= year_start) & (newa_clean.index <= year_end_actual)]
+                emd_year_hours = emd_threshold_filtered[(emd_threshold_filtered.index >= year_start) & (emd_threshold_filtered.index <= year_end_actual)]
+                newa_year_hours = newa_threshold_filtered[(newa_threshold_filtered.index >= year_start) & (newa_threshold_filtered.index <= year_end_actual)]
                 if len(emd_year_hours) > 0 and len(newa_year_hours) > 0:
                     emd_nonzero_pct = (emd_year_hours > 0).mean() * 100
                     newa_nonzero_pct = (newa_year_hours > 0).mean() * 100
@@ -12699,56 +12687,47 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
         # Apply filtering based on ice_accretion_threshold and non_zero_percentage
         print(f"\nApplying filters to hourly data...")
 
-        # Create daily aggregations to apply filters
-        emd_daily_means = emd_clean.resample('D').mean()
-        newa_daily_means = newa_clean.resample('D').mean()
+        # Apply hourly ice accretion threshold filter - exclude timestamps where either EMD or NEWA is below threshold
+        print(f"  Applying hourly threshold filter (>= {ice_accretion_threshold} g/h)...")
+        hourly_threshold_mask = (emd_clean >= ice_accretion_threshold) & (newa_clean >= ice_accretion_threshold)
+        emd_threshold_filtered = emd_clean[hourly_threshold_mask]
+        newa_threshold_filtered = newa_clean[hourly_threshold_mask]
+        
+        print(f"  Hours before threshold filter: {len(emd_clean)}")
+        print(f"  Hours after threshold filter: {len(emd_threshold_filtered)}")
 
-        # Remove NaN values from daily means
-        emd_daily_clean = emd_daily_means.dropna()
-        newa_daily_clean = newa_daily_means.dropna()
-
-        # Align daily data
-        common_daily_dates = emd_daily_clean.index.intersection(newa_daily_clean.index)
-        emd_daily_temp = emd_daily_clean.loc[common_daily_dates]
-        newa_daily_temp = newa_daily_clean.loc[common_daily_dates]
-
-        # Apply ice accretion threshold filter (threshold is now in grams/hour)
-        threshold_mask_daily = (emd_daily_temp >= ice_accretion_threshold) & (newa_daily_temp >= ice_accretion_threshold)
-        valid_days = emd_daily_temp[threshold_mask_daily].index
-
-        # Apply non-zero percentage filter if specified
+        # Apply non-zero percentage filter if specified (now applied to remaining hourly data)
         if non_zero_percentage > 0:
-            print(f"  Applying {non_zero_percentage}% non-zero filter...")
-            filtered_days = []
-            for date in valid_days:
-                day_start = date
-                day_end = date + pd.Timedelta(days=1) - pd.Timedelta(hours=1)
-                emd_day_hours = emd_clean[(emd_clean.index >= day_start) & (emd_clean.index <= day_end)]
-                newa_day_hours = newa_clean[(newa_clean.index >= day_start) & (newa_clean.index <= day_end)]
-                if len(emd_day_hours) > 0 and len(newa_day_hours) > 0:
-                    emd_nonzero_pct = (emd_day_hours > 0).mean() * 100
-                    newa_nonzero_pct = (newa_day_hours > 0).mean() * 100
-                    if emd_nonzero_pct >= non_zero_percentage and newa_nonzero_pct >= non_zero_percentage:
-                        filtered_days.append(date)
-            valid_days = pd.DatetimeIndex(filtered_days)
-            print(f"  Days after non-zero filter: {len(valid_days)}")
-
-        print(f"  Days before threshold filter: {len(emd_daily_temp)}")
-        print(f"  Days after filters: {len(valid_days)}")
-
-        # Filter hourly data to only include valid days
-        emd_filtered = []
-        newa_filtered = []
-        for date in valid_days:
-            day_start = date
-            day_end = date + pd.Timedelta(days=1) - pd.Timedelta(hours=1)
-            emd_day_hours = emd_clean[(emd_clean.index >= day_start) & (emd_clean.index <= day_end)]
-            newa_day_hours = newa_clean[(newa_clean.index >= day_start) & (newa_clean.index <= day_end)]
-            emd_filtered.extend(emd_day_hours.values)
-            newa_filtered.extend(newa_day_hours.values)
-
-        emd_final = np.array(emd_filtered)
-        newa_final = np.array(newa_filtered)
+            print(f"  Applying {non_zero_percentage}% non-zero filter to daily aggregations...")
+            
+            # Group remaining hourly data by day and check non-zero percentage
+            emd_daily_groups = emd_threshold_filtered.groupby(emd_threshold_filtered.index.date)
+            newa_daily_groups = newa_threshold_filtered.groupby(newa_threshold_filtered.index.date)
+            
+            valid_dates = []
+            for date in emd_daily_groups.groups.keys():
+                if date in newa_daily_groups.groups.keys():
+                    emd_day_data = emd_daily_groups.get_group(date)
+                    newa_day_data = newa_daily_groups.get_group(date)
+                    
+                    if len(emd_day_data) > 0 and len(newa_day_data) > 0:
+                        emd_nonzero_pct = (emd_day_data > 0).mean() * 100
+                        newa_nonzero_pct = (newa_day_data > 0).mean() * 100
+                        if emd_nonzero_pct >= non_zero_percentage and newa_nonzero_pct >= non_zero_percentage:
+                            valid_dates.append(date)
+            
+            # Filter to only include hours from valid dates
+            valid_dates_set = set(valid_dates)
+            final_mask = emd_threshold_filtered.index.to_series().dt.date.isin(valid_dates)
+            emd_final = emd_threshold_filtered[final_mask].values
+            newa_final = newa_threshold_filtered[final_mask].values
+            
+            print(f"  Days passing non-zero filter: {len(valid_dates)}")
+            print(f"  Final hours after non-zero filter: {len(emd_final)}")
+        else:
+            # No non-zero percentage filter, use threshold-filtered data directly
+            emd_final = emd_threshold_filtered.values
+            newa_final = newa_threshold_filtered.values
 
         print(f"  Final hourly data points for PDF: {len(emd_final)} (EMD), {len(newa_final)} (NEWA)")
 
@@ -13014,7 +12993,7 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
             'data_counts': {
                 'emd_final': len(emd_final),
                 'newa_final': len(newa_final),
-                'valid_days': len(valid_days)
+                'hourly_data_points': len(emd_clean)
             },
             'statistics': {
                 'emd_stats': emd_stats,
