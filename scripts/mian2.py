@@ -12,7 +12,7 @@ if current_dir.endswith('scripts'):
     print(f"Changed working directory from {current_dir} to {os.getcwd()}")
 
 # PARAMETERS
-height = 0  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
+height = 1  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
 ice_load_method = 51  # Method for ice load calculation
 calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
 
@@ -71,10 +71,22 @@ end_date = '2022-12-31T23:30:00.000000000'
 dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 
 
+# COMPREHENSIVE CLIMATE ANALYSIS
+
+print("\n=== COMPREHENSIVE CLIMATE ANALYSIS ===")
+climate_results = fn.climate_analysis(
+    dataset=dataset,
+    height_level=height,
+    save_plots=True,
+    results_subdir="climate_analysis"
+)
+
+
 # ACCERATION
 
 # Accreation for winter and time period + plot
 #fn.accreation_per_winter(dataset, start_date, end_date, height_level=height)
+
 
 
 # ICE LOAD
@@ -135,12 +147,12 @@ else:
 
 # WIND ROSE
 
-results_wind_rose = fn.wind_rose(
-    dataset=dataset,
-    height_level=height,
-    title=f"Wind Rose at {height_level} m",
-    bins =32,
-)
+# results_wind_rose = fn.wind_rose(
+#     dataset=dataset,
+#     height_level=height,
+#     title=f"Wind Rose at {height_level} m",
+#     bins =32,
+# )
 
 # ICING TEMPERATURE AND HUMIDITY CRITERIA
 
@@ -329,4 +341,6 @@ results_wind_rose = fn.wind_rose(
 #     n_bins=100,  # Number of meteorological variable bins
 #     ice_load_threshold=0.05  # Threshold for ice load values (kg/m)
 # )
+
+
 

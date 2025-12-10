@@ -18,14 +18,14 @@ Coordinates:
     west_east
 
 Variables: 
-    ABLAT_CYL
-    ACCRE_CYL: accumulated 30min ice accretion ona rotating cylinder
+    ABLAT_CYL (kg)
+    ACCRE_CYL: (kg) accumulated 30min ice accretion ona rotating cylinder
     HGT
     LANDMASK
     LU_INDEX
-    PBLH
-    PRECIP
-    QVAPOR
+    PBLH: boundary layer height
+    PRECIP: total precipitation in the last 30min
+    QVAPOR: water vapor specific humidity (kg/kg)
     RMOL
     T
     WS

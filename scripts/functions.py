@@ -13028,3 +13028,517 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
         traceback.print_exc()
         return None
 
+
+def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="climate_analysis"):
+    """
+    Comprehensive climate analysis generating multiple plots to understand the local climate characteristics.
+    
+    Parameters:
+    -----------
+    dataset : xarray.Dataset
+        NEWA dataset containing meteorological variables (T, PRECIP, WS, WD)
+    height_level : int, optional
+        Height level index to use (0=50m, 1=100m, 2=150m) (default: 0)
+    save_plots : bool, optional
+        Whether to save plots to file (default: True)
+    results_subdir : str, optional
+        Subdirectory name within results/ for saving plots (default: "climate_analysis")
+        
+    Returns:
+    --------
+    dict
+        Dictionary containing analysis results and statistics
+    """
+    
+    print(f"=== COMPREHENSIVE CLIMATE ANALYSIS ===")
+    
+    try:
+        import numpy as np
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        from matplotlib.patches import Circle
+        import os
+        from datetime import datetime
+        
+        # Get height information
+        height_m = dataset.height.values[height_level]
+        print(f"Analysis height: {height_m}m")
+        
+        # Create output directory
+        if save_plots:
+            base_dir = os.path.join("results", results_subdir)
+            os.makedirs(base_dir, exist_ok=True)
+            print(f"Saving plots to: {base_dir}")
+        
+        # Extract meteorological variables at specified height
+        print("Extracting meteorological variables...")
+        temperature = dataset['T'].isel(height=height_level)  # Kelvin
+        precipitation = dataset['PRECIP'].isel(height=height_level)  # mm/30min
+        wind_speed = dataset['WS'].isel(height=height_level)  # m/s
+        wind_direction = dataset['WD'].isel(height=height_level)  # degrees
+        
+        # Convert temperature to Celsius
+        temp_celsius = temperature - 273.15
+        
+        # Convert precipitation to mm/h (from mm/30min)
+        precip_hourly = precipitation * 2
+        
+        # Create time-based analysis
+        time_data = pd.to_datetime(dataset.time.values)
+        
+        # Calculate domain averages for time series analysis
+        print("Calculating domain averages...")
+        temp_mean = temp_celsius.mean(dim=['south_north', 'west_east'])
+        precip_mean = precip_hourly.mean(dim=['south_north', 'west_east'])
+        ws_mean = wind_speed.mean(dim=['south_north', 'west_east'])
+        
+        # Convert to pandas for easier manipulation
+        df = pd.DataFrame({
+            'time': time_data,
+            'temperature': temp_mean.values,
+            'precipitation': precip_mean.values,
+            'wind_speed': ws_mean.values
+        })
+        df.set_index('time', inplace=True)
+        
+        # Add seasonal information
+        df['month'] = df.index.month
+        df['season'] = df['month'].map({12: 'Winter', 1: 'Winter', 2: 'Winter',
+                                       3: 'Spring', 4: 'Spring', 5: 'Spring',
+                                       6: 'Summer', 7: 'Summer', 8: 'Summer',
+                                       9: 'Autumn', 10: 'Autumn', 11: 'Autumn'})
+        df['year'] = df.index.year
+        
+        # ========================================
+        # PLOT 1: SEASONAL TEMPERATURE ANALYSIS
+        # ========================================
+        print("Creating seasonal temperature analysis...")
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        
+        # Monthly temperature statistics
+        monthly_stats = df.groupby('month')['temperature'].agg(['mean', 'min', 'max', 'std'])
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        
+        ax1 = axes[0, 0]
+        x = range(1, 13)
+        ax1.plot(x, monthly_stats['mean'], 'ro-', linewidth=2, markersize=6, label='Mean')
+        ax1.fill_between(x, monthly_stats['min'], monthly_stats['max'], alpha=0.3, color='lightblue', label='Min-Max Range')
+        ax1.set_xlabel('Month')
+        ax1.set_ylabel('Temperature (°C)')
+        ax1.set_title('Monthly Temperature Statistics')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(months, rotation=45)
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # Seasonal boxplot
+        ax2 = axes[0, 1]
+        seasonal_order = ['Winter', 'Spring', 'Summer', 'Autumn']
+        df_season = df[df['season'].isin(seasonal_order)]
+        sns.boxplot(data=df_season, x='season', y='temperature', order=seasonal_order, ax=ax2)
+        ax2.set_title('Seasonal Temperature Distribution')
+        ax2.set_ylabel('Temperature (°C)')
+        ax2.grid(True, alpha=0.3)
+        
+        # Temperature time series (annual means)
+        ax3 = axes[1, 0]
+        annual_temp = df.groupby('year')['temperature'].mean()
+        ax3.plot(annual_temp.index, annual_temp.values, 'b-', linewidth=2)
+        z = np.polyfit(annual_temp.index, annual_temp.values, 1)
+        p = np.poly1d(z)
+        ax3.plot(annual_temp.index, p(annual_temp.index), 'r--', alpha=0.8, 
+                label=f'Trend: {z[0]:.3f}°C/year')
+        ax3.set_xlabel('Year')
+        ax3.set_ylabel('Annual Mean Temperature (°C)')
+        ax3.set_title('Annual Temperature Trend')
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+        
+        # Temperature histogram
+        ax4 = axes[1, 1]
+        ax4.hist(df['temperature'], bins=50, alpha=0.7, color='skyblue', edgecolor='black')
+        ax4.axvline(df['temperature'].mean(), color='red', linestyle='--', linewidth=2, 
+                   label=f'Mean: {df["temperature"].mean():.1f}°C')
+        ax4.axvline(0, color='blue', linestyle=':', linewidth=2, label='Freezing Point')
+        ax4.set_xlabel('Temperature (°C)')
+        ax4.set_ylabel('Frequency')
+        ax4.set_title('Temperature Distribution')
+        ax4.legend()
+        ax4.grid(True, alpha=0.3)
+        
+        plt.suptitle(f'Temperature Analysis at {height_m}m Height', fontsize=16, fontweight='bold')
+        plt.tight_layout()
+        
+        if save_plots:
+            temp_path = os.path.join(base_dir, f'temperature_analysis_{height_m:.0f}m.png')
+            plt.savefig(temp_path, dpi=150, bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {temp_path}")
+        
+        # ========================================
+        # PLOT 2: PRECIPITATION ANALYSIS
+        # ========================================
+        print("Creating precipitation analysis...")
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        
+        # Monthly precipitation statistics
+        monthly_precip = df.groupby('month')['precipitation'].agg(['mean', 'sum', 'std'])
+        
+        ax1 = axes[0, 0]
+        bars = ax1.bar(x, monthly_precip['mean'], alpha=0.7, color='steelblue')
+        ax1.set_xlabel('Month')
+        ax1.set_ylabel('Mean Precipitation Rate (mm/h)')
+        ax1.set_title('Monthly Mean Precipitation Rate')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(months, rotation=45)
+        ax1.grid(True, alpha=0.3)
+        
+        # Add values on bars
+        for bar, val in zip(bars, monthly_precip['mean']):
+            ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.001,
+                    f'{val:.3f}', ha='center', va='bottom', fontsize=8)
+        
+        # Seasonal precipitation
+        ax2 = axes[0, 1]
+        seasonal_precip = df.groupby('season')['precipitation'].sum()
+        seasonal_precip = seasonal_precip.reindex(seasonal_order)
+        colors = ['lightblue', 'lightgreen', 'orange', 'brown']
+        bars = ax2.bar(seasonal_order, seasonal_precip.values, color=colors, alpha=0.7)
+        ax2.set_title('Total Seasonal Precipitation')
+        ax2.set_ylabel('Total Precipitation (mm)')
+        ax2.grid(True, alpha=0.3)
+        
+        # Precipitation intensity distribution
+        ax3 = axes[1, 0]
+        precip_nonzero = df[df['precipitation'] > 0]['precipitation']
+        ax3.hist(precip_nonzero, bins=50, alpha=0.7, color='green', edgecolor='black')
+        ax3.set_xlabel('Precipitation Rate (mm/h)')
+        ax3.set_ylabel('Frequency')
+        ax3.set_title('Precipitation Intensity Distribution (Wet Hours Only)')
+        ax3.set_yscale('log')
+        ax3.grid(True, alpha=0.3)
+        
+        # Precipitation frequency
+        ax4 = axes[1, 1]
+        precip_freq = (df['precipitation'] > 0).groupby(df['month']).mean() * 100
+        bars = ax4.bar(x, precip_freq.values, alpha=0.7, color='darkgreen')
+        ax4.set_xlabel('Month')
+        ax4.set_ylabel('Precipitation Frequency (%)')
+        ax4.set_title('Monthly Precipitation Frequency')
+        ax4.set_xticks(x)
+        ax4.set_xticklabels(months, rotation=45)
+        ax4.grid(True, alpha=0.3)
+        
+        plt.suptitle(f'Precipitation Analysis at {height_m}m Height', fontsize=16, fontweight='bold')
+        plt.tight_layout()
+        
+        if save_plots:
+            precip_path = os.path.join(base_dir, f'precipitation_analysis_{height_m:.0f}m.png')
+            plt.savefig(precip_path, dpi=150, bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {precip_path}")
+        
+        # ========================================
+        # PLOT 3: WIND SPEED ANALYSIS
+        # ========================================
+        print("Creating wind speed analysis...")
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        
+        # Monthly wind speed statistics
+        monthly_ws = df.groupby('month')['wind_speed'].agg(['mean', 'std', 'max'])
+        
+        ax1 = axes[0, 0]
+        ax1.plot(x, monthly_ws['mean'], 'bo-', linewidth=2, markersize=6, label='Mean')
+        ax1.fill_between(x, monthly_ws['mean'] - monthly_ws['std'], 
+                        monthly_ws['mean'] + monthly_ws['std'], 
+                        alpha=0.3, color='lightblue', label='±1 Std Dev')
+        ax1.set_xlabel('Month')
+        ax1.set_ylabel('Wind Speed (m/s)')
+        ax1.set_title('Monthly Wind Speed Statistics')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(months, rotation=45)
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # Seasonal wind speed
+        ax2 = axes[0, 1]
+        sns.boxplot(data=df_season, x='season', y='wind_speed', order=seasonal_order, ax=ax2)
+        ax2.set_title('Seasonal Wind Speed Distribution')
+        ax2.set_ylabel('Wind Speed (m/s)')
+        ax2.grid(True, alpha=0.3)
+        
+        # Wind speed distribution
+        ax3 = axes[1, 0]
+        ax3.hist(df['wind_speed'], bins=50, alpha=0.7, color='orange', edgecolor='black', density=True)
+        ax3.axvline(df['wind_speed'].mean(), color='red', linestyle='--', linewidth=2,
+                   label=f'Mean: {df["wind_speed"].mean():.1f} m/s')
+        ax3.set_xlabel('Wind Speed (m/s)')
+        ax3.set_ylabel('Probability Density')
+        ax3.set_title('Wind Speed Distribution')
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+        
+        # Wind speed time series (annual means)
+        ax4 = axes[1, 1]
+        annual_ws = df.groupby('year')['wind_speed'].mean()
+        ax4.plot(annual_ws.index, annual_ws.values, 'g-', linewidth=2)
+        z_ws = np.polyfit(annual_ws.index, annual_ws.values, 1)
+        p_ws = np.poly1d(z_ws)
+        ax4.plot(annual_ws.index, p_ws(annual_ws.index), 'r--', alpha=0.8,
+                label=f'Trend: {z_ws[0]:.3f} m/s/year')
+        ax4.set_xlabel('Year')
+        ax4.set_ylabel('Annual Mean Wind Speed (m/s)')
+        ax4.set_title('Annual Wind Speed Trend')
+        ax4.legend()
+        ax4.grid(True, alpha=0.3)
+        
+        plt.suptitle(f'Wind Speed Analysis at {height_m}m Height', fontsize=16, fontweight='bold')
+        plt.tight_layout()
+        
+        if save_plots:
+            ws_path = os.path.join(base_dir, f'wind_speed_analysis_{height_m:.0f}m.png')
+            plt.savefig(ws_path, dpi=150, bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {ws_path}")
+        
+        # ========================================
+        # PLOT 4: WIND RESOURCE ANALYSIS
+        # ========================================
+        print("Creating wind resource analysis...")
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        
+        # Wind speed frequency distribution (for wind resource)
+        ax1 = axes[0, 0]
+        wind_bins = np.arange(0, df['wind_speed'].max() + 1, 1)
+        hist, bins = np.histogram(df['wind_speed'], bins=wind_bins, density=True)
+        bin_centers = (bins[:-1] + bins[1:]) / 2
+        ax1.bar(bin_centers, hist * 100, alpha=0.7, color='skyblue', edgecolor='black', width=0.8)
+        ax1.set_xlabel('Wind Speed (m/s)')
+        ax1.set_ylabel('Frequency (%)')
+        ax1.set_title('Wind Speed Frequency Distribution')
+        ax1.grid(True, alpha=0.3)
+        
+        # Add wind power classes
+        ax1.axvspan(0, 3, alpha=0.2, color='red', label='Low (<3 m/s)')
+        ax1.axvspan(3, 6, alpha=0.2, color='yellow', label='Moderate (3-6 m/s)')
+        ax1.axvspan(6, 10, alpha=0.2, color='green', label='Good (6-10 m/s)')
+        ax1.axvspan(10, 25, alpha=0.2, color='blue', label='Excellent (>10 m/s)')
+        ax1.legend(loc='upper right')
+        
+        # Wind power density (simplified)
+        ax2 = axes[0, 1]
+        # Assuming air density ≈ 1.225 kg/m³
+        air_density = 1.225
+        power_density = 0.5 * air_density * df['wind_speed']**3  # W/m²
+        monthly_power = power_density.groupby(df['month']).mean()
+        
+        bars = ax2.bar(x, monthly_power.values, alpha=0.7, color='purple')
+        ax2.set_xlabel('Month')
+        ax2.set_ylabel('Wind Power Density (W/m²)')
+        ax2.set_title('Monthly Mean Wind Power Density')
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(months, rotation=45)
+        ax2.grid(True, alpha=0.3)
+        
+        # Weibull distribution fit
+        ax3 = axes[1, 0]
+        from scipy import stats as scipy_stats
+        
+        # Fit Weibull distribution
+        wind_data_clean = df['wind_speed'].dropna()
+        weibull_params = scipy_stats.weibull_min.fit(wind_data_clean, floc=0)
+        shape, loc, scale = weibull_params
+        
+        # Plot histogram and fitted distribution
+        ax3.hist(wind_data_clean, bins=50, alpha=0.7, density=True, color='lightgreen', 
+                edgecolor='black', label='Observed')
+        
+        x_weibull = np.linspace(0, wind_data_clean.max(), 1000)
+        pdf_weibull = scipy_stats.weibull_min.pdf(x_weibull, shape, loc, scale)
+        ax3.plot(x_weibull, pdf_weibull, 'r-', linewidth=3, 
+                label=f'Weibull (k={shape:.2f}, λ={scale:.2f})')
+        
+        ax3.set_xlabel('Wind Speed (m/s)')
+        ax3.set_ylabel('Probability Density')
+        ax3.set_title('Wind Speed Distribution and Weibull Fit')
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+        
+        # Calm conditions analysis
+        ax4 = axes[1, 1]
+        calm_threshold = 3.0  # m/s
+        calm_freq = (df['wind_speed'] < calm_threshold).groupby(df['month']).mean() * 100
+        
+        bars = ax4.bar(x, calm_freq.values, alpha=0.7, color='lightcoral')
+        ax4.set_xlabel('Month')
+        ax4.set_ylabel(f'Calm Conditions Frequency (< {calm_threshold} m/s, %)')
+        ax4.set_title('Monthly Calm Conditions Frequency')
+        ax4.set_xticks(x)
+        ax4.set_xticklabels(months, rotation=45)
+        ax4.grid(True, alpha=0.3)
+        
+        plt.suptitle(f'Wind Resource Analysis at {height_m}m Height', fontsize=16, fontweight='bold')
+        plt.tight_layout()
+        
+        if save_plots:
+            resource_path = os.path.join(base_dir, f'wind_resource_analysis_{height_m:.0f}m.png')
+            plt.savefig(resource_path, dpi=150, bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {resource_path}")
+        
+        # ========================================
+        # PLOT 5: COMPREHENSIVE WIND ROSE
+        # ========================================
+        print("Creating comprehensive wind rose...")
+        
+        # Calculate wind rose data for the entire domain
+        wd_flat = wind_direction.values.flatten()
+        ws_flat = wind_speed.values.flatten()
+        
+        # Remove NaN values
+        valid_mask = ~(np.isnan(wd_flat) | np.isnan(ws_flat))
+        wd_clean = wd_flat[valid_mask]
+        ws_clean = ws_flat[valid_mask]
+        
+        # Create wind rose
+        fig = plt.figure(figsize=(12, 12))
+        ax = fig.add_subplot(111, projection='polar')
+        
+        # Define direction bins (16 sectors)
+        dir_bins = np.linspace(0, 360, 17)
+        dir_centers = (dir_bins[:-1] + dir_bins[1:]) / 2
+        
+        # Define wind speed bins
+        speed_bins = [0, 3, 6, 9, 12, 100]
+        speed_labels = ['0-3', '3-6', '6-9', '9-12', '12+']
+        colors = ['lightblue', 'yellow', 'orange', 'red', 'purple']
+        
+        # Calculate frequencies
+        total_count = len(wd_clean)
+        bottoms = np.zeros(len(dir_centers))
+        
+        for i, (speed_min, speed_max) in enumerate(zip(speed_bins[:-1], speed_bins[1:])):
+            frequencies = []
+            
+            for j in range(len(dir_centers)):
+                dir_min = dir_bins[j]
+                dir_max = dir_bins[j + 1]
+                
+                # Handle 0-360 boundary
+                if dir_max == 360:
+                    dir_mask = ((wd_clean >= dir_min) | (wd_clean <= 0)) & (wd_clean < speed_max) & (wd_clean >= speed_min)
+                else:
+                    dir_mask = (wd_clean >= dir_min) & (wd_clean < dir_max)
+                
+                speed_mask = (ws_clean >= speed_min) & (ws_clean < speed_max)
+                count = np.sum(dir_mask & speed_mask)
+                frequencies.append(count / total_count * 100)
+            
+            # Convert to radians
+            theta = np.deg2rad(dir_centers)
+            
+            # Plot bars
+            bars = ax.bar(theta, frequencies, width=np.deg2rad(360/16), 
+                         bottom=bottoms, alpha=0.8, color=colors[i], 
+                         label=f'{speed_labels[i]} m/s')
+            
+            bottoms += frequencies
+        
+        # Customize the plot
+        ax.set_theta_direction(-1)  # Clockwise
+        ax.set_theta_zero_location('N')  # North at top
+        ax.set_ylim(0, max(bottoms) * 1.1)
+        ax.set_title(f'Wind Rose at {height_m}m Height\n(Frequency by Direction and Speed)', 
+                    pad=20, fontsize=14, fontweight='bold')
+        ax.legend(loc='upper left', bbox_to_anchor=(1.1, 1))
+        
+        if save_plots:
+            windrose_path = os.path.join(base_dir, f'wind_rose_{height_m:.0f}m.png')
+            plt.savefig(windrose_path, dpi=150, bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {windrose_path}")
+        
+        # ========================================
+        # CALCULATE SUMMARY STATISTICS
+        # ========================================
+        print("Calculating summary statistics...")
+        
+        results = {
+            'height_m': float(height_m),
+            'analysis_period': {
+                'start': str(df.index.min()),
+                'end': str(df.index.max()),
+                'total_years': df.index.year.nunique()
+            },
+            'temperature_stats': {
+                'annual_mean_C': float(df['temperature'].mean()),
+                'annual_std_C': float(df['temperature'].std()),
+                'annual_min_C': float(df['temperature'].min()),
+                'annual_max_C': float(df['temperature'].max()),
+                'freezing_hours_percent': float((df['temperature'] < 0).mean() * 100),
+                'seasonal_means': {
+                    season: float(df[df['season'] == season]['temperature'].mean())
+                    for season in seasonal_order
+                },
+                'trend_C_per_year': float(z[0])
+            },
+            'precipitation_stats': {
+                'annual_mean_mm_h': float(df['precipitation'].mean()),
+                'annual_total_mm': float(df['precipitation'].sum() * 0.5),  # Convert to mm (30min data)
+                'wet_hours_percent': float((df['precipitation'] > 0).mean() * 100),
+                'max_intensity_mm_h': float(df['precipitation'].max()),
+                'seasonal_totals': {
+                    season: float(df[df['season'] == season]['precipitation'].sum() * 0.5)
+                    for season in seasonal_order
+                }
+            },
+            'wind_speed_stats': {
+                'annual_mean_ms': float(df['wind_speed'].mean()),
+                'annual_std_ms': float(df['wind_speed'].std()),
+                'annual_max_ms': float(df['wind_speed'].max()),
+                'calm_hours_percent': float((df['wind_speed'] < 3).mean() * 100),
+                'good_wind_percent': float((df['wind_speed'] >= 6).mean() * 100),
+                'seasonal_means': {
+                    season: float(df[df['season'] == season]['wind_speed'].mean())
+                    for season in seasonal_order
+                },
+                'trend_ms_per_year': float(z_ws[0]),
+                'weibull_parameters': {
+                    'shape_k': float(shape),
+                    'scale_lambda': float(scale)
+                }
+            },
+            'wind_resource': {
+                'annual_power_density_W_m2': float(power_density.mean()),
+                'seasonal_power_density': {
+                    season: float(power_density[df['season'] == season].mean())
+                    for season in seasonal_order
+                }
+            }
+        }
+        
+        print(f"\n=== CLIMATE ANALYSIS SUMMARY ===")
+        print(f"Analysis period: {results['analysis_period']['total_years']} years")
+        print(f"Temperature: {results['temperature_stats']['annual_mean_C']:.1f}°C (mean)")
+        print(f"Precipitation: {results['precipitation_stats']['annual_total_mm']:.0f} mm/year")
+        print(f"Wind speed: {results['wind_speed_stats']['annual_mean_ms']:.1f} m/s (mean)")
+        print(f"Wind power density: {results['wind_resource']['annual_power_density_W_m2']:.0f} W/m²")
+        
+        if save_plots:
+            print(f"\n=== PLOTS SAVED ===")
+            print(f"1. Temperature analysis: temperature_analysis_{height_m:.0f}m.png")
+            print(f"2. Precipitation analysis: precipitation_analysis_{height_m:.0f}m.png")
+            print(f"3. Wind speed analysis: wind_speed_analysis_{height_m:.0f}m.png")
+            print(f"4. Wind resource analysis: wind_resource_analysis_{height_m:.0f}m.png")
+            print(f"5. Wind rose: wind_rose_{height_m:.0f}m.png")
+        
+        return results
+        
+    except Exception as e:
+        print(f"Error in climate analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
