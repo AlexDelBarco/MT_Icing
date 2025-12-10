@@ -13067,14 +13067,21 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         
         # Create output directory
         if save_plots:
-            base_dir = os.path.join("results", results_subdir)
+            base_dir = os.path.join("results", "figures", "geographical_maps")
             os.makedirs(base_dir, exist_ok=True)
             print(f"Saving plots to: {base_dir}")
         
         # Extract meteorological variables at specified height
         print("Extracting meteorological variables...")
         temperature = dataset['T'].isel(height=height_level)  # Kelvin
-        precipitation = dataset['PRECIP'].isel(height=height_level)  # mm/30min
+        
+        # Check if PRECIP has height dimension, if not use it directly
+        if 'height' in dataset['PRECIP'].dims:
+            precipitation = dataset['PRECIP'].isel(height=height_level)  # mm/30min
+        else:
+            precipitation = dataset['PRECIP']  # mm/30min (no height dimension)
+            print("Note: PRECIP variable has no height dimension, using surface values")
+        
         wind_speed = dataset['WS'].isel(height=height_level)  # m/s
         wind_direction = dataset['WD'].isel(height=height_level)  # degrees
         
@@ -13387,78 +13394,6 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
             plt.savefig(resource_path, dpi=150, bbox_inches='tight')
             plt.close()
             print(f"Saved: {resource_path}")
-        
-        # ========================================
-        # PLOT 5: COMPREHENSIVE WIND ROSE
-        # ========================================
-        print("Creating comprehensive wind rose...")
-        
-        # Calculate wind rose data for the entire domain
-        wd_flat = wind_direction.values.flatten()
-        ws_flat = wind_speed.values.flatten()
-        
-        # Remove NaN values
-        valid_mask = ~(np.isnan(wd_flat) | np.isnan(ws_flat))
-        wd_clean = wd_flat[valid_mask]
-        ws_clean = ws_flat[valid_mask]
-        
-        # Create wind rose
-        fig = plt.figure(figsize=(12, 12))
-        ax = fig.add_subplot(111, projection='polar')
-        
-        # Define direction bins (16 sectors)
-        dir_bins = np.linspace(0, 360, 17)
-        dir_centers = (dir_bins[:-1] + dir_bins[1:]) / 2
-        
-        # Define wind speed bins
-        speed_bins = [0, 3, 6, 9, 12, 100]
-        speed_labels = ['0-3', '3-6', '6-9', '9-12', '12+']
-        colors = ['lightblue', 'yellow', 'orange', 'red', 'purple']
-        
-        # Calculate frequencies
-        total_count = len(wd_clean)
-        bottoms = np.zeros(len(dir_centers))
-        
-        for i, (speed_min, speed_max) in enumerate(zip(speed_bins[:-1], speed_bins[1:])):
-            frequencies = []
-            
-            for j in range(len(dir_centers)):
-                dir_min = dir_bins[j]
-                dir_max = dir_bins[j + 1]
-                
-                # Handle 0-360 boundary
-                if dir_max == 360:
-                    dir_mask = ((wd_clean >= dir_min) | (wd_clean <= 0)) & (wd_clean < speed_max) & (wd_clean >= speed_min)
-                else:
-                    dir_mask = (wd_clean >= dir_min) & (wd_clean < dir_max)
-                
-                speed_mask = (ws_clean >= speed_min) & (ws_clean < speed_max)
-                count = np.sum(dir_mask & speed_mask)
-                frequencies.append(count / total_count * 100)
-            
-            # Convert to radians
-            theta = np.deg2rad(dir_centers)
-            
-            # Plot bars
-            bars = ax.bar(theta, frequencies, width=np.deg2rad(360/16), 
-                         bottom=bottoms, alpha=0.8, color=colors[i], 
-                         label=f'{speed_labels[i]} m/s')
-            
-            bottoms += frequencies
-        
-        # Customize the plot
-        ax.set_theta_direction(-1)  # Clockwise
-        ax.set_theta_zero_location('N')  # North at top
-        ax.set_ylim(0, max(bottoms) * 1.1)
-        ax.set_title(f'Wind Rose at {height_m}m Height\n(Frequency by Direction and Speed)', 
-                    pad=20, fontsize=14, fontweight='bold')
-        ax.legend(loc='upper left', bbox_to_anchor=(1.1, 1))
-        
-        if save_plots:
-            windrose_path = os.path.join(base_dir, f'wind_rose_{height_m:.0f}m.png')
-            plt.savefig(windrose_path, dpi=150, bbox_inches='tight')
-            plt.close()
-            print(f"Saved: {windrose_path}")
         
         # ========================================
         # CALCULATE SUMMARY STATISTICS
