@@ -47,7 +47,7 @@ dataset = fn.load_netcdf_data(data1)
 height_level = dataset.height.values[height]  # Height level in meters
 print(f"Exploring dataset at height level: {height_level} m")
 # explore the variables
-# fn.explore_variables(dataset)
+fn.explore_variables(dataset)
 
 #explore one variable in detail in a chosen period
 # fn.explore_variable_detail(dataset, 'QVAPOR')
@@ -73,13 +73,13 @@ dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 
 # COMPREHENSIVE CLIMATE ANALYSIS
 
-print("\n=== COMPREHENSIVE CLIMATE ANALYSIS ===")
-climate_results = fn.climate_analysis(
-    dataset=dataset,
-    height_level=height,
-    save_plots=True,
-    results_subdir="climate_analysis"
-)
+# print("\n=== COMPREHENSIVE CLIMATE ANALYSIS ===")
+# climate_results = fn.climate_analysis(
+#     dataset=dataset,
+#     height_level=height,
+#     save_plots=True,
+#     results_subdir="climate_analysis"
+# )
 
 
 # ACCERATION
