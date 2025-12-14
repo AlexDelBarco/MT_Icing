@@ -486,9 +486,18 @@ def analyze_landmask(dataset, create_plot=True, save_results=True):
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
             
             # Plot 1: LANDMASK spatial distribution
-            im1 = ax1.imshow(landmask_values, cmap='RdYlBu_r', origin='lower', 
-                           interpolation='nearest')
+            # Create grid coordinates for consistent orientation
+            x_coords = np.arange(landmask_values.shape[1])  # west_east dimension
+            y_coords = np.arange(landmask_values.shape[0])  # south_north dimension
+            
+            im1 = ax1.pcolormesh(x_coords, y_coords, landmask_values, cmap='RdYlBu_r', shading='auto')
             ax1.set_title('LANDMASK - Spatial Distribution')
+            
+            # Set custom tick labels for grid points (1-14)
+            ax1.set_xticks(range(len(x_coords)))
+            ax1.set_xticklabels(range(1, len(x_coords)+1))
+            ax1.set_yticks(range(len(y_coords)))
+            ax1.set_yticklabels(range(1, len(y_coords)+1))
             ax1.set_xlabel('West-East Grid Points')
             ax1.set_ylabel('South-North Grid Points')
             
@@ -681,19 +690,70 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0):
         
         # Use the specified height level instead of hardcoded height=0
         plot_data = ds1_filtered.ACCRE_CYL.isel(height=height_level).groupby('winterno').sum(dim='time')
+        
+        # Debug: Print data structure information
+        print(f"Plot data dimensions: {plot_data.dims}")
+        print(f"Plot data shape: {plot_data.shape}")
+        if len(plot_data.shape) > 1:
+            sample_winter = plot_data.isel(winterno=0)
+            print(f"Sample winter data dimensions: {sample_winter.dims}")
+            print(f"Sample winter data shape: {sample_winter.shape}")
+            print(f"Sample winter coordinate names: {list(sample_winter.coords.keys())}")
                 
         # Create one plot for each winter
         for i, winter_idx in enumerate(plot_data.winterno.values):
             plt.figure(figsize=(10, 6))
-            plot_data.isel(winterno=i).plot()
+            
+            winter_data = plot_data.isel(winterno=i)
+            
+            # Debug: Print individual winter data info
+            print(f"Winter {int(winter_idx)} data dimensions: {winter_data.dims}")
+            print(f"Winter {int(winter_idx)} data shape: {winter_data.shape}")
+            
+            # Create grid coordinates (0-based for plotting, but will label as 1-based)
+            # Check dimension order and assign coordinates correctly
+            if 'south_north' in winter_data.dims and 'west_east' in winter_data.dims:
+                # Get the dimension order
+                dims_order = winter_data.dims
+                south_north_idx = dims_order.index('south_north')
+                west_east_idx = dims_order.index('west_east')
+                
+                print(f"Dimension order: {dims_order}")
+                print(f"south_north is at index {south_north_idx}, west_east is at index {west_east_idx}")
+                
+                # Assign coordinates based on actual dimension positions
+                if west_east_idx == 1 and south_north_idx == 0:  # (south_north, west_east)
+                    x_coords = np.arange(winter_data.shape[1])  # west_east dimension
+                    y_coords = np.arange(winter_data.shape[0])  # south_north dimension
+                elif west_east_idx == 0 and south_north_idx == 1:  # (west_east, south_north)
+                    x_coords = np.arange(winter_data.shape[0])  # west_east dimension  
+                    y_coords = np.arange(winter_data.shape[1])  # south_north dimension
+                    # Need to transpose data for proper orientation
+                    winter_data = winter_data.T
+                else:
+                    print("Warning: Unexpected dimension order!")
+                    x_coords = np.arange(winter_data.shape[1])
+                    y_coords = np.arange(winter_data.shape[0])
+            else:
+                print("Warning: Cannot find south_north and west_east dimensions!")
+                x_coords = np.arange(winter_data.shape[1])
+                y_coords = np.arange(winter_data.shape[0])
+            
+            # Use pcolormesh with simple grid coordinates
+            im = plt.pcolormesh(x_coords, y_coords, winter_data.values, shading='auto')
+            plt.colorbar(im, label='Ice Accretion Sum (kg/m)')
+            
+            # Set custom tick labels for grid points (1-14)
+            plt.xticks(range(len(x_coords)), range(1, len(x_coords)+1))
+            plt.yticks(range(len(y_coords)), range(1, len(y_coords)+1))
+            plt.xlabel('West-East Grid Points')
+            plt.ylabel('South-North Grid Points')
             
             winter_start = dates[int(winter_idx)] if int(winter_idx) < len(dates)-1 else "N/A"
             winter_end = dates[int(winter_idx)+1] - pd.to_timedelta('30min') if int(winter_idx)+1 < len(dates) else "N/A"
             
             # Include height information in the title
             plt.title(f'Ice Accretion Sum for Winter starting on: {winter_start} and ending on {winter_end}\nHeight: {height_value} {height_units}')
-            plt.xlabel('West-East')
-            plt.ylabel('South-North')
             plt.tight_layout()
             
             # Include height information in the filename
@@ -701,6 +761,68 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0):
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             print(f"Saved: {filename}")
             plt.close()  # Close figure to free memory
+        
+        # Create final plot showing mean across all winters for each grid cell
+        print("Creating mean ice accretion plot across all winters...")
+        plt.figure(figsize=(10, 6))
+        mean_accretion = plot_data.mean(dim='winterno')
+        
+        print(f"Mean data dimensions: {mean_accretion.dims}")
+        print(f"Mean data shape: {mean_accretion.shape}")
+        
+        # Create grid coordinates (0-based for plotting, but will label as 1-based)
+        # Check dimension order and assign coordinates correctly
+        if 'south_north' in mean_accretion.dims and 'west_east' in mean_accretion.dims:
+            # Get the dimension order
+            dims_order = mean_accretion.dims
+            south_north_idx = dims_order.index('south_north')
+            west_east_idx = dims_order.index('west_east')
+            
+            print(f"Mean plot dimension order: {dims_order}")
+            print(f"south_north is at index {south_north_idx}, west_east is at index {west_east_idx}")
+            
+            # Assign coordinates based on actual dimension positions
+            if west_east_idx == 1 and south_north_idx == 0:  # (south_north, west_east)
+                x_coords = np.arange(mean_accretion.shape[1])  # west_east dimension
+                y_coords = np.arange(mean_accretion.shape[0])  # south_north dimension
+            elif west_east_idx == 0 and south_north_idx == 1:  # (west_east, south_north)
+                x_coords = np.arange(mean_accretion.shape[0])  # west_east dimension  
+                y_coords = np.arange(mean_accretion.shape[1])  # south_north dimension
+                # Need to transpose data for proper orientation
+                mean_accretion = mean_accretion.T
+            else:
+                print("Warning: Unexpected dimension order!")
+                x_coords = np.arange(mean_accretion.shape[1])
+                y_coords = np.arange(mean_accretion.shape[0])
+        else:
+            print("Warning: Cannot find south_north and west_east dimensions!")
+            x_coords = np.arange(mean_accretion.shape[1])
+            y_coords = np.arange(mean_accretion.shape[0])
+        
+        # Use pcolormesh with simple grid coordinates
+        im = plt.pcolormesh(x_coords, y_coords, mean_accretion.values, shading='auto')
+        plt.colorbar(im, label='Mean Ice Accretion Sum (kg/m)')
+        
+        # Set custom tick labels for grid points (1-14)
+        plt.xticks(range(len(x_coords)), range(1, len(x_coords)+1))
+        plt.yticks(range(len(y_coords)), range(1, len(y_coords)+1))
+        plt.xlabel('West-East Grid Points')
+        plt.ylabel('South-North Grid Points')
+        
+        # Calculate year range for the title
+        start_year = pd.to_datetime(start_date).year
+        end_year = pd.to_datetime(end_date).year
+        num_winters = len(plot_data.winterno.values)
+        
+        plt.title(f'Mean Ice Accretion Sum Across All Winters ({start_year}-{end_year})\n'
+                 f'Height: {height_value} {height_units}, Number of winters: {num_winters}')
+        plt.tight_layout()
+        
+        # Save mean plot
+        mean_filename = os.path.join(ice_accretion_dir, f"ice_accretion_mean_all_winters_{height_label}.png")
+        plt.savefig(mean_filename, dpi=300, bbox_inches='tight')
+        print(f"Saved mean accretion plot: {mean_filename}")
+        plt.close()  # Close figure to free memory
             
         print(f"All plots saved to {ice_accretion_dir}/ directory")
     else:
@@ -904,9 +1026,18 @@ def calculate_ice_load(ds1, dates, method, height_level=0, create_figures=True):
     max_ice_load = ice_load_clean.max(dim='time')
     
     plt.figure(figsize=(12, 8))
-    im = plt.imshow(max_ice_load.values, cmap='Blues', aspect='auto')
+    
+    # Create grid coordinates for consistent orientation
+    x_coords = np.arange(max_ice_load.shape[1])  # west_east dimension
+    y_coords = np.arange(max_ice_load.shape[0])  # south_north dimension
+    
+    im = plt.pcolormesh(x_coords, y_coords, max_ice_load.values, cmap='Blues', shading='auto')
     plt.colorbar(im, label='Maximum Ice Load (kg/m)')
     plt.title(f'Maximum Ice Load Over All Winters\nHeight: {height_value} {height_units}')
+    
+    # Set custom tick labels for grid points (1-14)
+    plt.xticks(range(len(x_coords)), range(1, len(x_coords)+1))
+    plt.yticks(range(len(y_coords)), range(1, len(y_coords)+1))
     plt.xlabel('West-East Grid Points')
     plt.ylabel('South-North Grid Points')
     plt.tight_layout()
@@ -1310,20 +1441,26 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         # Create a spatial plot showing the mean annual totals
         plot_data = mean_annual_totals.values
         
-        im = ax.imshow(plot_data, cmap='viridis', aspect='equal', origin='lower')
+        # Create grid coordinates for consistent orientation
+        x_coords = np.arange(plot_data.shape[1])  # west_east dimension
+        y_coords = np.arange(plot_data.shape[0])  # south_north dimension
+        
+        im = ax.pcolormesh(x_coords, y_coords, plot_data, cmap='viridis', shading='auto')
         
         if show_colorbar:
             cbar = plt.colorbar(im, ax=ax)
             cbar.set_label('Mean Annual Total Ice Load (kg/m)', rotation=270, labelpad=20)
         
-        # Add grid lines and labels
-        ax.set_xlabel('West-East Grid Index')
-        ax.set_ylabel('South-North Grid Index')
+        # Add grid lines and labels with consistent numbering (1-14)
+        ax.set_xticks(range(len(x_coords)))
+        ax.set_xticklabels(range(1, len(x_coords)+1))
+        ax.set_yticks(range(len(y_coords)))
+        ax.set_yticklabels(range(1, len(y_coords)+1))
+        ax.set_xlabel('West-East Grid Points')
+        ax.set_ylabel('South-North Grid Points')
         ax.set_title(f'Mean Annual Total Ice Load per Grid Cell\n(Threshold: {ice_load_threshold:.1f} kg/m, Height: {dataset_with_ice_load.height.values[height_level]} m)')
         
         # Add grid
-        ax.set_xticks(range(n_west_east))
-        ax.set_yticks(range(n_south_north))
         ax.grid(True, alpha=0.3)
         
         # Add values on each cell with one decimal place
@@ -2402,32 +2539,52 @@ def create_spatial_gradient_plots(ice_load_data):
     
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     
+    # Create grid coordinates for consistent orientation
+    x_coords = np.arange(max_ice_2d.shape[1])  # west_east dimension
+    y_coords = np.arange(max_ice_2d.shape[0])  # south_north dimension
+    
     # Original maximum ice load
-    im1 = axes[0,0].imshow(max_ice_2d, cmap='Blues', aspect='auto')
+    im1 = axes[0,0].pcolormesh(x_coords, y_coords, max_ice_2d, cmap='Blues', shading='auto')
     axes[0,0].set_title('Maximum Ice Load')
-    axes[0,0].set_xlabel('West-East')
-    axes[0,0].set_ylabel('South-North')
+    axes[0,0].set_xticks(range(len(x_coords)))
+    axes[0,0].set_xticklabels(range(1, len(x_coords)+1))
+    axes[0,0].set_yticks(range(len(y_coords)))
+    axes[0,0].set_yticklabels(range(1, len(y_coords)+1))
+    axes[0,0].set_xlabel('West-East Grid Points')
+    axes[0,0].set_ylabel('South-North Grid Points')
     plt.colorbar(im1, ax=axes[0,0], label='Ice Load (kg/m)')
     
     # X-direction gradient (West-East)
-    im2 = axes[0,1].imshow(grad_x, cmap='RdBu_r', aspect='auto')
+    im2 = axes[0,1].pcolormesh(x_coords, y_coords, grad_x, cmap='RdBu_r', shading='auto')
     axes[0,1].set_title('Spatial Gradient (West-East)')
-    axes[0,1].set_xlabel('West-East')
-    axes[0,1].set_ylabel('South-North')
+    axes[0,1].set_xticks(range(len(x_coords)))
+    axes[0,1].set_xticklabels(range(1, len(x_coords)+1))
+    axes[0,1].set_yticks(range(len(y_coords)))
+    axes[0,1].set_yticklabels(range(1, len(y_coords)+1))
+    axes[0,1].set_xlabel('West-East Grid Points')
+    axes[0,1].set_ylabel('South-North Grid Points')
     plt.colorbar(im2, ax=axes[0,1], label='Gradient (kg/m per grid)')
     
     # Y-direction gradient (South-North)
-    im3 = axes[1,0].imshow(grad_y, cmap='RdBu_r', aspect='auto')
+    im3 = axes[1,0].pcolormesh(x_coords, y_coords, grad_y, cmap='RdBu_r', shading='auto')
     axes[1,0].set_title('Spatial Gradient (South-North)')
-    axes[1,0].set_xlabel('West-East')
-    axes[1,0].set_ylabel('South-North')
+    axes[1,0].set_xticks(range(len(x_coords)))
+    axes[1,0].set_xticklabels(range(1, len(x_coords)+1))
+    axes[1,0].set_yticks(range(len(y_coords)))
+    axes[1,0].set_yticklabels(range(1, len(y_coords)+1))
+    axes[1,0].set_xlabel('West-East Grid Points')
+    axes[1,0].set_ylabel('South-North Grid Points')
     plt.colorbar(im3, ax=axes[1,0], label='Gradient (kg/m per grid)')
     
     # Gradient magnitude
-    im4 = axes[1,1].imshow(gradient_magnitude, cmap='plasma', aspect='auto')
+    im4 = axes[1,1].pcolormesh(x_coords, y_coords, gradient_magnitude, cmap='plasma', shading='auto')
     axes[1,1].set_title('Gradient Magnitude')
-    axes[1,1].set_xlabel('West-East')
-    axes[1,1].set_ylabel('South-North')
+    axes[1,1].set_xticks(range(len(x_coords)))
+    axes[1,1].set_xticklabels(range(1, len(x_coords)+1))
+    axes[1,1].set_yticks(range(len(y_coords)))
+    axes[1,1].set_yticklabels(range(1, len(y_coords)+1))
+    axes[1,1].set_xlabel('West-East Grid Points')
+    axes[1,1].set_ylabel('South-North Grid Points')
     plt.colorbar(im4, ax=axes[1,1], label='Gradient Magnitude')
     
     plt.tight_layout()
