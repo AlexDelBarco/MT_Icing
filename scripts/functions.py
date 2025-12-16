@@ -13634,3 +13634,275 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         traceback.print_exc()
         return None
 
+
+def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=None, save_plots=True):
+    """
+    Compare temperature values between EMD and NEWA datasets at specific height
+    
+    Parameters:
+    -----------
+    emd_data : pandas.DataFrame
+        EMD dataset with temperature data in columns like 'temp.x' where x is height in meters
+    newa_data : xarray.Dataset  
+        NEWA dataset with temperature in 'T' variable at specified height
+    height : int
+        Height index (0-based) for NEWA data and corresponding height in meters for EMD
+        (0=50m; 1=100m; 2=150m)
+    emd_coordinates : tuple, optional
+        (longitude, latitude) coordinates for extracting NEWA data at EMD location
+        Default: (19.960, 59.600)
+    save_plots : bool
+        Whether to save resulting plots. Default: True
+    
+    Returns:
+    --------
+    dict
+        Dictionary containing comparison results and statistics
+    """
+    try:
+        # Set default coordinates if not provided
+        if emd_coordinates is None:
+            emd_coordinates = (19.960, 59.600)
+        
+        # Get actual height in meters for the height index
+        height_meters = newa_data.height.values[height]
+        
+        print(f"=== TEMPERATURE COMPARISON: EMD vs NEWA ===")
+        print(f"Height level: {height} (index) = {height_meters} m")
+        print(f"EMD coordinates: {emd_coordinates}")
+        
+        # Create output directory
+        output_dir = f"results/figures/EMD/Temperature/{height_meters:.0f}m"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Extract EMD temperature data (convert from Celsius to Kelvin)
+        emd_temp_col = f'temp.{height_meters:.0f}'
+        if emd_temp_col not in emd_data.columns:
+            print(f"Warning: Column {emd_temp_col} not found in EMD data")
+            print(f"Available temperature columns: {[col for col in emd_data.columns if 'temp' in col]}")
+            # Try to find closest height
+            temp_cols = [col for col in emd_data.columns if 'temp' in col]
+            if temp_cols:
+                emd_temp_col = temp_cols[0]  # Use first available
+                print(f"Using {emd_temp_col} instead")
+            else:
+                raise ValueError("No temperature columns found in EMD data")
+        
+        emd_temperature = emd_data[emd_temp_col].copy()
+        emd_temperature_kelvin = emd_temperature + 273.15  # Convert Celsius to Kelvin
+        
+        # Extract NEWA temperature data at EMD location (already in Kelvin)
+        lon, lat = emd_coordinates
+        newa_temp_at_location = newa_data['T'].sel(
+            west_east=lon, 
+            south_north=lat, 
+            height=height_meters, 
+            method='nearest'
+        )
+        
+        # Convert NEWA 30-min timestep to 1-hour by taking hourly means
+        print("Converting NEWA timestep from 30min to 1hour...")
+        newa_temp_hourly = newa_temp_at_location.resample(time='1H').mean()
+        
+        # Align time series for comparison
+        print("Aligning time series...")
+        # Convert to pandas for easier manipulation
+        newa_temp_pd = newa_temp_hourly.to_pandas()
+        
+        # Find common time period
+        common_start = max(emd_temperature_kelvin.index.min(), newa_temp_pd.index.min())
+        common_end = min(emd_temperature_kelvin.index.max(), newa_temp_pd.index.max())
+        
+        print(f"Common time period: {common_start} to {common_end}")
+        
+        # Filter both series to common period
+        emd_common = emd_temperature_kelvin[(emd_temperature_kelvin.index >= common_start) & 
+                                           (emd_temperature_kelvin.index <= common_end)]
+        newa_common = newa_temp_pd[(newa_temp_pd.index >= common_start) & 
+                                  (newa_temp_pd.index <= common_end)]
+        
+        # Align exactly by reindexing
+        common_index = emd_common.index.intersection(newa_common.index)
+        emd_aligned = emd_common.reindex(common_index)
+        newa_aligned = newa_common.reindex(common_index)
+        
+        # Remove NaN values
+        valid_mask = ~(emd_aligned.isna() | newa_aligned.isna())
+        emd_final = emd_aligned[valid_mask]
+        newa_final = newa_aligned[valid_mask]
+        
+        print(f"Final comparison dataset size: {len(emd_final)} common time points")
+        
+        # Calculate differences and statistics
+        differences = emd_final - newa_final
+        
+        # Statistics
+        stats = {
+            'mean_bias': differences.mean(),
+            'rmse': np.sqrt((differences**2).mean()),
+            'mae': np.abs(differences).mean(),
+            'correlation': emd_final.corr(newa_final),
+            'emd_mean': emd_final.mean(),
+            'newa_mean': newa_final.mean(),
+            'emd_std': emd_final.std(),
+            'newa_std': newa_final.std(),
+            'n_points': len(emd_final)
+        }
+        
+        print(f"\n=== TEMPERATURE COMPARISON STATISTICS ===")
+        print(f"Number of points: {stats['n_points']}")
+        print(f"Mean bias (EMD - NEWA): {stats['mean_bias']:.3f} K")
+        print(f"RMSE: {stats['rmse']:.3f} K")
+        print(f"MAE: {stats['mae']:.3f} K")
+        print(f"Correlation: {stats['correlation']:.3f}")
+        print(f"EMD mean: {stats['emd_mean']:.1f} K")
+        print(f"NEWA mean: {stats['newa_mean']:.1f} K")
+        
+        if save_plots:
+            # Create comparison plots
+            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+            
+            # 1. Scatter plot of all values
+            axes[0,0].scatter(newa_final, emd_final, alpha=0.5, s=1)
+            axes[0,0].plot([min(newa_final.min(), emd_final.min()), 
+                           max(newa_final.max(), emd_final.max())], 
+                          [min(newa_final.min(), emd_final.min()), 
+                           max(newa_final.max(), emd_final.max())], 'r--', alpha=0.8)
+            axes[0,0].set_xlabel('NEWA Temperature (K)')
+            axes[0,0].set_ylabel('EMD Temperature (K)')
+            axes[0,0].set_title(f'Temperature Scatter Plot\nCorr = {stats["correlation"]:.3f}, N = {stats["n_points"]}')
+            axes[0,0].grid(True, alpha=0.3)
+            
+            # 2. Difference scatter plot  
+            axes[0,1].scatter(newa_final, differences, alpha=0.5, s=1)
+            axes[0,1].axhline(y=0, color='r', linestyle='--', alpha=0.8)
+            axes[0,1].axhline(y=differences.mean(), color='g', linestyle='-', alpha=0.8, 
+                             label=f'Mean bias = {differences.mean():.3f} K')
+            axes[0,1].set_xlabel('NEWA Temperature (K)')
+            axes[0,1].set_ylabel('Difference (EMD - NEWA) (K)')
+            axes[0,1].set_title(f'Temperature Differences vs NEWA\nRMSE = {stats["rmse"]:.3f} K')
+            axes[0,1].legend()
+            axes[0,1].grid(True, alpha=0.3)
+            
+            # 3. Time series of differences (sample)
+            sample_size = min(1000, len(differences))
+            sample_indices = np.random.choice(len(differences), sample_size, replace=False)
+            sample_times = differences.iloc[sample_indices].sort_index()
+            
+            axes[1,0].plot(sample_times.index, sample_times.values, alpha=0.7)
+            axes[1,0].axhline(y=0, color='r', linestyle='--', alpha=0.8)
+            axes[1,0].axhline(y=differences.mean(), color='g', linestyle='-', alpha=0.8)
+            axes[1,0].set_xlabel('Time')
+            axes[1,0].set_ylabel('Difference (EMD - NEWA) (K)')
+            axes[1,0].set_title(f'Time Series of Differences (Random Sample: {sample_size} points)')
+            axes[1,0].grid(True, alpha=0.3)
+            axes[1,0].tick_params(axis='x', rotation=45)
+            
+            # 4. Histogram of differences
+            axes[1,1].hist(differences, bins=50, alpha=0.7, density=True)
+            axes[1,1].axvline(x=0, color='r', linestyle='--', alpha=0.8, label='Zero bias')
+            axes[1,1].axvline(x=differences.mean(), color='g', linestyle='-', alpha=0.8, 
+                             label=f'Mean bias = {differences.mean():.3f} K')
+            axes[1,1].set_xlabel('Difference (EMD - NEWA) (K)')
+            axes[1,1].set_ylabel('Probability Density')
+            axes[1,1].set_title(f'Distribution of Differences\nStd = {differences.std():.3f} K')
+            axes[1,1].legend()
+            axes[1,1].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Save plot
+            plot_filename = f"{output_dir}/temperature_comparison_{height_meters:.0f}m.png"
+            plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
+            print(f"\nTemperature comparison plot saved: {plot_filename}")
+            plt.close()
+            
+            # Create bias analysis plots
+            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+            
+            # 1. Monthly bias pattern
+            monthly_bias = differences.groupby(differences.index.month).mean()
+            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            
+            axes[0,0].bar(range(1, 13), monthly_bias.values)
+            axes[0,0].set_xticks(range(1, 13))
+            axes[0,0].set_xticklabels(month_names)
+            axes[0,0].axhline(y=0, color='r', linestyle='--', alpha=0.8)
+            axes[0,0].set_ylabel('Mean Bias (EMD - NEWA) (K)')
+            axes[0,0].set_title('Monthly Temperature Bias Pattern')
+            axes[0,0].grid(True, alpha=0.3)
+            
+            # 2. Hourly bias pattern (if enough data)
+            if len(differences) > 24:
+                hourly_bias = differences.groupby(differences.index.hour).mean()
+                axes[0,1].plot(hourly_bias.index, hourly_bias.values, 'o-')
+                axes[0,1].axhline(y=0, color='r', linestyle='--', alpha=0.8)
+                axes[0,1].set_xlabel('Hour of Day')
+                axes[0,1].set_ylabel('Mean Bias (EMD - NEWA) (K)')
+                axes[0,1].set_title('Hourly Temperature Bias Pattern')
+                axes[0,1].grid(True, alpha=0.3)
+                axes[0,1].set_xticks(range(0, 24, 3))
+            
+            # 3. Bias vs temperature range
+            temp_bins = np.percentile(newa_final, np.linspace(0, 100, 11))
+            bin_centers = (temp_bins[:-1] + temp_bins[1:]) / 2
+            binned_bias = []
+            
+            for i in range(len(temp_bins)-1):
+                mask = (newa_final >= temp_bins[i]) & (newa_final < temp_bins[i+1])
+                if mask.sum() > 0:
+                    binned_bias.append(differences[mask].mean())
+                else:
+                    binned_bias.append(np.nan)
+            
+            axes[1,0].plot(bin_centers, binned_bias, 'o-')
+            axes[1,0].axhline(y=0, color='r', linestyle='--', alpha=0.8)
+            axes[1,0].set_xlabel('NEWA Temperature (K)')
+            axes[1,0].set_ylabel('Mean Bias (EMD - NEWA) (K)')
+            axes[1,0].set_title('Temperature Bias vs Temperature Range')
+            axes[1,0].grid(True, alpha=0.3)
+            
+            # 4. Annual bias trend (if multiple years available)
+            if len(differences) > 365*24:
+                annual_bias = differences.groupby(differences.index.year).mean()
+                if len(annual_bias) > 1:
+                    axes[1,1].plot(annual_bias.index, annual_bias.values, 'o-')
+                    axes[1,1].axhline(y=0, color='r', linestyle='--', alpha=0.8)
+                    axes[1,1].set_xlabel('Year')
+                    axes[1,1].set_ylabel('Mean Bias (EMD - NEWA) (K)')
+                    axes[1,1].set_title('Annual Temperature Bias Trend')
+                    axes[1,1].grid(True, alpha=0.3)
+                else:
+                    axes[1,1].text(0.5, 0.5, 'Insufficient data\nfor annual trend', 
+                                  ha='center', va='center', transform=axes[1,1].transAxes)
+            else:
+                axes[1,1].text(0.5, 0.5, 'Insufficient data\nfor annual analysis', 
+                              ha='center', va='center', transform=axes[1,1].transAxes)
+            
+            plt.tight_layout()
+            
+            # Save bias analysis plot
+            bias_filename = f"{output_dir}/temperature_bias_analysis_{height_meters:.0f}m.png"
+            plt.savefig(bias_filename, dpi=300, bbox_inches='tight')
+            print(f"Temperature bias analysis plot saved: {bias_filename}")
+            plt.close()
+        
+        # Prepare results
+        results = {
+            'statistics': stats,
+            'emd_data': emd_final,
+            'newa_data': newa_final,
+            'differences': differences,
+            'height_meters': height_meters,
+            'output_directory': output_dir
+        }
+        
+        return results
+        
+    except Exception as e:
+        print(f"Error in temperature comparison: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
