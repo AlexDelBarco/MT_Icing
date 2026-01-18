@@ -208,6 +208,262 @@ def merge_netcdf_files(main_file_path, additional_file_path, output_file_path, v
         traceback.print_exc()
         return False
 
+def merge_netcdf_files2(main_file_path, additional_file_path, additional2_file_path, additional3_file_path, output_file_path, verbose=True):
+    """
+    Merge four NetCDF files by combining their data variables.
+    The main file provides the structure and most variables, while additional variables
+    are added from the additional, additional2, and additional3 files.
+    
+    Parameters:
+    -----------
+    main_file_path : str
+        Path to the main NetCDF file (contains most variables)
+    additional_file_path : str
+        Path to the first additional NetCDF file (contains variables to be added)
+    additional2_file_path : str
+        Path to the second additional NetCDF file (contains variables to be added)
+    additional3_file_path : str
+        Path to the third additional NetCDF file (contains variables to be added)
+    output_file_path : str
+        Path where the merged NetCDF file will be saved
+    verbose : bool, optional
+        Whether to print detailed information during the merge process (default: True)
+        
+    Returns:
+    --------
+    bool
+        True if merge was successful, False otherwise
+        
+    Example:
+    --------
+    >>> success = merge_netcdf_files2(
+    ...     "data/newa_wrf_for_jana_mstudent_extended.nc",
+    ...     "data/newa_wrf_for_jana_mstudent_extended_WD.nc", 
+    ...     "data/newa_wrf_for_jana_mstudent_extended_PSFC_SEAICE_SWDDNI.nc",
+    ...     "data/additional_file3.nc",
+    ...     "data/newa_wrf_for_jana_mstudent_extended_merged.nc"
+    ... )
+    """
+    
+    if verbose:
+        print("=== NETCDF FILE MERGING (4 FILES) ===")
+        print(f"Main file: {main_file_path}")
+        print(f"Additional file: {additional_file_path}")
+        print(f"Additional2 file: {additional2_file_path}")
+        print(f"Additional3 file: {additional3_file_path}")
+        print(f"Output file: {output_file_path}")
+    
+    try:
+        import xarray as xr
+        import os
+        
+        # Load all four datasets with chunks for memory efficiency
+        if verbose:
+            print(f"\n1. Loading datasets...")
+        
+        main_ds = xr.open_dataset(main_file_path, chunks='auto')
+        additional_ds = xr.open_dataset(additional_file_path, chunks='auto')
+        additional2_ds = xr.open_dataset(additional2_file_path, chunks='auto')
+        additional3_ds = xr.open_dataset(additional3_file_path, chunks='auto')
+        
+        if verbose:
+            print(f"   Main dataset variables: {list(main_ds.data_vars.keys())}")
+            print(f"   Additional dataset variables: {list(additional_ds.data_vars.keys())}")
+            print(f"   Additional2 dataset variables: {list(additional2_ds.data_vars.keys())}")
+            print(f"   Additional3 dataset variables: {list(additional3_ds.data_vars.keys())}")
+            print(f"   Main dataset shape: {main_ds.dims}")
+            print(f"   Additional dataset shape: {additional_ds.dims}")
+            print(f"   Additional2 dataset shape: {additional2_ds.dims}")
+            print(f"   Additional3 dataset shape: {additional3_ds.dims}")
+        
+        # Check if dimensions are compatible
+        if verbose:
+            print(f"\n2. Checking dimension compatibility...")
+        
+        # Get dimensions that matter for data variables (excluding potential differences in coords)
+        main_dims = dict(main_ds.dims)
+        additional_dims = dict(additional_ds.dims)
+        additional2_dims = dict(additional2_ds.dims)
+        additional3_dims = dict(additional3_ds.dims)
+        
+        # Check critical dimensions
+        critical_dims = ['time', 'south_north', 'west_east']
+        if 'height' in main_dims:
+            critical_dims.append('height')
+            
+        dimension_compatible = True
+        for dim in critical_dims:
+            dims_to_check = []
+            if dim in main_dims:
+                dims_to_check.append(('main', main_dims[dim]))
+            if dim in additional_dims:
+                dims_to_check.append(('additional', additional_dims[dim]))
+            if dim in additional2_dims:
+                dims_to_check.append(('additional2', additional2_dims[dim]))
+            if dim in additional3_dims:
+                dims_to_check.append(('additional3', additional3_dims[dim]))
+            
+            if len(dims_to_check) > 1:
+                # Check if all dimensions are the same
+                sizes = [size for _, size in dims_to_check]
+                if not all(size == sizes[0] for size in sizes):
+                    print(f"   Warning: Dimension mismatch for '{dim}': {dims_to_check}")
+                    dimension_compatible = False
+                else:
+                    if verbose:
+                        print(f"   ✓ {dim}: {sizes[0]} (compatible across all files)")
+            elif dims_to_check:
+                if verbose:
+                    file_name, size = dims_to_check[0]
+                    print(f"   ✓ {dim}: {size} (only in {file_name} file)")
+        
+        if not dimension_compatible:
+            print("   Error: Incompatible dimensions between files")
+            return False
+        
+        # Check for variable conflicts
+        if verbose:
+            print(f"\n3. Checking for variable conflicts...")
+        
+        main_vars = set(main_ds.data_vars.keys())
+        additional_vars = set(additional_ds.data_vars.keys())
+        additional2_vars = set(additional2_ds.data_vars.keys())
+        additional3_vars = set(additional3_ds.data_vars.keys())
+        
+        conflicts_main_additional = main_vars.intersection(additional_vars)
+        conflicts_main_additional2 = main_vars.intersection(additional2_vars)
+        conflicts_main_additional3 = main_vars.intersection(additional3_vars)
+        conflicts_additional_additional2 = additional_vars.intersection(additional2_vars)
+        conflicts_additional_additional3 = additional_vars.intersection(additional3_vars)
+        conflicts_additional2_additional3 = additional2_vars.intersection(additional3_vars)
+        
+        all_conflicts = (conflicts_main_additional.union(conflicts_main_additional2)
+                        .union(conflicts_main_additional3)
+                        .union(conflicts_additional_additional2)
+                        .union(conflicts_additional_additional3)
+                        .union(conflicts_additional2_additional3))
+        
+        if all_conflicts:
+            print(f"   Warning: Variable conflicts found: {all_conflicts}")
+            print(f"   Priority: main file > additional file > additional2 file > additional3 file")
+            print(f"   Conflicting variables will be kept from the highest priority file")
+        
+        # Determine which variables to add from each file
+        new_vars_additional = additional_vars - main_vars
+        new_vars_additional2 = additional2_vars - main_vars - additional_vars
+        new_vars_additional3 = additional3_vars - main_vars - additional_vars - additional2_vars
+        
+        if verbose:
+            print(f"   Variables to be added from additional file: {list(new_vars_additional)}")
+            print(f"   Variables to be added from additional2 file: {list(new_vars_additional2)}")
+            print(f"   Variables to be added from additional3 file: {list(new_vars_additional3)}")
+        
+        # Merge datasets
+        if verbose:
+            print(f"\n4. Merging datasets...")
+        
+        # Start with the main dataset
+        merged_ds = main_ds.copy(deep=True)
+        
+        # Add new variables from additional dataset
+        for var_name in new_vars_additional:
+            if verbose:
+                print(f"   Adding variable from additional file: {var_name}")
+            
+            # Get the variable from additional dataset
+            var_data = additional_ds[var_name]
+            
+            # Add to merged dataset
+            merged_ds[var_name] = var_data
+        
+        # Add new variables from additional2 dataset
+        for var_name in new_vars_additional2:
+            if verbose:
+                print(f"   Adding variable from additional2 file: {var_name}")
+            
+            # Get the variable from additional2 dataset
+            var_data = additional2_ds[var_name]
+            
+            # Add to merged dataset
+            merged_ds[var_name] = var_data
+        
+        # Add new variables from additional3 dataset
+        for var_name in new_vars_additional3:
+            if verbose:
+                print(f"   Adding variable from additional3 file: {var_name}")
+            
+            # Get the variable from additional3 dataset
+            var_data = additional3_ds[var_name]
+            
+            # Add to merged dataset
+            merged_ds[var_name] = var_data
+        
+        # Verify the merge
+        if verbose:
+            print(f"\n5. Verifying merged dataset...")
+            print(f"   Original main variables: {len(main_vars)}")
+            print(f"   Added from additional file: {len(new_vars_additional)}")
+            print(f"   Added from additional2 file: {len(new_vars_additional2)}")
+            print(f"   Added from additional3 file: {len(new_vars_additional3)}")
+            print(f"   Total variables in merged dataset: {len(merged_ds.data_vars)}")
+            print(f"   Final variables: {list(merged_ds.data_vars.keys())}")
+        
+        # Save the merged dataset
+        if verbose:
+            print(f"\n6. Saving merged dataset...")
+        
+        # Create output directory if it doesn't exist
+        output_dir = os.path.dirname(output_file_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+        
+        # Save with compression to reduce file size - memory efficient approach
+        encoding = {}
+        for var in merged_ds.data_vars:
+            if merged_ds[var].dtype in ['float32', 'float64']:
+                encoding[var] = {
+                    'zlib': True, 
+                    'complevel': 4,
+                    'chunksizes': None  # Let xarray decide optimal chunking
+                }
+        
+        # Use memory-efficient saving approach
+        try:
+            merged_ds.to_netcdf(output_file_path, encoding=encoding)
+        except (MemoryError, Exception) as e:
+            if "allocate" in str(e).lower() or "memory" in str(e).lower():
+                if verbose:
+                    print(f"   Memory error encountered, trying alternative save method...")
+                
+                # Alternative approach: save without compression first
+                encoding_no_compression = {}
+                merged_ds.to_netcdf(output_file_path, encoding=encoding_no_compression)
+            else:
+                raise e
+        
+        if verbose:
+            file_size_mb = os.path.getsize(output_file_path) / (1024 * 1024)
+            print(f"   Merged file saved: {output_file_path}")
+            print(f"   File size: {file_size_mb:.1f} MB")
+        
+        # Clean up
+        main_ds.close()
+        additional_ds.close()
+        additional2_ds.close()
+        additional3_ds.close()
+        merged_ds.close()
+        
+        if verbose:
+            print(f"\n✓ NetCDF file merging (4 files) completed successfully!")
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error merging NetCDF files: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 
 # EXPLORE DATASET
 
@@ -1125,7 +1381,7 @@ def calculate_ice_load(ds1, dates, method, height_level=0, create_figures=True):
     
     return dsiceload
 
-def add_ice_load_to_dataset(ds, dates, method=5, height_level=0, variable_name='ICE_LOAD'):
+def add_ice_load_to_dataset(ds, dates, OffOn, method=5, height_level=0, variable_name='ICE_LOAD'):
     """
     Calculate ice load and add it as a new variable to the xarray Dataset
     
@@ -1171,10 +1427,10 @@ def add_ice_load_to_dataset(ds, dates, method=5, height_level=0, variable_name='
     
     print(f"Calculating ice load at {height_value} {height_units}...")
     
-    # Create ice load array with same structure as accretion data
-    dsiceload = xr.zeros_like(ds['ACCRE_CYL'].isel(height=height_level)) * np.nan
+    # Create ice load array with same structure as accretion data at single height level
+    template = ds['ACCRE_CYL'].isel(height=height_level)
+    dsiceload = xr.zeros_like(template) * np.nan
     
-    # Calculate ice load for each winter period
     for idate, date in enumerate(dates[:-1]):
         print(f"Processing winter {idate+1}/{len(dates)-1}: {date} to {dates[idate+1]-pd.to_timedelta('30min')}")
         
@@ -1196,21 +1452,38 @@ def add_ice_load_to_dataset(ds, dates, method=5, height_level=0, variable_name='
         else:
             print(f"Winter {idate+1} skipped due to insufficient data")
     
-    # Create a copy of the original dataset
-    ds_with_ice_load = ds.copy()
+    print(f"\n=== Ice Load Integration Summary ===")
+    print(f"Successfully calculated '{variable_name}' variable")
+    print(f"Ice load shape: {dsiceload.shape}")
+    print(f"Height level used: {height_level} ({height_value} {height_units})")
+    print(f"Calculation method: {method}")
+    print(f"Valid data points: {np.sum(~np.isnan(dsiceload.values)):,}")
     
-    # Add ice load as a new variable to the dataset
-    # We need to expand the ice load data to include the height dimension
-    # Create a new DataArray with the height dimension
-    ice_load_expanded = xr.zeros_like(ds['ACCRE_CYL']) * np.nan
-    # Use the actual height coordinate value, not the height_level index
-    ice_load_expanded.loc[dict(height=height_value)] = dsiceload
+    # Memory-efficient dataset creation with chunking
+    print(f"\nCreating memory-efficient dataset with ice load...")
     
-    # Add the ice load variable to the dataset
-    ds_with_ice_load[variable_name] = ice_load_expanded
+    # Use chunking for memory efficiency - chunk by time to optimize I/O
+    chunk_size = min(8760, len(dsiceload.time) // 10)  # ~1 year or 1/10 of data, whichever is smaller
     
-    # Add attributes to the new variable
-    ds_with_ice_load[variable_name].attrs = {
+    # Convert to dask arrays for lazy evaluation
+    dsiceload_chunked = dsiceload.chunk({'time': chunk_size})
+    
+    # Create expanded ice load array with chunking
+    ice_load_expanded = xr.full_like(ds['ACCRE_CYL'], np.nan, dtype=np.float32).chunk({
+        'time': chunk_size,
+        'height': 1,  # Keep height chunks small
+        'south_north': ds.dims['south_north'],
+        'west_east': ds.dims['west_east']
+    })
+    
+    # Assign ice load data only to the specific height level
+    ice_load_expanded.loc[dict(height=height_value)] = dsiceload_chunked
+    
+    # Add the ice load variable to the original dataset
+    ds[variable_name] = ice_load_expanded
+    
+    # Add attributes
+    ds[variable_name].attrs = {
         'long_name': f'Ice Load calculated using method {method}',
         'units': 'kg/m',
         'description': f'Ice load calculated at height level {height_level} ({height_value} {height_units}) using ice accumulation method {method}',
@@ -1222,48 +1495,91 @@ def add_ice_load_to_dataset(ds, dates, method=5, height_level=0, variable_name='
         'missing_value': np.nan
     }
     
-    print(f"\n=== Ice Load Integration Summary ===")
-    print(f"Successfully added '{variable_name}' variable to dataset")
-    print(f"Ice load shape: {dsiceload.shape}")
-    print(f"Height level used: {height_level} ({height_value} {height_units})")
-    print(f"Calculation method: {method}")
-    print(f"Valid data points: {np.sum(~np.isnan(dsiceload.values)):,}")
+    print(f"Dataset now contains {len(ds.data_vars)} variables:")
+    for var in ds.data_vars:
+        print(f"  - {var}: {ds[var].shape}")
     
-    # Print dataset info after adding ice load
-    print(f"\nDataset now contains {len(ds_with_ice_load.data_vars)} variables:")
-    for var in ds_with_ice_load.data_vars:
-        print(f"  - {var}: {ds_with_ice_load[var].shape}")
+    # Save the complete dataset with aggressive optimization
+    print(f"\nSaving complete dataset with ice load (memory-optimized)...")
     
-    # Save the complete dataset with ice load to results directory
-    try:
-        # Create results directory if it doesn't exist
-        os.makedirs(results_dir, exist_ok=True)
-        
-        # Format start and end dates for filename (safe for file names)
-        start_date = pd.to_datetime(dates[0]).strftime('%Y%m%d')
-        end_date = pd.to_datetime(dates[-1]).strftime('%Y%m%d')
-        
-        # Create filename for the dataset with ice load
-        dataset_filename = f"dataset_iceload_{start_date}_{end_date}_h{height_level}.nc"
-        dataset_filepath = os.path.join(results_dir, dataset_filename)
-        
-        print(f"\nSaving complete dataset with ice load to: {dataset_filepath}")
-        
-        # Save the dataset
-        ds_with_ice_load.to_netcdf(dataset_filepath)
-        
-        print(f"Successfully saved dataset with ice load!")
-        print(f"  File size: {os.path.getsize(dataset_filepath) / (1024*1024):.1f} MB")
-        print(f"  Variables: {list(ds_with_ice_load.data_vars.keys())}")
-        print(f"  Time range: {start_date} to {end_date}")
-        print(f"  Ice load method: {method}")
-        print(f"  Height level: {height_level}")
-        
-    except Exception as e:
-        print(f"Warning: Could not save dataset with ice load: {e}")
-        print("Continuing without saving...")
+    # Create results directory if it doesn't exist
+    os.makedirs(results_dir, exist_ok=True)
     
-    return ds_with_ice_load
+    # Format start and end dates for filename
+    start_date = pd.to_datetime(dates[0]).strftime('%Y%m%d')
+    end_date = pd.to_datetime(dates[-1]).strftime('%Y%m%d')
+    
+    # Create filename for the dataset with ice load
+    dataset_filename = f"dataset_iceload_{OffOn}_{start_date}_{end_date}_h{height_level}.nc"
+    dataset_filepath = os.path.join(results_dir, dataset_filename)
+    
+    print(f"Saving to: {dataset_filepath}")
+    
+    # Aggressive encoding and chunking for memory efficiency
+    encoding = {}
+    optimal_chunk_time = min(2920, len(ds.time) // 20)  # About 2 months or 1/20 of data
+    
+    for var_name, var in ds.data_vars.items():
+        # Use smaller data types where possible
+        if var.dtype == np.float64:
+            dtype = np.float32
+        elif var.dtype == np.int64:
+            dtype = np.int32
+        else:
+            dtype = var.dtype
+            
+        base_encoding = {
+            'zlib': True,
+            'complevel': 6,  # Higher compression
+            'shuffle': True,
+            'fletcher32': True,  # Add checksums
+            'dtype': dtype
+        }
+        
+        # Set chunking based on variable dimensions
+        if 'time' in var.dims:
+            if len(var.dims) == 4:  # 4D variables (time, height, south_north, west_east)
+                base_encoding['chunksizes'] = (optimal_chunk_time, 1, var.sizes['south_north'], var.sizes['west_east'])
+            elif len(var.dims) == 3:  # 3D variables (time, south_north, west_east)
+                base_encoding['chunksizes'] = (optimal_chunk_time, var.sizes['south_north'], var.sizes['west_east'])
+        
+        encoding[var_name] = base_encoding
+    
+    # Also encode coordinate variables for efficiency
+    for coord_name, coord in ds.coords.items():
+        if coord_name not in ['time', 'height', 'south_north', 'west_east']:
+            encoding[coord_name] = {
+                'zlib': True,
+                'complevel': 4,
+                'shuffle': True,
+                'dtype': np.float32 if coord.dtype == np.float64 else coord.dtype
+            }
+    
+    # Ensure dataset is properly chunked before saving
+    ds_chunked = ds.chunk({
+        'time': optimal_chunk_time,
+        'height': 1,
+        'south_north': ds.dims['south_north'],
+        'west_east': ds.dims['west_east']
+    })
+    
+    # Save with memory-efficient approach
+    print("Writing NetCDF file with optimized chunks and compression...")
+    ds_chunked.to_netcdf(
+        dataset_filepath,
+        encoding=encoding,
+        engine='netcdf4',
+        unlimited_dims=['time']  # Allow unlimited time dimension for efficiency
+    )
+    
+    print(f"Successfully saved complete dataset with ice load!")
+    print(f"  File size: {os.path.getsize(dataset_filepath) / (1024*1024):.1f} MB")
+    print(f"  Variables: {list(ds.data_vars.keys())}")
+    print(f"  Time range: {start_date} to {end_date}")
+    print(f"  Ice load method: {method}")
+    print(f"  Height level: {height_level}")
+    
+    return ds
 
 def save_ice_load_data(dsiceload, start_date, end_date, height_label="h0"):
     """
@@ -1298,7 +1614,7 @@ def save_ice_load_data(dsiceload, start_date, end_date, height_label="h0"):
 
 def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD', height_level=0, 
                              ice_load_threshold=0.0, save_plots=True, 
-                             months=None, show_colorbar=True):
+                             months=None, show_colorbar=True, OffOn=None, BigDomain=False):
     """
     Plot annual mean total ice load for each grid cell.
     Calculates the total ice load per year for each grid cell, then computes the mean across all years.
@@ -1319,6 +1635,10 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         List of months to include (1-12). If None, uses all months
     show_colorbar : bool, default True
         Whether to show colorbar in the grid plot
+    OffOn : str, optional
+        Specifies 'Onshore' or 'Offshore' for BigDomain directory structure
+    BigDomain : bool, default False
+        If True, saves results to MT_Icing/results/figures/BigDomain/{OffOn}/spatial_gradient...
         
     Returns:
     --------
@@ -1486,7 +1806,10 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
                 ice_threshold_str = f"{ice_load_threshold:.2f}".rstrip('0').rstrip('.')
             ice_threshold_str = ice_threshold_str.replace('.', 'p')
             
-            base_dir = os.path.join("results", "figures", "spatial_gradient", "Ice_load_grid")
+            if BigDomain and OffOn:
+                base_dir = os.path.join("results", "figures", "BigDomain", OffOn, "spatial_gradient", "Ice_load_grid")
+            else:
+                base_dir = os.path.join("results", "figures", "spatial_gradient", "Ice_load_grid")
             specific_dir = f"ice_load_grid_{height_m}_{ice_threshold_str}"
             ice_load_plots_dir = os.path.join(base_dir, specific_dir)
             os.makedirs(ice_load_plots_dir, exist_ok=True)
@@ -13902,6 +14225,97 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
         
     except Exception as e:
         print(f"Error in temperature comparison: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculate the great circle distance between two points 
+    on the earth (specified in decimal degrees)
+    Returns distance in kilometers
+    """
+    # Convert decimal degrees to radians
+    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+    
+    # Haversine formula
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = np.sin(dlat/2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2)**2
+    c = 2 * np.arcsin(np.sqrt(a))
+    
+    # Radius of earth in kilometers
+    r = 6371
+    
+    return c * r
+
+
+def find_nearest_point(dataset, target_lat, target_lon, verbose=True):
+    """
+    Find the nearest point in the dataset to the given coordinates and return a dataset with only that point
+    
+    Parameters:
+    -----------
+    dataset : xarray.Dataset
+        Dataset containing XLAT and XLON coordinates
+    target_lat : float
+        Target latitude in decimal degrees
+    target_lon : float  
+        Target longitude in decimal degrees
+    verbose : bool, optional
+        If True, print information about the search results
+        
+    Returns:
+    --------
+    xarray.Dataset
+        Dataset with same structure as input but containing only the nearest point data
+    """
+    
+    try:
+        # Get geographical coordinates from dataset
+        if 'XLAT' in dataset.coords and 'XLON' in dataset.coords:
+            lats = dataset.XLAT.values
+            lons = dataset.XLON.values
+        elif 'XLAT' in dataset.data_vars and 'XLON' in dataset.data_vars:
+            lats = dataset.XLAT.values
+            lons = dataset.XLON.values
+        else:
+            raise ValueError("Could not find XLAT and XLON coordinates in dataset")
+        
+        if verbose:
+            print(f"Searching for nearest point to coordinates: ({target_lat:.4f}, {target_lon:.4f})")
+            print(f"Dataset grid size: {lats.shape}")
+        
+        # Calculate distances to all points
+        distances = haversine_distance(target_lat, target_lon, lats, lons)
+        
+        # Find the indices of the minimum distance
+        min_idx = np.unravel_index(np.argmin(distances), distances.shape)
+        south_north_idx, west_east_idx = min_idx
+        
+        # Get the coordinates and distance of the nearest point
+        nearest_lat = lats[south_north_idx, west_east_idx]
+        nearest_lon = lons[south_north_idx, west_east_idx]
+        min_distance = distances[south_north_idx, west_east_idx]
+        
+        if verbose:
+            print(f"Nearest point found at grid indices: ({south_north_idx}, {west_east_idx})")
+            print(f"Nearest point coordinates: ({nearest_lat:.4f}, {nearest_lon:.4f})")
+            print(f"Distance to nearest point: {min_distance:.2f} km")
+        
+        # Extract the nearest point data from the dataset
+        # Select the specific grid point across all time steps and other dimensions
+        nearest_dataset = dataset.isel(south_north=south_north_idx, west_east=west_east_idx)
+        
+        if verbose:
+            print(f"Extracted dataset dimensions: {dict(nearest_dataset.dims)}")
+            print(f"Available variables: {list(nearest_dataset.data_vars)}")
+        
+        return nearest_dataset
+        
+    except Exception as e:
+        print(f"Error finding nearest point: {e}")
         import traceback
         traceback.print_exc()
         return None
