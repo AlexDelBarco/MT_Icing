@@ -12,8 +12,8 @@ if current_dir.endswith('scripts'):
     print(f"Changed working directory from {current_dir} to {os.getcwd()}")
 
 # PARAMETERS
-onshore = False
-offshore = True
+onshore = True
+offshore = False
 
 if onshore == True:
     OffOn = "Onshore"
@@ -108,7 +108,7 @@ if calculate_new_ice_load:
 
 else:
     print("Loading existing complete dataset with ice load...")
-    filename = f"results/dataset_iceload_BigDomain_{OffOn}_19890701_20220701_h{height}.nc"
+    filename = f"results/dataset_iceload_{OffOn}_19890701_20220701_h{height}.nc"
     dataset_with_ice_load = xr.open_dataset(filename)  # Load complete dataset
 
     print(f"Loaded dataset from: {filename}")
@@ -130,3 +130,29 @@ grid_results = fn.plot_grid_ice_load_values(
      months=None,  # Can specify winter months like [12, 1, 2, 3] if desired
      show_colorbar=True
  )
+
+# SPATIAL GRADIENTS
+
+print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ; SYSTEMATIC + WEIGHTED NEIGHBOUR CELLS ===")
+
+results_w_weights = fn.analyze_ice_load_with_weighted_neighborhood_cdf(
+    dataset_with_ice_load=dataset_with_ice_load,  # Changed from 'dataset' to 'dataset_with_ice_load'
+    height_level=height,
+    neighborhood_type='24-neighbors', # '4-neighbors', '8-neighbors', '24-neighbors'
+    weight_scheme='distance',  # 'uniform', 'distance', 'custom'
+    # Filtering parameters (min, max for each variable)
+    WD_range=None,        # (min, max) for Wind Direction
+    WS_range=None,        # (min, max) for Wind Speed
+    T_range=None,         # (min, max) for Temperature
+    PBLH_range=None,      # (min, max) for Boundary Layer Height
+    PRECIP_range=None,    # (min, max) for Precipitation
+    QVAPOR_range=None,    # (min, max) for Water Vapor
+    RMOL_range=None,      # (min, max) for Monin-Obukhov Length
+    # CDF analysis parameters
+    ice_load_threshold=0,
+    ice_load_bins=None,
+    months=None,
+    percentile=None,
+    OffOn=OffOn,
+    BigDomain=True
+)

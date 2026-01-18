@@ -6751,7 +6751,9 @@ def analyze_ice_load_with_filtering_and_cdf(
     ice_load_threshold=0.0,
     ice_load_bins=None,
     months=None,
-    percentile=None
+    percentile=None,
+    OffOn=None,
+    BigDomain=False
 ):
     """
     Comprehensive function that filters a dataset with ice load by meteorological variables
@@ -6800,6 +6802,10 @@ def analyze_ice_load_with_filtering_and_cdf(
         List of months to include (e.g., [1,2,12] for winter)
     percentile : float, optional
         Percentile threshold for extreme value filtering
+    OffOn : str, optional
+        Specifies 'Onshore' or 'Offshore' for BigDomain directory structure
+    BigDomain : bool, default False
+        If True, saves results to MT_Icing/results/figures/BigDomain/{OffOn}/filters...
         
     Returns:
     --------
@@ -6820,7 +6826,10 @@ def analyze_ice_load_with_filtering_and_cdf(
     # Create results directory based on filters applied
     if save_plots:
         # Create organized directory structure
-        filters_base_dir = os.path.join("results", "figures", "filters")
+        if BigDomain and OffOn:
+            filters_base_dir = os.path.join("results", "figures", "BigDomain", OffOn, "filters")
+        else:
+            filters_base_dir = os.path.join("results", "figures", "filters")
         os.makedirs(filters_base_dir, exist_ok=True)
         
         # Generate folder name based on applied filters
@@ -7446,7 +7455,9 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
     ice_load_threshold=0.0,
     ice_load_bins=None,
     months=None,
-    percentile=None
+    percentile=None,
+    OffOn=None,
+    BigDomain=False
 ):
     """
     Enhanced version of analyze_ice_load_with_filtering_and_cdf that allows customizable
@@ -7517,6 +7528,10 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
         List of months to include (e.g., [1,2,12] for winter)
     percentile : float, optional
         Percentile threshold for extreme value filtering
+    OffOn : str, optional
+        Specifies 'Onshore' or 'Offshore' for BigDomain directory structure
+    BigDomain : bool, default False
+        If True, saves results to MT_Icing/results/figures/BigDomain/{OffOn}/spatial_gradient...
         
     Returns:
     --------
@@ -7621,7 +7636,10 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
     # Create results directory based on filters and neighborhood config
     if save_plots:
         # Create organized directory structure
-        filters_base_dir = os.path.join("results", "figures", "spatial_gradient", "weighted_neighborhood_filters")
+        if BigDomain and OffOn:
+            filters_base_dir = os.path.join("results", "figures", "BigDomain", OffOn, "spatial_gradient", "weighted_neighborhood_filters")
+        else:
+            filters_base_dir = os.path.join("results", "figures", "spatial_gradient", "weighted_neighborhood_filters")
         os.makedirs(filters_base_dir, exist_ok=True)
         
         # Generate folder name based on applied filters and neighborhood config
