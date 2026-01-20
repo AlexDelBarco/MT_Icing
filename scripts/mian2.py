@@ -291,6 +291,7 @@ results_w_weights = fn.analyze_ice_load_with_weighted_neighborhood_cdf(
     percentile=None
 )
 
+
 # If custom weights:
 # custom_weights = {
 #     'adjacent': 1.0,      # Full weight for direct neighbors

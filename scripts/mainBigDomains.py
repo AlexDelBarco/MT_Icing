@@ -12,12 +12,16 @@ if current_dir.endswith('scripts'):
     print(f"Changed working directory from {current_dir} to {os.getcwd()}")
 
 # PARAMETERS
-onshore = True
-offshore = False
 
-if onshore == True:
+site = "Offshore"  # Choose between "Onshore" or "Offshore", corresponding to the dayasets/sites
+
+if site == "Onshore":
+    onshore = True
+    offshore = False
     OffOn = "Onshore"
-if offshore == True:
+if site == "Offshore":
+    onshore = False
+    offshore = True
     OffOn = "Offshore"
 
 height = 0  # Height level index to use (0-based): 0=100m; 1=150m
@@ -118,18 +122,18 @@ else:
 
 #Plot ice load values for each grid cell
 
-print("\n=== ICE LOAD GRID VALUES ANALYSIS ===")
-grid_results = fn.plot_grid_ice_load_values(
-     dataset_with_ice_load=dataset_with_ice_load,
-     ice_load_variable='ICE_LOAD',
-     height_level=height,
-     ice_load_threshold=0,
-     save_plots=True,
-     OffOn=OffOn,
-     BigDomain=True,
-     months=None,  # Can specify winter months like [12, 1, 2, 3] if desired
-     show_colorbar=True
- )
+# print("\n=== ICE LOAD GRID VALUES ANALYSIS ===")
+# grid_results = fn.plot_grid_ice_load_values(
+#      dataset_with_ice_load=dataset_with_ice_load,
+#      ice_load_variable='ICE_LOAD',
+#      height_level=height,
+#      ice_load_threshold=0,
+#      save_plots=True,
+#      OffOn=OffOn,
+#      BigDomain=True,
+#      months=None,  # Can specify winter months like [12, 1, 2, 3] if desired
+#      show_colorbar=True
+#  )
 
 # SPATIAL GRADIENTS
 
@@ -153,6 +157,37 @@ results_w_weights = fn.analyze_ice_load_with_weighted_neighborhood_cdf(
     ice_load_bins=None,
     months=None,
     percentile=None,
+    OffOn=OffOn,
+    BigDomain=True,
+    margin_degrees=0.5,
+    zoom_level=6,
+)
+
+# ICE LOAD RESAMPLING ANALYSIS
+
+print("\n=== ICE LOAD RESAMPLING ANALYSIS ===")
+resampling_results = fn.ice_load_resampling_analysis(
+    dataset_with_ice_load=dataset_with_ice_load,
+    ice_load_variable='ICE_LOAD',
+    height_level=height,
+    resampling_years=1,  # Aggregate data into X-year periods
+    save_plots=True,
+    months=None,  # Use all months, or specify [12,1,2,3] for winter
+    ice_load_threshold=0,  # Include all ice load values
+    OffOn=OffOn,
+    BigDomain=True
+)
+
+print("\n=== ICE LOAD RESAMPLING ANALYSIS EXCEEDANCE HOURS ===")
+
+resampling_results_hours = fn.ice_load_resampling_analysis_hours(
+    dataset_with_ice_load=dataset_with_ice_load,
+    ice_load_variable='ICE_LOAD',
+    height_level=height,
+    resampling_years=1,  # Aggregate data into X-year periods
+    save_plots=True,
+    months=None,  # Use all months, or specify [12,1,2,3] for winter
+    ice_load_threshold=0.1,  # Include all ice load values
     OffOn=OffOn,
     BigDomain=True
 )
