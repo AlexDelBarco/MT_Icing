@@ -85,7 +85,7 @@ dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 # ACCERATION
 
 # Accreation for winter and time period + plot
-fn.accreation_per_winter(dataset, start_date, end_date, height_level=height)
+# fn.accreation_per_winter(dataset, start_date, end_date, height_level=height)
 
 
 

@@ -86,6 +86,11 @@ end_date = '2022-12-31T23:30:00.000000000'
 
 dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 
+# ACCERATION
+
+# Accreation for winter and time period + plot
+fn.accreation_per_winter(dataset, start_date, end_date, height_level=height)
+
 # ICE LOAD
 
 #ice load data: load/calculate 
