@@ -1928,7 +1928,8 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
                                          ice_load_threshold=0.1, save_plots=True, 
                                          colormap='viridis', grid_labels=True, units='hours',
                                          OffOn=None, BigDomain=False,
-                                         margin_degrees=0.2, zoom_level=6):
+                                         margin_degrees=0.2, zoom_level=6,
+                                         custom_vmin=None, custom_vmax=None):
     """
     Create a spatial map showing how often each grid cell exceeds a specified ice load threshold
     per year on average. Uses a colorbar to show spatial differences in threshold exceedance.
@@ -2242,19 +2243,34 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
                 print(f"     Min: {data_min:.1f}, Max: {data_max:.1f}, Mean: {data_mean:.1f} {unit_label.lower()}/year")
                 print(f"     90th percentile: {data_90p:.1f} {unit_label.lower()}/year")
                 
-                # Check for outliers
-                outlier_ratio = data_max / data_90p if data_90p > 0 else 1
-                if outlier_ratio > 2.0:
-                    vmin = data_min
-                    vmax = data_90p
-                    outlier_clipped = True
-                    print(f"   Using 90th percentile clipping for better visualization")
+                # Use custom color scale if provided, otherwise use automatic scaling
+                if custom_vmin is not None and custom_vmax is not None:
+                    # Check for outliers even with custom scale and apply clipping if needed
+                    outlier_ratio = data_max / data_90p if data_90p > 0 else 1
+                    if outlier_ratio > 2.0:
+                        vmin = custom_vmin
+                        vmax = min(custom_vmax, data_90p)  # Apply 90th percentile clipping to custom max
+                        outlier_clipped = True
+                        print(f"   Using custom color scale with 90th percentile clipping: {vmin:.1f} - {vmax:.1f} {unit_label.lower()}/year")
+                    else:
+                        vmin = custom_vmin
+                        vmax = custom_vmax
+                        outlier_clipped = False
+                        print(f"   Using custom color scale: {vmin:.1f} - {vmax:.1f} {unit_label.lower()}/year")
                 else:
-                    vmin = data_min
-                    vmax = data_max
-                    outlier_clipped = False
+                    # Check for outliers
+                    outlier_ratio = data_max / data_90p if data_90p > 0 else 1
+                    if outlier_ratio > 2.0:
+                        vmin = data_min
+                        vmax = data_90p
+                        outlier_clipped = True
+                        print(f"   Using 90th percentile clipping for better visualization")
+                    else:
+                        vmin = data_min
+                        vmax = data_max
+                        outlier_clipped = False
             else:
-                vmin, vmax = 0, 1
+                vmin, vmax = (custom_vmin, custom_vmax) if (custom_vmin is not None and custom_vmax is not None) else (0, 1)
                 outlier_clipped = False
             
             # Plot threshold exceedance values as semi-transparent overlay
@@ -2729,7 +2745,8 @@ def add_rh(dataset_with_ice_load, height_l, phase, verbose=True):
 def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height_level=0,
                       save_plots=True, colormap='viridis', grid_labels=True,
                       OffOn=None, BigDomain=False,
-                      margin_degrees=0.2, zoom_level=6):
+                      margin_degrees=0.2, zoom_level=6,
+                      custom_vmin=None, custom_vmax=None):
     """
     Create a spatial map showing how often each grid cell meets temperature and humidity criteria
     per year on average. Temperature must be equal or below the threshold, and relative humidity 
@@ -3040,19 +3057,34 @@ def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height
                 print(f"     Min: {data_min:.1f}, Max: {data_max:.1f}, Mean: {data_mean:.1f} hours/year")
                 print(f"     90th percentile: {data_90p:.1f} hours/year")
                 
-                # Check for outliers
-                outlier_ratio = data_max / data_90p if data_90p > 0 else 1
-                if outlier_ratio > 2.0:
-                    vmin = data_min
-                    vmax = data_90p
-                    outlier_clipped = True
-                    print(f"   Using 90th percentile clipping for better visualization")
+                # Use custom color scale if provided, otherwise use automatic scaling
+                if custom_vmin is not None and custom_vmax is not None:
+                    # Check for outliers even with custom scale and apply clipping if needed
+                    outlier_ratio = data_max / data_90p if data_90p > 0 else 1
+                    if outlier_ratio > 2.0:
+                        vmin = custom_vmin
+                        vmax = min(custom_vmax, data_90p)  # Apply 90th percentile clipping to custom max
+                        outlier_clipped = True
+                        print(f"   Using custom color scale with 90th percentile clipping: {vmin:.1f} - {vmax:.1f} hours/year")
+                    else:
+                        vmin = custom_vmin
+                        vmax = custom_vmax
+                        outlier_clipped = False
+                        print(f"   Using custom color scale: {vmin:.1f} - {vmax:.1f} hours/year")
                 else:
-                    vmin = data_min
-                    vmax = data_max
-                    outlier_clipped = False
+                    # Check for outliers
+                    outlier_ratio = data_max / data_90p if data_90p > 0 else 1
+                    if outlier_ratio > 2.0:
+                        vmin = data_min
+                        vmax = data_90p
+                        outlier_clipped = True
+                        print(f"   Using 90th percentile clipping for better visualization")
+                    else:
+                        vmin = data_min
+                        vmax = data_max
+                        outlier_clipped = False
             else:
-                vmin, vmax = 0, 1
+                vmin, vmax = (custom_vmin, custom_vmax) if (custom_vmin is not None and custom_vmax is not None) else (0, 1)
                 outlier_clipped = False
             
             # Plot criteria values as semi-transparent overlay
