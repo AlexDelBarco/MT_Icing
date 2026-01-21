@@ -220,12 +220,31 @@ valid_temp_hum_values = temp_hum_matrix[~np.isnan(temp_hum_matrix)]
 if len(valid_ice_values) > 0 and len(valid_temp_hum_values) > 0:
     combined_min = min(np.min(valid_ice_values), np.min(valid_temp_hum_values))
     combined_max = max(np.max(valid_ice_values), np.max(valid_temp_hum_values))
+    
+    # Calculate combined 90th percentile for consistent clipping
+    all_combined_values = np.concatenate([valid_ice_values, valid_temp_hum_values])
+    combined_90p = np.percentile(all_combined_values, 90)
+    
+    # Check if we need 90th percentile clipping
+    outlier_ratio = combined_max / combined_90p if combined_90p > 0 else 1
+    if outlier_ratio > 2.0:
+        combined_max_clipped = combined_90p
+        clipping_applied = True
+        print(f"Outliers detected (ratio: {outlier_ratio:.1f}), applying 90th percentile clipping")
+    else:
+        combined_max_clipped = combined_max
+        clipping_applied = False
+        print(f"No significant outliers detected (ratio: {outlier_ratio:.1f}), using full range")
 else:
-    combined_min, combined_max = 0, 1
+    combined_min, combined_max_clipped = 0, 1
+    clipping_applied = False
 
-print(f"Combined color scale range: {combined_min:.1f} to {combined_max:.1f} hours/year")
+
+print(f"Combined color scale range: {combined_min:.1f} to {combined_max_clipped:.1f} hours/year")
 print(f"Ice load range: {np.min(valid_ice_values):.1f} to {np.max(valid_ice_values):.1f} hours/year")
 print(f"Temp-humidity range: {np.min(valid_temp_hum_values):.1f} to {np.max(valid_temp_hum_values):.1f} hours/year")
+if clipping_applied:
+    print(f"90th percentile clipping applied: {combined_90p:.1f} hours/year (original max was {combined_max:.1f})")
 
 # Now call both functions with the same color scale
 grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
@@ -233,14 +252,14 @@ grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
     ice_load_variable='ICE_LOAD',
     height_level=height,
 
-    ice_load_threshold=0.1,
+    ice_load_threshold=0.05,
     save_plots=True,
     OffOn=OffOn,
     BigDomain=True,
     margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
     zoom_level=6,  # Zoom level for terrain tiles
     custom_vmin=combined_min,
-    custom_vmax=combined_max
+    custom_vmax=combined_max_clipped
 )
 
 # # print("\n=== ICING TEMPERATURE AND HUMIDITY CRITERIA ANALYSIS HOURS ===")
@@ -255,7 +274,7 @@ humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_ice_load_rh,
                                                     margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
                                                     zoom_level=6,  # Zoom level for terrain tiles
                                                     custom_vmin=combined_min,
-                                                    custom_vmax=combined_max)
+                                                    custom_vmax=combined_max_clipped)
 
 # SPATIAL GRADIENTS
 

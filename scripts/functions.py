@@ -2245,30 +2245,23 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
                 
                 # Use custom color scale if provided, otherwise use automatic scaling
                 if custom_vmin is not None and custom_vmax is not None:
-                    # Check for outliers even with custom scale and apply clipping if needed
-                    outlier_ratio = data_max / data_90p if data_90p > 0 else 1
-                    if outlier_ratio > 2.0:
-                        vmin = custom_vmin
-                        vmax = min(custom_vmax, data_90p)  # Apply 90th percentile clipping to custom max
-                        outlier_clipped = True
-                        print(f"   Using custom color scale with 90th percentile clipping: {vmin:.1f} - {vmax:.1f} {unit_label.lower()}/year")
-                    else:
-                        vmin = custom_vmin
-                        vmax = custom_vmax
-                        outlier_clipped = False
-                        print(f"   Using custom color scale: {vmin:.1f} - {vmax:.1f} {unit_label.lower()}/year")
+                    vmin = custom_vmin
+                    vmax = custom_vmax
+                    outlier_clipped = False  # Clipping already handled in main script
+                    print(f"   Using provided color scale: {vmin:.1f} - {vmax:.1f} {unit_label.lower()}/year")
                 else:
-                    # Check for outliers
+                    # Apply automatic scaling with outlier detection
                     outlier_ratio = data_max / data_90p if data_90p > 0 else 1
                     if outlier_ratio > 2.0:
                         vmin = data_min
                         vmax = data_90p
                         outlier_clipped = True
-                        print(f"   Using 90th percentile clipping for better visualization")
+                        print(f"   Using 90th percentile clipping for better visualization: {vmin:.1f} - {vmax:.1f} {unit_label.lower()}/year")
                     else:
                         vmin = data_min
                         vmax = data_max
                         outlier_clipped = False
+                        print(f"   Using full data range: {vmin:.1f} - {vmax:.1f} {unit_label.lower()}/year")
             else:
                 vmin, vmax = (custom_vmin, custom_vmax) if (custom_vmin is not None and custom_vmax is not None) else (0, 1)
                 outlier_clipped = False
@@ -3059,30 +3052,23 @@ def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height
                 
                 # Use custom color scale if provided, otherwise use automatic scaling
                 if custom_vmin is not None and custom_vmax is not None:
-                    # Check for outliers even with custom scale and apply clipping if needed
-                    outlier_ratio = data_max / data_90p if data_90p > 0 else 1
-                    if outlier_ratio > 2.0:
-                        vmin = custom_vmin
-                        vmax = min(custom_vmax, data_90p)  # Apply 90th percentile clipping to custom max
-                        outlier_clipped = True
-                        print(f"   Using custom color scale with 90th percentile clipping: {vmin:.1f} - {vmax:.1f} hours/year")
-                    else:
-                        vmin = custom_vmin
-                        vmax = custom_vmax
-                        outlier_clipped = False
-                        print(f"   Using custom color scale: {vmin:.1f} - {vmax:.1f} hours/year")
+                    vmin = custom_vmin
+                    vmax = custom_vmax
+                    outlier_clipped = False  # Clipping already handled in main script
+                    print(f"   Using provided color scale: {vmin:.1f} - {vmax:.1f} hours/year")
                 else:
-                    # Check for outliers
+                    # Apply automatic scaling with outlier detection
                     outlier_ratio = data_max / data_90p if data_90p > 0 else 1
                     if outlier_ratio > 2.0:
                         vmin = data_min
                         vmax = data_90p
                         outlier_clipped = True
-                        print(f"   Using 90th percentile clipping for better visualization")
+                        print(f"   Using 90th percentile clipping for better visualization: {vmin:.1f} - {vmax:.1f} hours/year")
                     else:
                         vmin = data_min
                         vmax = data_max
                         outlier_clipped = False
+                        print(f"   Using full data range: {vmin:.1f} - {vmax:.1f} hours/year")
             else:
                 vmin, vmax = (custom_vmin, custom_vmax) if (custom_vmin is not None and custom_vmax is not None) else (0, 1)
                 outlier_clipped = False
