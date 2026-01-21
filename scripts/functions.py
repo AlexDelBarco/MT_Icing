@@ -1926,7 +1926,9 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
 
 def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_variable='ICE_LOAD', height_level=0,
                                          ice_load_threshold=0.1, save_plots=True, 
-                                         colormap='viridis', grid_labels=True, units='hours'):
+                                         colormap='viridis', grid_labels=True, units='hours',
+                                         OffOn=None, BigDomain=False,
+                                         margin_degrees=0.2, zoom_level=6):
     """
     Create a spatial map showing how often each grid cell exceeds a specified ice load threshold
     per year on average. Uses a colorbar to show spatial differences in threshold exceedance.
@@ -1949,6 +1951,14 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
         Whether to add grid cell coordinate labels to the plot
     units : str, default 'hours'
         Units for the exceedance frequency ('hours', 'days', or 'percentage')
+    OffOn : str, optional
+        Specifies 'Onshore' or 'Offshore' for BigDomain directory structure
+    BigDomain : bool, default False
+        If True, saves results to MT_Icing/results/figures/BigDomain/{OffOn}/spatial_gradient...
+    margin_degrees : float, default 0.2
+        Margin around grid in degrees for cartopy terrain map
+    zoom_level : int, default 6
+        Zoom level for terrain tiles in cartopy terrain map
         
     Returns:
     --------
@@ -2118,7 +2128,12 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
                 ice_threshold_str = f"{ice_load_threshold:.2f}".rstrip('0').rstrip('.')
             ice_threshold_str = ice_threshold_str.replace('.', 'p')
             
-            base_dir = os.path.join(figures_dir, "spatial_gradient", "ice_load_grid_hours_exceedance")
+            # Create directory structure based on BigDomain flag
+            if BigDomain and OffOn:
+                base_dir = os.path.join(figures_dir, "BigDomain", OffOn, "spatial_gradient", "ice_load_grid_hours_exceedance")
+            else:
+                base_dir = os.path.join(figures_dir, "spatial_gradient", "ice_load_grid_hours_exceedance")
+            
             specific_dir = f"ice_load_hours_{height_m}_{ice_threshold_str}"
             threshold_plots_dir = os.path.join(base_dir, specific_dir)
             os.makedirs(threshold_plots_dir, exist_ok=True)
@@ -2131,6 +2146,175 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
             print(f"   Exceedance map saved to: {plot_path}")
         
         plt.close()  # Close the plot to prevent it from showing
+        
+        # Create cartopy terrain map with threshold exceedance (similar to analyze_ice_load_with_weighted_neighborhood_cdf)
+        print(f"\\n4. Creating cartopy terrain map with threshold exceedance...")
+        
+        try:
+            import cartopy.crs as ccrs
+            import cartopy.feature as cfeature
+            import cartopy.io.img_tiles as cimgt
+            
+            # Get geographical coordinates
+            if 'XLAT' in dataset_with_ice_load.coords and 'XLON' in dataset_with_ice_load.coords:
+                lats = dataset_with_ice_load.coords['XLAT'].values
+                lons = dataset_with_ice_load.coords['XLON'].values
+            elif 'XLAT' in dataset_with_ice_load.data_vars and 'XLON' in dataset_with_ice_load.data_vars:
+                lats = dataset_with_ice_load['XLAT'].values
+                lons = dataset_with_ice_load['XLON'].values
+            else:
+                raise ValueError("No latitude/longitude coordinates found in dataset")
+            
+            print(f"   Grid coordinates: Lat {lats.min():.3f} to {lats.max():.3f}, Lon {lons.min():.3f} to {lons.max():.3f}")
+            
+            # Calculate grid cell edges for pcolormesh
+            lon_edges = np.zeros(lons.shape[1] + 1)
+            lat_edges = np.zeros(lats.shape[0] + 1)
+            
+            # Longitude edges
+            for j in range(lons.shape[1]):
+                if j == 0:
+                    lon_edges[j] = lons[0, j] - (lons[0, 1] - lons[0, 0]) / 2
+                else:
+                    lon_edges[j] = (lons[0, j-1] + lons[0, j]) / 2
+            lon_edges[-1] = lons[0, -1] + (lons[0, -1] - lons[0, -2]) / 2
+            
+            # Latitude edges
+            for i in range(lats.shape[0]):
+                if i == 0:
+                    lat_edges[i] = lats[i, 0] - (lats[1, 0] - lats[0, 0]) / 2
+                else:
+                    lat_edges[i] = (lats[i-1, 0] + lats[i, 0]) / 2
+            lat_edges[-1] = lats[-1, 0] + (lats[-1, 0] - lats[-2, 0]) / 2
+            
+            # Create figure with cartopy projection
+            fig = plt.figure(figsize=(16, 12))
+            ax = plt.subplot(1, 1, 1, projection=ccrs.PlateCarree())
+            
+            # Set extent with margin
+            grid_center_lon = (lon_edges.min() + lon_edges.max()) / 2
+            grid_center_lat = (lat_edges.min() + lat_edges.max()) / 2
+            grid_span_lon = lon_edges.max() - lon_edges.min()
+            grid_span_lat = lat_edges.max() - lat_edges.min()
+            extent_span_lon = grid_span_lon + 2 * margin_degrees
+            extent_span_lat = grid_span_lat + 2 * margin_degrees
+            
+            west = grid_center_lon - extent_span_lon / 2
+            east = grid_center_lon + extent_span_lon / 2
+            south = grid_center_lat - extent_span_lat / 2
+            north = grid_center_lat + extent_span_lat / 2
+            
+            ax.set_extent([west, east, south, north], crs=ccrs.PlateCarree())
+            
+            # Add geographical features
+            ax.add_feature(cfeature.OCEAN, color='lightblue', alpha=0.7, zorder=1)
+            ax.add_feature(cfeature.LAND, color='lightgray', alpha=0.8, zorder=2)
+            ax.add_feature(cfeature.LAKES, color='lightblue', alpha=0.8, zorder=3)
+            
+            # Try to add terrain background
+            try:
+                terrain = cimgt.OSM()
+                ax.add_image(terrain, zoom_level)
+                print(f"   Successfully loaded OpenStreetMap tiles")
+            except Exception as e:
+                try:
+                    terrain = cimgt.GoogleTiles(style='satellite')
+                    ax.add_image(terrain, zoom_level)
+                    print(f"   Successfully loaded Google satellite tiles")
+                except Exception as e2:
+                    print(f"   Tile services unavailable, using basic land/ocean features")
+            
+            # Add geographical features on top
+            ax.add_feature(cfeature.BORDERS, linewidth=1.5, color='black', alpha=0.8, zorder=8)
+            ax.add_feature(cfeature.COASTLINE, linewidth=2, color='black', alpha=0.9, zorder=9)
+            
+            # Create meshgrid for pcolormesh
+            lon_mesh, lat_mesh = np.meshgrid(lon_edges, lat_edges)
+            
+            # Calculate percentiles for better color scaling
+            if len(valid_exceedances) > 0:
+                data_min = np.min(valid_exceedances)
+                data_max = np.max(valid_exceedances)
+                data_mean = np.mean(valid_exceedances)
+                data_90p = np.percentile(valid_exceedances, 90)
+                
+                print(f"   Threshold exceedance statistics:")
+                print(f"     Min: {data_min:.1f}, Max: {data_max:.1f}, Mean: {data_mean:.1f} {unit_label.lower()}/year")
+                print(f"     90th percentile: {data_90p:.1f} {unit_label.lower()}/year")
+                
+                # Check for outliers
+                outlier_ratio = data_max / data_90p if data_90p > 0 else 1
+                if outlier_ratio > 2.0:
+                    vmin = data_min
+                    vmax = data_90p
+                    outlier_clipped = True
+                    print(f"   Using 90th percentile clipping for better visualization")
+                else:
+                    vmin = data_min
+                    vmax = data_max
+                    outlier_clipped = False
+            else:
+                vmin, vmax = 0, 1
+                outlier_clipped = False
+            
+            # Plot threshold exceedance values as semi-transparent overlay
+            exceedance_plot = ax.pcolormesh(
+                lon_mesh, lat_mesh, exceedance_matrix,
+                cmap=colormap, alpha=0.8,
+                vmin=vmin, vmax=vmax,
+                transform=ccrs.PlateCarree(),
+                zorder=7
+            )
+            
+            # Add colorbar
+            cbar = plt.colorbar(exceedance_plot, ax=ax, shrink=0.8, pad=0.02)
+            if outlier_clipped:
+                cbar_label = f'Threshold Exceedance ({unit_label}/Year)\\n[Clipped at 90th percentile: {vmax:.1f}]'
+            else:
+                cbar_label = f'Threshold Exceedance ({unit_label}/Year)'
+            cbar.set_label(cbar_label, fontsize=12)
+            
+            # Add gridlines with labels
+            gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+                             linewidth=1, color='gray', alpha=0.5, linestyle='--')
+            gl.top_labels = False
+            gl.right_labels = False
+            gl.xlabel_style = {'size': 10, 'color': 'black'}
+            gl.ylabel_style = {'size': 10, 'color': 'black'}
+            
+            # Add title
+            title_text = (f'Ice Load Threshold Exceedance on Terrain Map\\\\n'
+                         f'Threshold: {ice_load_threshold:.3f} kg/m, '
+                         f'Height: {dataset_with_ice_load.height.values[height_level]} m')
+            ax.set_title(title_text, fontsize=14, weight='bold', pad=20)
+            
+            # Add statistics information
+            if len(valid_exceedances) > 0:
+                if outlier_clipped:
+                    info_text = (f"Range: {data_min:.1f} - {data_max:.1f} {unit_label.lower()}/year | "
+                                f"Mean: {data_mean:.1f} {unit_label.lower()}/year\\n"
+                                f"Color scale: {vmin:.1f} - {vmax:.1f} {unit_label.lower()}/year (90th percentile clipped)")
+                else:
+                    info_text = (f"Range: {data_min:.1f} - {data_max:.1f} {unit_label.lower()}/year | "
+                                f"Mean: {data_mean:.1f} {unit_label.lower()}/year")
+                ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=9,
+                        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
+            
+            plt.tight_layout()
+            
+            # Save the cartopy terrain map
+            if save_plots:
+                cartopy_filename = f"ice_load_threshold_exceedance_cartopy_{ice_threshold_str}kgm.png"
+                cartopy_path = os.path.join(threshold_plots_dir, cartopy_filename)
+                plt.savefig(cartopy_path, dpi=300, bbox_inches='tight')
+                print(f"   Cartopy terrain map saved to: {cartopy_path}")
+            
+            plt.close()  # Close the plot to prevent it from showing
+            
+        except ImportError as e:
+            print(f"   Warning: Cartopy not available, skipping terrain map: {e}")
+        except Exception as e:
+            print(f"   Error creating cartopy terrain map: {e}")
         
         # Create additional summary statistics plot
         if len(valid_exceedances) > 0:
@@ -2415,33 +2599,58 @@ def add_rh(dataset_with_ice_load, height_l, phase, verbose=True):
         if verbose:
             print(f"   Converting data to MetPy units...")
         
-        # Convert to MetPy quantities with appropriate units
-        # Assuming PSFC is in Pa, T is in K, QVAPOR is in kg/kg
-        pressure_metpy = pressure.values * units.Pa
-        temperature_metpy = temperature.values * units.K  
-        mixing_ratio_metpy = mixing_ratio.values * units('kg/kg')
+        # Calculate relative humidity using MetPy with chunked processing to avoid memory issues
+        if verbose:
+            print(f"   Processing data in chunks to avoid memory allocation issues...")
+        
+        # Determine chunk size based on available memory (process ~10% of data at a time)
+        total_timesteps = pressure.shape[0]
+        chunk_size = max(1000, total_timesteps // 10)  # At least 1000 timesteps per chunk
         
         if verbose:
-            print(f"   Pressure: {pressure_metpy.units}")
-            print(f"   Temperature: {temperature_metpy.units}")
-            print(f"   Mixing ratio: {mixing_ratio_metpy.units}")
-            print(f"   Calculating relative humidity...")
+            print(f"   Total timesteps: {total_timesteps}")
+            print(f"   Chunk size: {chunk_size}")
+            print(f"   Number of chunks: {(total_timesteps + chunk_size - 1) // chunk_size}")
         
-        # Calculate relative humidity using MetPy
-        rh_metpy = mpcalc.relative_humidity_from_mixing_ratio(
-            pressure_metpy,
-            temperature_metpy, 
-            mixing_ratio_metpy,
-            phase = phase
-        )
+        # Initialize output array
+        rh_values = np.full_like(pressure.values, np.nan, dtype=np.float32)
         
-        # Convert back to dimensionless numpy array (0-1)
-        rh_values = rh_metpy.magnitude
+        # Process data in chunks
+        for start_idx in range(0, total_timesteps, chunk_size):
+            end_idx = min(start_idx + chunk_size, total_timesteps)
+            chunk_slice = slice(start_idx, end_idx)
+            
+            if verbose and start_idx % (chunk_size * 5) == 0:  # Print progress every 5 chunks
+                print(f"   Processing chunk {start_idx//chunk_size + 1}: timesteps {start_idx} to {end_idx-1}")
+            
+            # Extract chunk data
+            pressure_chunk = pressure.isel(time=chunk_slice).values * units.Pa
+            temperature_chunk = temperature.isel(time=chunk_slice).values * units.K  
+            mixing_ratio_chunk = mixing_ratio.isel(time=chunk_slice).values * units('kg/kg')
+            
+            try:
+                # Calculate relative humidity for this chunk
+                rh_chunk = mpcalc.relative_humidity_from_mixing_ratio(
+                    pressure_chunk,
+                    temperature_chunk, 
+                    mixing_ratio_chunk,
+                    phase=phase
+                )
+                
+                # Store results
+                rh_values[start_idx:end_idx] = rh_chunk.magnitude.astype(np.float32)
+                
+            except Exception as chunk_error:
+                if verbose:
+                    print(f"   Warning: Error processing chunk {start_idx//chunk_size + 1}: {chunk_error}")
+                # Leave NaN values for this chunk
+                continue
         
         if verbose:
-            print(f"   Relative humidity calculated successfully")
+            print(f"   Chunked relative humidity calculation completed")
             print(f"   RH range: {np.nanmin(rh_values):.3f} to {np.nanmax(rh_values):.3f}")
             print(f"   RH mean: {np.nanmean(rh_values):.3f}")
+            print(f"   Valid data points: {np.sum(~np.isnan(rh_values)):,} / {rh_values.size:,}")
         
         # Create a copy of the dataset
         ds_with_rh = dataset_with_ice_load.copy()
@@ -2518,7 +2727,9 @@ def add_rh(dataset_with_ice_load, height_l, phase, verbose=True):
         return dataset_with_ice_load
 
 def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height_level=0,
-                      save_plots=True, colormap='viridis', grid_labels=True):
+                      save_plots=True, colormap='viridis', grid_labels=True,
+                      OffOn=None, BigDomain=False,
+                      margin_degrees=0.2, zoom_level=6):
     """
     Create a spatial map showing how often each grid cell meets temperature and humidity criteria
     per year on average. Temperature must be equal or below the threshold, and relative humidity 
@@ -2540,6 +2751,14 @@ def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height
         Matplotlib colormap to use for the spatial plot
     grid_labels : bool, default True
         Whether to add grid cell coordinate labels to the plot
+    OffOn : str, optional
+        Specifies 'Onshore' or 'Offshore' for BigDomain directory structure
+    BigDomain : bool, default False
+        If True, saves results to MT_Icing/results/figures/BigDomain/{OffOn}/spatial_gradient...
+    margin_degrees : float, default 0.2
+        Margin around grid in degrees for cartopy terrain map
+    zoom_level : int, default 6
+        Zoom level for terrain tiles in cartopy terrain map
         
     Returns:
     --------
@@ -2706,7 +2925,12 @@ def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height
             temp_str = f"{temperature_threshold:.2f}".replace('.', 'p')
             hum_str = f"{humidity_threshold:.3f}".rstrip('0').rstrip('.').replace('.', 'p')
             
-            base_dir = os.path.join(figures_dir, "spatial_gradient", "temp_hum_criteria_exceedance")
+            # Create directory structure based on BigDomain flag
+            if BigDomain and OffOn:
+                base_dir = os.path.join(figures_dir, "BigDomain", OffOn, "spatial_gradient", "temp_hum_criteria_exceedance")
+            else:
+                base_dir = os.path.join(figures_dir, "spatial_gradient", "temp_hum_criteria_exceedance")
+            
             specific_dir = f"criteria_{height_m}_{temp_str}K_{hum_str}rh"
             criteria_plots_dir = os.path.join(base_dir, specific_dir)
             os.makedirs(criteria_plots_dir, exist_ok=True)
@@ -2719,6 +2943,176 @@ def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height
             print(f"   Criteria map saved to: {plot_path}")
         
         plt.close()  # Close the plot to prevent it from showing
+        
+        # Create cartopy terrain map with criteria exceedance (similar to analyze_ice_load_with_weighted_neighborhood_cdf)
+        print(f"\\n6. Creating cartopy terrain map with criteria exceedance...")
+        
+        try:
+            import cartopy.crs as ccrs
+            import cartopy.feature as cfeature
+            import cartopy.io.img_tiles as cimgt
+            
+            # Get geographical coordinates
+            if 'XLAT' in dataset.coords and 'XLON' in dataset.coords:
+                lats = dataset.coords['XLAT'].values
+                lons = dataset.coords['XLON'].values
+            elif 'XLAT' in dataset.data_vars and 'XLON' in dataset.data_vars:
+                lats = dataset['XLAT'].values
+                lons = dataset['XLON'].values
+            else:
+                raise ValueError("No latitude/longitude coordinates found in dataset")
+            
+            print(f"   Grid coordinates: Lat {lats.min():.3f} to {lats.max():.3f}, Lon {lons.min():.3f} to {lons.max():.3f}")
+            
+            # Calculate grid cell edges for pcolormesh
+            lon_edges = np.zeros(lons.shape[1] + 1)
+            lat_edges = np.zeros(lats.shape[0] + 1)
+            
+            # Longitude edges
+            for j in range(lons.shape[1]):
+                if j == 0:
+                    lon_edges[j] = lons[0, j] - (lons[0, 1] - lons[0, 0]) / 2
+                else:
+                    lon_edges[j] = (lons[0, j-1] + lons[0, j]) / 2
+            lon_edges[-1] = lons[0, -1] + (lons[0, -1] - lons[0, -2]) / 2
+            
+            # Latitude edges
+            for i in range(lats.shape[0]):
+                if i == 0:
+                    lat_edges[i] = lats[i, 0] - (lats[1, 0] - lats[0, 0]) / 2
+                else:
+                    lat_edges[i] = (lats[i-1, 0] + lats[i, 0]) / 2
+            lat_edges[-1] = lats[-1, 0] + (lats[-1, 0] - lats[-2, 0]) / 2
+            
+            # Create figure with cartopy projection
+            fig = plt.figure(figsize=(16, 12))
+            ax = plt.subplot(1, 1, 1, projection=ccrs.PlateCarree())
+            
+            # Set extent with margin
+            grid_center_lon = (lon_edges.min() + lon_edges.max()) / 2
+            grid_center_lat = (lat_edges.min() + lat_edges.max()) / 2
+            grid_span_lon = lon_edges.max() - lon_edges.min()
+            grid_span_lat = lat_edges.max() - lat_edges.min()
+            extent_span_lon = grid_span_lon + 2 * margin_degrees
+            extent_span_lat = grid_span_lat + 2 * margin_degrees
+            
+            west = grid_center_lon - extent_span_lon / 2
+            east = grid_center_lon + extent_span_lon / 2
+            south = grid_center_lat - extent_span_lat / 2
+            north = grid_center_lat + extent_span_lat / 2
+            
+            ax.set_extent([west, east, south, north], crs=ccrs.PlateCarree())
+            
+            # Add geographical features
+            ax.add_feature(cfeature.OCEAN, color='lightblue', alpha=0.7, zorder=1)
+            ax.add_feature(cfeature.LAND, color='lightgray', alpha=0.8, zorder=2)
+            ax.add_feature(cfeature.LAKES, color='lightblue', alpha=0.8, zorder=3)
+            
+            # Try to add terrain background
+            try:
+                terrain = cimgt.OSM()
+                ax.add_image(terrain, zoom_level)
+                print(f"   Successfully loaded OpenStreetMap tiles")
+            except Exception as e:
+                try:
+                    terrain = cimgt.GoogleTiles(style='satellite')
+                    ax.add_image(terrain, zoom_level)
+                    print(f"   Successfully loaded Google satellite tiles")
+                except Exception as e2:
+                    print(f"   Tile services unavailable, using basic land/ocean features")
+            
+            # Add geographical features on top
+            ax.add_feature(cfeature.BORDERS, linewidth=1.5, color='black', alpha=0.8, zorder=8)
+            ax.add_feature(cfeature.COASTLINE, linewidth=2, color='black', alpha=0.9, zorder=9)
+            
+            # Create meshgrid for pcolormesh
+            lon_mesh, lat_mesh = np.meshgrid(lon_edges, lat_edges)
+            
+            # Calculate percentiles for better color scaling
+            valid_criteria_values = criteria_matrix[~np.isnan(criteria_matrix)]
+            if len(valid_criteria_values) > 0:
+                data_min = np.min(valid_criteria_values)
+                data_max = np.max(valid_criteria_values)
+                data_mean = np.mean(valid_criteria_values)
+                data_90p = np.percentile(valid_criteria_values, 90)
+                
+                print(f"   Criteria statistics:")
+                print(f"     Min: {data_min:.1f}, Max: {data_max:.1f}, Mean: {data_mean:.1f} hours/year")
+                print(f"     90th percentile: {data_90p:.1f} hours/year")
+                
+                # Check for outliers
+                outlier_ratio = data_max / data_90p if data_90p > 0 else 1
+                if outlier_ratio > 2.0:
+                    vmin = data_min
+                    vmax = data_90p
+                    outlier_clipped = True
+                    print(f"   Using 90th percentile clipping for better visualization")
+                else:
+                    vmin = data_min
+                    vmax = data_max
+                    outlier_clipped = False
+            else:
+                vmin, vmax = 0, 1
+                outlier_clipped = False
+            
+            # Plot criteria values as semi-transparent overlay
+            criteria_plot = ax.pcolormesh(
+                lon_mesh, lat_mesh, criteria_matrix,
+                cmap=colormap, alpha=0.8,
+                vmin=vmin, vmax=vmax,
+                transform=ccrs.PlateCarree(),
+                zorder=7
+            )
+            
+            # Add colorbar
+            cbar = plt.colorbar(criteria_plot, ax=ax, shrink=0.8, pad=0.02)
+            if outlier_clipped:
+                cbar_label = f'Hours/Year Meeting Criteria\\n[Clipped at 90th percentile: {vmax:.1f}]'
+            else:
+                cbar_label = 'Hours/Year Meeting Criteria'
+            cbar.set_label(cbar_label, fontsize=12)
+            
+            # Add gridlines with labels
+            gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+                             linewidth=1, color='gray', alpha=0.5, linestyle='--')
+            gl.top_labels = False
+            gl.right_labels = False
+            gl.xlabel_style = {'size': 10, 'color': 'black'}
+            gl.ylabel_style = {'size': 10, 'color': 'black'}
+            
+            # Add title
+            title_text = (f'Temperature-Humidity Criteria Exceedance on Terrain Map\\n'
+                         f'T ≤ {temperature_threshold:.2f} K AND RH ≥ {humidity_threshold:.3f}, '
+                         f'Height: {dataset.height.values[height_level]} m')
+            ax.set_title(title_text, fontsize=14, weight='bold', pad=20)
+            
+            # Add statistics information
+            if len(valid_criteria_values) > 0:
+                if outlier_clipped:
+                    info_text = (f"Range: {data_min:.1f} - {data_max:.1f} hours/year | "
+                                f"Mean: {data_mean:.1f} hours/year\\n"
+                                f"Color scale: {vmin:.1f} - {vmax:.1f} hours/year (90th percentile clipped)")
+                else:
+                    info_text = (f"Range: {data_min:.1f} - {data_max:.1f} hours/year | "
+                                f"Mean: {data_mean:.1f} hours/year")
+                ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=9,
+                        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
+            
+            plt.tight_layout()
+            
+            # Save the cartopy terrain map
+            if save_plots:
+                cartopy_filename = f"temp_hum_criteria_cartopy_{temp_str}K_{hum_str}rh.png"
+                cartopy_path = os.path.join(criteria_plots_dir, cartopy_filename)
+                plt.savefig(cartopy_path, dpi=300, bbox_inches='tight')
+                print(f"   Cartopy terrain map saved to: {cartopy_path}")
+            
+            plt.close()  # Close the plot to prevent it from showing
+            
+        except ImportError as e:
+            print(f"   Warning: Cartopy not available, skipping terrain map: {e}")
+        except Exception as e:
+            print(f"   Error creating cartopy terrain map: {e}")
         
         # Create additional summary statistics plot
         if len(valid_criteria) > 0:

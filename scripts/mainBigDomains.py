@@ -88,8 +88,8 @@ dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 
 # ACCERATION
 
-# Accreation for winter and time period + plot
-fn.accreation_per_winter(dataset, start_date, end_date, height_level=height)
+# # Accreation for winter and time period + plot
+# fn.accreation_per_winter(dataset, start_date, end_date, height_level=height)
 
 # ICE LOAD
 
@@ -140,59 +140,93 @@ else:
 #      show_colorbar=True
 #  )
 
-# SPATIAL GRADIENTS
-
-print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ; SYSTEMATIC + WEIGHTED NEIGHBOUR CELLS ===")
-
-results_w_weights = fn.analyze_ice_load_with_weighted_neighborhood_cdf(
-    dataset_with_ice_load=dataset_with_ice_load,  # Changed from 'dataset' to 'dataset_with_ice_load'
+grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
+    dataset_with_ice_load=dataset_with_ice_load,
+    ice_load_variable='ICE_LOAD',
     height_level=height,
-    neighborhood_type='24-neighbors', # '4-neighbors', '8-neighbors', '24-neighbors'
-    weight_scheme='distance',  # 'uniform', 'distance', 'custom'
-    # Filtering parameters (min, max for each variable)
-    WD_range=None,        # (min, max) for Wind Direction
-    WS_range=None,        # (min, max) for Wind Speed
-    T_range=None,         # (min, max) for Temperature
-    PBLH_range=None,      # (min, max) for Boundary Layer Height
-    PRECIP_range=None,    # (min, max) for Precipitation
-    QVAPOR_range=None,    # (min, max) for Water Vapor
-    RMOL_range=None,      # (min, max) for Monin-Obukhov Length
-    # CDF analysis parameters
-    ice_load_threshold=0,
-    ice_load_bins=None,
-    months=None,
-    percentile=None,
+    ice_load_threshold=0.01,
+    save_plots=True,
     OffOn=OffOn,
     BigDomain=True,
-    margin_degrees=0.5,
-    zoom_level=6,
+    margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
+    zoom_level=6  # Zoom level for terrain tiles
 )
+
+# SPATIAL GRADIENTS
+
+# print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ; SYSTEMATIC + WEIGHTED NEIGHBOUR CELLS ===")
+
+# results_w_weights = fn.analyze_ice_load_with_weighted_neighborhood_cdf(
+#     dataset_with_ice_load=dataset_with_ice_load,  # Changed from 'dataset' to 'dataset_with_ice_load'
+#     height_level=height,
+#     neighborhood_type='24-neighbors', # '4-neighbors', '8-neighbors', '24-neighbors'
+#     weight_scheme='distance',  # 'uniform', 'distance', 'custom'
+#     # Filtering parameters (min, max for each variable)
+#     WD_range=None,        # (min, max) for Wind Direction
+#     WS_range=None,        # (min, max) for Wind Speed
+#     T_range=None,         # (min, max) for Temperature
+#     PBLH_range=None,      # (min, max) for Boundary Layer Height
+#     PRECIP_range=None,    # (min, max) for Precipitation
+#     QVAPOR_range=None,    # (min, max) for Water Vapor
+#     RMOL_range=None,      # (min, max) for Monin-Obukhov Length
+#     # CDF analysis parameters
+#     ice_load_threshold=0,
+#     ice_load_bins=None,
+#     months=None,
+#     percentile=None,
+#     OffOn=OffOn,
+#     BigDomain=True,
+#     margin_degrees=0.5,
+#     zoom_level=6,
+# )
 
 # ICE LOAD RESAMPLING ANALYSIS
 
-print("\n=== ICE LOAD RESAMPLING ANALYSIS ===")
-resampling_results = fn.ice_load_resampling_analysis(
-    dataset_with_ice_load=dataset_with_ice_load,
-    ice_load_variable='ICE_LOAD',
-    height_level=height,
-    resampling_years=1,  # Aggregate data into X-year periods
-    save_plots=True,
-    months=None,  # Use all months, or specify [12,1,2,3] for winter
-    ice_load_threshold=0,  # Include all ice load values
-    OffOn=OffOn,
-    BigDomain=True
-)
+# print("\n=== ICE LOAD RESAMPLING ANALYSIS ===")
+# resampling_results = fn.ice_load_resampling_analysis(
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     ice_load_variable='ICE_LOAD',
+#     height_level=height,
+#     resampling_years=1,  # Aggregate data into X-year periods
+#     save_plots=True,
+#     months=None,  # Use all months, or specify [12,1,2,3] for winter
+#     ice_load_threshold=0,  # Include all ice load values
+#     OffOn=OffOn,
+#     BigDomain=True
+# )
 
-print("\n=== ICE LOAD RESAMPLING ANALYSIS EXCEEDANCE HOURS ===")
+# print("\n=== ICE LOAD RESAMPLING ANALYSIS EXCEEDANCE HOURS ===")
 
-resampling_results_hours = fn.ice_load_resampling_analysis_hours(
-    dataset_with_ice_load=dataset_with_ice_load,
-    ice_load_variable='ICE_LOAD',
-    height_level=height,
-    resampling_years=1,  # Aggregate data into X-year periods
-    save_plots=True,
-    months=None,  # Use all months, or specify [12,1,2,3] for winter
-    ice_load_threshold=0.1,  # Include all ice load values
-    OffOn=OffOn,
-    BigDomain=True
-)
+# resampling_results_hours = fn.ice_load_resampling_analysis_hours(
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     ice_load_variable='ICE_LOAD',
+#     height_level=height,
+#     resampling_years=1,  # Aggregate data into X-year periods
+#     save_plots=True,
+#     months=None,  # Use all months, or specify [12,1,2,3] for winter
+#     ice_load_threshold=0.1,  # Include all ice load values
+#     OffOn=OffOn,
+#     BigDomain=True
+# )
+
+# ICING TEMPERATURE AND HUMIDITY CRITERIA
+
+# Calculate relative humidity
+#The rh is calculated using surface P, T and mixing ratio at height 
+# scale-height ~8km, from Ch.2 of 46100's book\notes, then consider d(ln p)/d(ln z)
+
+# dataset_ice_load_rh = fn.add_rh(dataset_with_ice_load=dataset_with_ice_load, height_l=height,
+#                                 phase= 'auto') #'liquid', 'solid', 'auto' – to make calculation valid in 'liquid' water (default) or 'solid' ice regimes. 'auto' will change regime based on determination of phase boundaries
+                                
+
+# # print("\n=== ICING TEMPERATURE AND HUMIDITY CRITERIA ANALYSIS HOURS ===")
+
+# humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_ice_load_rh,
+#                                                     humidity_threshold=0.95,  # Relative Humidity threshold (%)
+#                                                     temperature_threshold=263.15,  # Temperature threshold (K)
+#                                                     height_level=height,
+#                                                     save_plots=True,
+#                                                     OffOn=OffOn,
+#                                                     BigDomain=True,
+#                                                     margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
+#                                                     zoom_level=6)  # Zoom level for terrain tiles
