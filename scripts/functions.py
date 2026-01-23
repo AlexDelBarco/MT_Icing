@@ -1614,7 +1614,8 @@ def save_ice_load_data(dsiceload, start_date, end_date, height_label="h0"):
 
 def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD', height_level=0, 
                              ice_load_threshold=0.0, save_plots=True, 
-                             months=None, show_colorbar=True, OffOn=None, BigDomain=False):
+                             months=None, show_colorbar=True, OffOn=None, BigDomain=False,
+                             margin_degrees=0.5, zoom_level=6):
     """
     Plot annual mean total ice load for each grid cell.
     Calculates the total ice load per year for each grid cell, then computes the mean across all years.
@@ -1639,6 +1640,10 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         Specifies 'Onshore' or 'Offshore' for BigDomain directory structure
     BigDomain : bool, default False
         If True, saves results to MT_Icing/results/figures/BigDomain/{OffOn}/spatial_gradient...
+    margin_degrees : float, default 0.5
+        Margin around grid in degrees for cartopy terrain map
+    zoom_level : int, default 6
+        Zoom level for terrain tiles in cartopy terrain map
         
     Returns:
     --------
@@ -1829,8 +1834,162 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         
         plt.close()
         
+        # Create cartopy terrain map with mean annual ice load
+        print(f"\n6. Creating cartopy terrain map with mean annual ice load...")
+        
+        try:
+            import cartopy.crs as ccrs
+            import cartopy.feature as cfeature
+            import cartopy.io.img_tiles as cimgt
+            
+            # Get geographical coordinates
+            if 'XLAT' in dataset_with_ice_load.coords and 'XLON' in dataset_with_ice_load.coords:
+                lats = dataset_with_ice_load.coords['XLAT'].values
+                lons = dataset_with_ice_load.coords['XLON'].values
+            elif 'XLAT' in dataset_with_ice_load.data_vars and 'XLON' in dataset_with_ice_load.data_vars:
+                lats = dataset_with_ice_load['XLAT'].values
+                lons = dataset_with_ice_load['XLON'].values
+            else:
+                raise ValueError("No latitude/longitude coordinates found in dataset")
+            
+            print(f"   Grid coordinates: Lat {lats.min():.3f} to {lats.max():.3f}, Lon {lons.min():.3f} to {lons.max():.3f}")
+            
+            # Calculate grid cell edges for pcolormesh
+            lon_edges = np.zeros(lons.shape[1] + 1)
+            lat_edges = np.zeros(lats.shape[0] + 1)
+            
+            # Longitude edges
+            for j in range(lons.shape[1]):
+                if j == 0:
+                    lon_edges[j] = lons[0, j] - (lons[0, 1] - lons[0, 0]) / 2
+                else:
+                    lon_edges[j] = (lons[0, j-1] + lons[0, j]) / 2
+            lon_edges[-1] = lons[0, -1] + (lons[0, -1] - lons[0, -2]) / 2
+            
+            # Latitude edges
+            for i in range(lats.shape[0]):
+                if i == 0:
+                    lat_edges[i] = lats[i, 0] - (lats[1, 0] - lats[0, 0]) / 2
+                else:
+                    lat_edges[i] = (lats[i-1, 0] + lats[i, 0]) / 2
+            lat_edges[-1] = lats[-1, 0] + (lats[-1, 0] - lats[-2, 0]) / 2
+            
+            # Create figure with cartopy projection
+            fig = plt.figure(figsize=(16, 12))
+            ax = plt.subplot(1, 1, 1, projection=ccrs.PlateCarree())
+            
+            # Set extent with margin
+            grid_center_lon = (lon_edges.min() + lon_edges.max()) / 2
+            grid_center_lat = (lat_edges.min() + lat_edges.max()) / 2
+            grid_span_lon = lon_edges.max() - lon_edges.min()
+            grid_span_lat = lat_edges.max() - lat_edges.min()
+            extent_span_lon = grid_span_lon + 2 * margin_degrees
+            extent_span_lat = grid_span_lat + 2 * margin_degrees
+            
+            west = grid_center_lon - extent_span_lon / 2
+            east = grid_center_lon + extent_span_lon / 2
+            south = grid_center_lat - extent_span_lat / 2
+            north = grid_center_lat + extent_span_lat / 2
+            
+            ax.set_extent([west, east, south, north], crs=ccrs.PlateCarree())
+            
+            # Add geographical features
+            ax.add_feature(cfeature.OCEAN, color='lightblue', alpha=0.7, zorder=1)
+            ax.add_feature(cfeature.LAND, color='lightgray', alpha=0.8, zorder=2)
+            ax.add_feature(cfeature.LAKES, color='lightblue', alpha=0.8, zorder=3)
+            
+            # Try to add terrain background
+            try:
+                terrain = cimgt.OSM()
+                ax.add_image(terrain, zoom_level)
+                print(f"   Successfully loaded OpenStreetMap tiles")
+            except Exception as e:
+                try:
+                    terrain = cimgt.GoogleTiles(style='satellite')
+                    ax.add_image(terrain, zoom_level)
+                    print(f"   Successfully loaded Google satellite tiles")
+                except Exception as e2:
+                    print(f"   Tile services unavailable, using basic land/ocean features")
+            
+            # Add geographical features on top
+            ax.add_feature(cfeature.BORDERS, linewidth=1.5, color='black', alpha=0.8, zorder=8)
+            ax.add_feature(cfeature.COASTLINE, linewidth=2, color='black', alpha=0.9, zorder=9)
+            
+            # Create meshgrid for pcolormesh
+            lon_mesh, lat_mesh = np.meshgrid(lon_edges, lat_edges)
+            
+            # Calculate 90th percentile for color scale clipping
+            plot_data_flat = plot_data.flatten()
+            valid_data = plot_data_flat[~np.isnan(plot_data_flat)]
+            
+            if len(valid_data) > 0:
+                data_min = np.min(valid_data)
+                data_max = np.max(valid_data)
+                data_90p = np.percentile(valid_data, 90)
+                
+                print(f"   Ice load statistics:")
+                print(f"     Min: {data_min:.1f}, Max: {data_max:.1f} kg/m")
+                print(f"     90th percentile: {data_90p:.1f} kg/m")
+                
+                # Apply 90th percentile clipping
+                vmin = data_min
+                vmax = data_90p
+                print(f"   Using 90th percentile clipping for color scale: {vmin:.1f} - {vmax:.1f} kg/m")
+            else:
+                vmin, vmax = 0, 1
+            
+            # Plot mean annual ice load values as semi-transparent overlay
+            ice_load_plot = ax.pcolormesh(
+                lon_mesh, lat_mesh, plot_data,
+                cmap='viridis', alpha=0.8,
+                vmin=vmin, vmax=vmax,
+                transform=ccrs.PlateCarree(),
+                zorder=7
+            )
+            
+            # Add colorbar
+            cbar = plt.colorbar(ice_load_plot, ax=ax, shrink=0.8, pad=0.02)
+            cbar_label = f'Mean Annual Total Ice Load (kg/m)\n[Clipped at 90th percentile: {vmax:.1f}]'
+            cbar.set_label(cbar_label, fontsize=12)
+            
+            # Add gridlines with labels
+            gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+                             linewidth=1, color='gray', alpha=0.5, linestyle='--')
+            gl.top_labels = False
+            gl.right_labels = False
+            gl.xlabel_style = {'size': 10, 'color': 'black'}
+            gl.ylabel_style = {'size': 10, 'color': 'black'}
+            
+            # Add title
+            title_text = (f'Mean Annual Total Ice Load on Terrain Map\n'
+                         f'Threshold: {ice_load_threshold:.1f} kg/m, '
+                         f'Height: {dataset_with_ice_load.height.values[height_level]} m')
+            ax.set_title(title_text, fontsize=14, weight='bold', pad=20)
+            
+            plt.tight_layout()
+            
+            if save_plots:
+                # Create filename for cartopy map
+                cartopy_filename_parts = ["mean_annual_total_ice_load_cartopy"]
+                if months is not None:
+                    months_str = "_".join(map(str, sorted(months)))
+                    cartopy_filename_parts.append(f"months_{months_str}")
+                
+                cartopy_plot_filename = "_".join(cartopy_filename_parts) + ".png"
+                cartopy_plot_path = os.path.join(ice_load_plots_dir, cartopy_plot_filename)
+                plt.savefig(cartopy_plot_path, dpi=300, bbox_inches='tight')
+                print(f"   Cartopy terrain map saved to: {cartopy_plot_path}")
+            
+            plt.close()
+            
+        except ImportError:
+            print(f"   Error: Cartopy required for terrain map")
+            print(f"   Please install with: conda install cartopy")
+        except Exception as e:
+            print(f"   Error creating cartopy terrain map: {e}")
+        
         # Create time series plot for each cell
-        print(f"\n6. Creating annual time series plots for each grid cell...")
+        print(f"\n7. Creating annual time series plots for each grid cell...")
         
         n_cols = min(n_west_east, 3)  # Maximum 3 columns for better visibility
         n_rows = int(np.ceil((n_south_north * n_west_east) / n_cols))
@@ -1896,7 +2055,7 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         plt.close()
         
         # Print summary statistics
-        print(f"\n7. Summary Statistics:")
+        print(f"\n8. Summary Statistics:")
         print(f"   Processed {n_south_north * n_west_east} grid cells")
         print(f"   Years analyzed: {n_years}")
         
