@@ -64,8 +64,8 @@ if offshore == True:
 
 # EXPLORE DATASET
 
-# Plot grid location on map
-# fn.plot_grid_points_cartopy_map(data1, margin_degrees=2.3, zoom_level=8, title="Grid Points - Terrain Map")
+#Plot grid location on map
+fn.plot_grid_points_cartopy_map(data1, margin_degrees=2.2, zoom_level=8, title="Grid Points - Terrain Map")
 
 # Get the dataset with only the nearest point
 # target_latitude = 59.585484    # Your target latitude
