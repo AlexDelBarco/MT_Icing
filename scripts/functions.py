@@ -610,19 +610,19 @@ def plot_grid_points_cartopy_map(dataset, margin_degrees=0.2, zoom_level=6, titl
                          linewidth=1, color='gray', alpha=0.5, linestyle='--')
         gl.top_labels = False
         gl.right_labels = False
-        gl.xlabel_style = {'size': 10, 'color': 'black'}
-        gl.ylabel_style = {'size': 10, 'color': 'black'}
+        gl.xlabel_style = {'size': 30, 'color': 'black'}
+        gl.ylabel_style = {'size': 30, 'color': 'black'}
         
         # Add legend
         ax.legend(loc='upper right', bbox_to_anchor=(0.98, 0.98),
-                 fancybox=True, shadow=True, fontsize=10)
+                 fancybox=True, shadow=True, fontsize=30)
         
         # Set title
-        ax.set_title(title, fontsize=14, weight='bold', pad=20)
+        ax.set_title(title, fontsize=28, weight='bold', pad=20)
         
         # Add margin information
         margin_text = f"Margin: {margin_degrees}° | Zoom: {zoom_level} | Terrain: Stamen"
-        ax.text(0.02, 0.02, margin_text, transform=ax.transAxes, fontsize=10,
+        ax.text(0.02, 0.02, margin_text, transform=ax.transAxes, fontsize=30,
                 bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
         
         plt.tight_layout()
@@ -747,15 +747,15 @@ def analyze_landmask(dataset, create_plot=True, save_results=True):
             y_coords = np.arange(landmask_values.shape[0])  # south_north dimension
             
             im1 = ax1.pcolormesh(x_coords, y_coords, landmask_values, cmap='RdYlBu_r', shading='auto')
-            ax1.set_title('LANDMASK - Spatial Distribution')
+            ax1.set_title('LANDMASK - Spatial Distribution', fontsize=28)
             
             # Set custom tick labels for grid points (1-14)
             ax1.set_xticks(range(len(x_coords)))
             ax1.set_xticklabels(range(1, len(x_coords)+1))
             ax1.set_yticks(range(len(y_coords)))
             ax1.set_yticklabels(range(1, len(y_coords)+1))
-            ax1.set_xlabel('West-East Grid Points')
-            ax1.set_ylabel('South-North Grid Points')
+            ax1.set_xlabel('West-East Grid Points', fontsize=24)
+            ax1.set_ylabel('South-North Grid Points', fontsize=24)
             
             # Add grid cell values as text
             for i in range(landmask.shape[0]):
@@ -763,7 +763,7 @@ def analyze_landmask(dataset, create_plot=True, save_results=True):
                     value = landmask_values[i, j]
                     color = 'white' if value < 0.5 else 'black'
                     ax1.text(j, i, f'{int(value)}', ha='center', va='center', 
-                            color=color, fontsize=8, weight='bold')
+                            color=color, fontsize=24, weight='bold')
             
             # Add colorbar
             cbar1 = plt.colorbar(im1, ax=ax1, shrink=0.8)
@@ -777,8 +777,8 @@ def analyze_landmask(dataset, create_plot=True, save_results=True):
             colors = ['lightblue', 'lightgreen']
             
             bars = ax2.bar(categories, counts, color=colors, edgecolor='black', linewidth=1)
-            ax2.set_title('Land vs Water Distribution')
-            ax2.set_ylabel('Number of Grid Cells')
+            ax2.set_title('Land vs Water Distribution', fontsize=28)
+            ax2.set_ylabel('Number of Grid Cells', fontsize=24)
             ax2.grid(True, alpha=0.3)
             
             # Add count labels on bars
@@ -862,7 +862,8 @@ def analyze_landmask(dataset, create_plot=True, save_results=True):
 
 # ACCREATION
 
-def accreation_per_winter(ds, start_date, end_date, height_level=0):
+def accreation_per_winter(ds, start_date, end_date, height_level=0, OffOn=None, BigDomain=False,
+                          margin_degrees=0.5, zoom_level=6):
     """
     Analyze ice accretion per winter season at a specific height level
     
@@ -877,6 +878,14 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0):
     height_level : int, optional
         Height level index to analyze (default: 0)
         Use 0, 1, or 2 for the three available height levels
+    OffOn : str, optional
+        Specifies 'Onshore' or 'Offshore' for BigDomain directory structure
+    BigDomain : bool, default False
+        If True, saves results to results/figures/BigDomain/{OffOn}/ice_accretion/
+    margin_degrees : float, default 0.5
+        Margin around grid in degrees for cartopy terrain map
+    zoom_level : int, default 6
+        Zoom level for terrain tiles in cartopy terrain map
     
     Returns:
     --------
@@ -917,7 +926,11 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0):
     dates = pd.date_range(winter_start, winter_end, freq='YS-JUL')
     
     # Create figures directory and ice_accretion subfolder if they don't exist
-    ice_accretion_dir = os.path.join(figures_dir, "ice_accretion")
+    # Use BigDomain structure if requested
+    if BigDomain and OffOn:
+        ice_accretion_dir = os.path.join(figures_dir, "BigDomain", OffOn, "ice_accretion")
+    else:
+        ice_accretion_dir = os.path.join(figures_dir, "ice_accretion")
     os.makedirs(ice_accretion_dir, exist_ok=True)
 
     # Add winter number to dataset
@@ -1002,14 +1015,14 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0):
             # Set custom tick labels for grid points (1-14)
             plt.xticks(range(len(x_coords)), range(1, len(x_coords)+1))
             plt.yticks(range(len(y_coords)), range(1, len(y_coords)+1))
-            plt.xlabel('West-East Grid Points')
-            plt.ylabel('South-North Grid Points')
+            plt.xlabel('West-East Grid Points', fontsize=24)
+            plt.ylabel('South-North Grid Points', fontsize=24)
             
             winter_start = dates[int(winter_idx)] if int(winter_idx) < len(dates)-1 else "N/A"
             winter_end = dates[int(winter_idx)+1] - pd.to_timedelta('30min') if int(winter_idx)+1 < len(dates) else "N/A"
             
             # Include height information in the title
-            plt.title(f'Ice Accretion Sum for Winter starting on: {winter_start} and ending on {winter_end}\nHeight: {height_value} {height_units}')
+            plt.title(f'Ice Accretion Sum for Winter starting on: {winter_start} and ending on {winter_end}\nHeight: {height_value} {height_units}', fontsize=28)
             plt.tight_layout()
             
             # Include height information in the filename
@@ -1062,8 +1075,8 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0):
         # Set custom tick labels for grid points (1-14)
         plt.xticks(range(len(x_coords)), range(1, len(x_coords)+1))
         plt.yticks(range(len(y_coords)), range(1, len(y_coords)+1))
-        plt.xlabel('West-East Grid Points')
-        plt.ylabel('South-North Grid Points')
+        plt.xlabel('West-East Grid Points', fontsize=24)
+        plt.ylabel('South-North Grid Points', fontsize=24)
         
         # Calculate year range for the title
         start_year = pd.to_datetime(start_date).year
@@ -1071,7 +1084,7 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0):
         num_winters = len(plot_data.winterno.values)
         
         plt.title(f'Mean Ice Accretion Sum Across All Winters ({start_year}-{end_year})\n'
-                 f'Height: {height_value} {height_units}, Number of winters: {num_winters}')
+                 f'Height: {height_value} {height_units}, Number of winters: {num_winters}', fontsize=28)
         plt.tight_layout()
         
         # Save mean plot
@@ -1079,6 +1092,177 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0):
         plt.savefig(mean_filename, dpi=300, bbox_inches='tight')
         print(f"Saved mean accretion plot: {mean_filename}")
         plt.close()  # Close figure to free memory
+        
+        # Create cartopy terrain map with mean ice accretion
+        print(f"\nCreating cartopy terrain map with mean ice accretion...")
+        
+        try:
+            import cartopy.crs as ccrs
+            import cartopy.feature as cfeature
+            import cartopy.io.img_tiles as cimgt
+            
+            # Get geographical coordinates
+            if 'XLAT' in ds.coords and 'XLON' in ds.coords:
+                lats = ds.coords['XLAT'].values
+                lons = ds.coords['XLON'].values
+            elif 'XLAT' in ds.data_vars and 'XLON' in ds.data_vars:
+                lats = ds['XLAT'].values
+                lons = ds['XLON'].values
+            else:
+                raise ValueError("No latitude/longitude coordinates found in dataset")
+            
+            print(f"   Grid coordinates: Lat {lats.min():.3f} to {lats.max():.3f}, Lon {lons.min():.3f} to {lons.max():.3f}")
+            
+            # Calculate grid cell edges for pcolormesh
+            lon_edges = np.zeros(lons.shape[1] + 1)
+            lat_edges = np.zeros(lats.shape[0] + 1)
+            
+            # Longitude edges
+            for j in range(lons.shape[1]):
+                if j == 0:
+                    lon_edges[j] = lons[0, j] - (lons[0, 1] - lons[0, 0]) / 2
+                else:
+                    lon_edges[j] = (lons[0, j-1] + lons[0, j]) / 2
+            lon_edges[-1] = lons[0, -1] + (lons[0, -1] - lons[0, -2]) / 2
+            
+            # Latitude edges
+            for i in range(lats.shape[0]):
+                if i == 0:
+                    lat_edges[i] = lats[i, 0] - (lats[1, 0] - lats[0, 0]) / 2
+                else:
+                    lat_edges[i] = (lats[i-1, 0] + lats[i, 0]) / 2
+            lat_edges[-1] = lats[-1, 0] + (lats[-1, 0] - lats[-2, 0]) / 2
+            
+            # Create figure with cartopy projection
+            fig = plt.figure(figsize=(16, 12))
+            ax = plt.subplot(1, 1, 1, projection=ccrs.PlateCarree())
+            
+            # Set extent with margin
+            grid_center_lon = (lon_edges.min() + lon_edges.max()) / 2
+            grid_center_lat = (lat_edges.min() + lat_edges.max()) / 2
+            grid_span_lon = lon_edges.max() - lon_edges.min()
+            grid_span_lat = lat_edges.max() - lat_edges.min()
+            extent_span_lon = grid_span_lon + 2 * margin_degrees
+            extent_span_lat = grid_span_lat + 2 * margin_degrees
+            
+            west = grid_center_lon - extent_span_lon / 2
+            east = grid_center_lon + extent_span_lon / 2
+            south = grid_center_lat - extent_span_lat / 2
+            north = grid_center_lat + extent_span_lat / 2
+            
+            ax.set_extent([west, east, south, north], crs=ccrs.PlateCarree())
+            
+            # Add geographical features
+            ax.add_feature(cfeature.OCEAN, color='lightblue', alpha=0.7, zorder=1)
+            ax.add_feature(cfeature.LAND, color='lightgray', alpha=0.8, zorder=2)
+            ax.add_feature(cfeature.LAKES, color='lightblue', alpha=0.8, zorder=3)
+            
+            # Try to add terrain background
+            try:
+                terrain = cimgt.OSM()
+                ax.add_image(terrain, zoom_level)
+                print(f"   Successfully loaded OpenStreetMap tiles")
+            except Exception as e:
+                try:
+                    terrain = cimgt.GoogleTiles(style='satellite')
+                    ax.add_image(terrain, zoom_level)
+                    print(f"   Successfully loaded Google satellite tiles")
+                except Exception as e2:
+                    print(f"   Tile services unavailable, using basic land/ocean features")
+            
+            # Add geographical features on top
+            ax.add_feature(cfeature.BORDERS, linewidth=1.5, color='black', alpha=0.8, zorder=8)
+            ax.add_feature(cfeature.COASTLINE, linewidth=2, color='black', alpha=0.9, zorder=9)
+            
+            # Create meshgrid for pcolormesh
+            lon_mesh, lat_mesh = np.meshgrid(lon_edges, lat_edges)
+            
+            # Calculate statistics for better color scaling
+            mean_accretion_values = mean_accretion.values
+            valid_accretion = mean_accretion_values[~np.isnan(mean_accretion_values)]
+            
+            if len(valid_accretion) > 0:
+                data_min = np.min(valid_accretion)
+                data_max = np.max(valid_accretion)
+                data_mean = np.mean(valid_accretion)
+                data_90p = np.percentile(valid_accretion, 90)
+                
+                print(f"   Mean ice accretion statistics:")
+                print(f"     Min: {data_min:.2f}, Max: {data_max:.2f}, Mean: {data_mean:.2f} kg/m")
+                print(f"     90th percentile: {data_90p:.2f} kg/m")
+                
+                # Apply automatic scaling with outlier detection
+                outlier_ratio = data_max / data_90p if data_90p > 0 else 1
+                if outlier_ratio > 2.0:
+                    vmin = data_min
+                    vmax = data_90p
+                    outlier_clipped = True
+                    print(f"   Using 90th percentile clipping for better visualization: {vmin:.2f} - {vmax:.2f} kg/m")
+                else:
+                    vmin = data_min
+                    vmax = data_max
+                    outlier_clipped = False
+                    print(f"   Using full data range: {vmin:.2f} - {vmax:.2f} kg/m")
+            else:
+                vmin, vmax = 0, 1
+                outlier_clipped = False
+            
+            # Plot mean ice accretion as semi-transparent overlay
+            accretion_plot = ax.pcolormesh(
+                lon_mesh, lat_mesh, mean_accretion_values,
+                cmap='viridis', alpha=0.8,
+                vmin=vmin, vmax=vmax,
+                transform=ccrs.PlateCarree(),
+                zorder=7
+            )
+            
+            # Add colorbar
+            cbar = plt.colorbar(accretion_plot, ax=ax, shrink=0.8, pad=0.02)
+            if outlier_clipped:
+                cbar_label = f'Mean Ice Accretion Sum (kg/m)\n[Clipped at 90th percentile: {vmax:.2f}]'
+            else:
+                cbar_label = f'Mean Ice Accretion Sum (kg/m)'
+            cbar.set_label(cbar_label, fontsize=24)
+            cbar.ax.tick_params(labelsize=30)
+            
+            # Add gridlines with labels
+            gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+                             linewidth=1, color='gray', alpha=0.5, linestyle='--')
+            gl.top_labels = False
+            gl.right_labels = False
+            gl.xlabel_style = {'size': 30, 'color': 'black'}
+            gl.ylabel_style = {'size': 30, 'color': 'black'}
+            
+            # Add title
+            title_text = (f'Mean Ice Accretion Across All Winters on Terrain Map\n'
+                         f'Period: {start_year}-{end_year}, '
+                         f'Height: {height_value} {height_units}, Number of winters: {num_winters}')
+            ax.set_title(title_text, fontsize=28, weight='bold', pad=20)
+            
+            # Add statistics information
+            if len(valid_accretion) > 0:
+                if outlier_clipped:
+                    info_text = (f"Range: {data_min:.2f} - {data_max:.2f} kg/m | "
+                                f"Mean: {data_mean:.2f} kg/m\n"
+                                f"Color scale: {vmin:.2f} - {vmax:.2f} kg/m (90th percentile clipped)")
+                else:
+                    info_text = (f"Range: {data_min:.2f} - {data_max:.2f} kg/m | "
+                                f"Mean: {data_mean:.2f} kg/m")
+                ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=27,
+                        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
+            
+            plt.tight_layout()
+            
+            # Save the cartopy terrain map
+            cartopy_filename = os.path.join(ice_accretion_dir, f"ice_accretion_mean_cartopy_{height_label}.png")
+            plt.savefig(cartopy_filename, dpi=300, bbox_inches='tight')
+            print(f"   Cartopy terrain map saved to: {cartopy_filename}")
+            plt.close()  # Close the plot to prevent it from showing
+            
+        except ImportError as e:
+            print(f"   Warning: Cartopy not available, skipping terrain map: {e}")
+        except Exception as e:
+            print(f"   Error creating cartopy terrain map: {e}")
             
         print(f"All plots saved to {ice_accretion_dir}/ directory")
     else:
@@ -1289,13 +1473,13 @@ def calculate_ice_load(ds1, dates, method, height_level=0, create_figures=True):
     
     im = plt.pcolormesh(x_coords, y_coords, max_ice_load.values, cmap='Blues', shading='auto')
     plt.colorbar(im, label='Maximum Ice Load (kg/m)')
-    plt.title(f'Maximum Ice Load Over All Winters\nHeight: {height_value} {height_units}')
+    plt.title(f'Maximum Ice Load Over All Winters\nHeight: {height_value} {height_units}', fontsize=28)
     
     # Set custom tick labels for grid points (1-14)
     plt.xticks(range(len(x_coords)), range(1, len(x_coords)+1))
     plt.yticks(range(len(y_coords)), range(1, len(y_coords)+1))
-    plt.xlabel('West-East Grid Points')
-    plt.ylabel('South-North Grid Points')
+    plt.xlabel('West-East Grid Points', fontsize=24)
+    plt.ylabel('South-North Grid Points', fontsize=24)
     plt.tight_layout()
     
     max_ice_filename = os.path.join(figures_dir, f'max_ice_load_map_{height_label}.png')
@@ -1309,9 +1493,9 @@ def calculate_ice_load(ds1, dates, method, height_level=0, create_figures=True):
     
     plt.figure(figsize=(15, 6))
     avg_ice_load_time.plot(x='time')
-    plt.title(f'Average Ice Load Over Time (All Grid Points)\nHeight: {height_value} {height_units}')
-    plt.xlabel('Time')
-    plt.ylabel('Average Ice Load (kg/m)')
+    plt.title(f'Average Ice Load Over Time (All Grid Points)\nHeight: {height_value} {height_units}', fontsize=28)
+    plt.xlabel('Time', fontsize=24)
+    plt.ylabel('Average Ice Load (kg/m)', fontsize=24)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     
@@ -1327,9 +1511,9 @@ def calculate_ice_load(ds1, dates, method, height_level=0, create_figures=True):
     
     plt.figure(figsize=(10, 6))
     plt.hist(ice_values_no_zero, bins=50, alpha=0.7, edgecolor='black')
-    plt.xlabel('Ice Load (kg/m)')
-    plt.ylabel('Frequency')
-    plt.title(f'Distribution of Ice Load Values (Non-zero)\nHeight: {height_value} {height_units}')
+    plt.xlabel('Ice Load (kg/m)', fontsize=24)
+    plt.ylabel('Frequency', fontsize=24)
+    plt.title(f'Distribution of Ice Load Values (Non-zero)\nHeight: {height_value} {height_units}', fontsize=28)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     
@@ -1353,9 +1537,9 @@ def calculate_ice_load(ds1, dates, method, height_level=0, create_figures=True):
                 winter_avg = winter_data.mean(dim=['south_north', 'west_east'])
                 winter_avg.plot(x='time', label=f'Winter {idate+1}')
         
-        plt.title(f'Ice Load Comparison Across Winters\nHeight: {height_value} {height_units}')
-        plt.xlabel('Time')
-        plt.ylabel('Average Ice Load (kg/m)')
+        plt.title(f'Ice Load Comparison Across Winters\nHeight: {height_value} {height_units}', fontsize=28)
+        plt.xlabel('Time', fontsize=24)
+        plt.ylabel('Average Ice Load (kg/m)', fontsize=24)
         plt.legend()
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
@@ -1714,14 +1898,15 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         # Create time coordinate for grouping by year
         ice_data_analysis = ice_data_analysis.assign_coords(year=ice_data_analysis.time.dt.year)
         
-        # Calculate annual sums for each grid cell
-        annual_totals = ice_data_analysis.groupby('year').sum(dim='time')
+        # Calculate annual sums for each grid cell - using chunking to avoid memory issues
+        print(f"   Using chunked computation to avoid memory issues...")
+        annual_totals = ice_data_analysis.groupby('year').sum(dim='time').compute()
         
         print(f"   Annual totals calculated for {len(annual_totals.year)} years")
         print(f"   Years in annual totals: {list(annual_totals.year.values)}")
         
         # Calculate mean annual total for each grid cell
-        mean_annual_totals = annual_totals.mean(dim='year')
+        mean_annual_totals = annual_totals.mean(dim='year').compute()
         
         print(f"   Mean annual totals shape: {mean_annual_totals.shape}")
         print(f"   Mean annual range: {float(mean_annual_totals.min()):.3f} to {float(mean_annual_totals.max()):.3f} kg/m")
@@ -1758,81 +1943,33 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         
         print(f"   Computed statistics for {len(results['grid_statistics'])} grid cells")
         
-        # Create spatial grid visualization
-        print(f"\n5. Creating spatial grid visualization of mean annual totals...")
+        # Skip spatial grid visualization to save memory - only generate cartopy map
+        print(f"\n5. Skipping spatial grid visualization (only generating cartopy map)...")
         
-        fig, ax = plt.subplots(1, 1, figsize=(12, 10))
-        
-        # Create a spatial plot showing the mean annual totals
+        # Prepare plot data for cartopy
         plot_data = mean_annual_totals.values
         
-        # Create grid coordinates for consistent orientation
-        x_coords = np.arange(plot_data.shape[1])  # west_east dimension
-        y_coords = np.arange(plot_data.shape[0])  # south_north dimension
+        # Create directory structure for saving
+        height_m = int(dataset_with_ice_load.height.values[height_level])
         
-        im = ax.pcolormesh(x_coords, y_coords, plot_data, cmap='viridis', shading='auto')
+        # Format ice threshold with appropriate precision and replace decimal point with 'p'
+        if ice_load_threshold == int(ice_load_threshold):
+            # If it's a whole number, format as integer
+            ice_threshold_str = f"{int(ice_load_threshold)}"
+        else:
+            # For decimal values, use appropriate precision to avoid rounding
+            ice_threshold_str = f"{ice_load_threshold:.2f}".rstrip('0').rstrip('.')
+        ice_threshold_str = ice_threshold_str.replace('.', 'p')
         
-        if show_colorbar:
-            cbar = plt.colorbar(im, ax=ax)
-            cbar.set_label('Mean Annual Total Ice Load (kg/m)', rotation=270, labelpad=20)
+        if BigDomain and OffOn:
+            base_dir = os.path.join("results", "figures", "BigDomain", OffOn, "spatial_gradient", "Ice_load_grid")
+        else:
+            base_dir = os.path.join("results", "figures", "spatial_gradient", "Ice_load_grid")
+        specific_dir = f"ice_load_grid_{height_m}_{ice_threshold_str}"
+        ice_load_plots_dir = os.path.join(base_dir, specific_dir)
+        os.makedirs(ice_load_plots_dir, exist_ok=True)
         
-        # Add grid lines and labels with consistent numbering (1-14)
-        ax.set_xticks(range(len(x_coords)))
-        ax.set_xticklabels(range(1, len(x_coords)+1))
-        ax.set_yticks(range(len(y_coords)))
-        ax.set_yticklabels(range(1, len(y_coords)+1))
-        ax.set_xlabel('West-East Grid Points')
-        ax.set_ylabel('South-North Grid Points')
-        ax.set_title(f'Mean Annual Total Ice Load per Grid Cell\n(Threshold: {ice_load_threshold:.1f} kg/m, Height: {dataset_with_ice_load.height.values[height_level]} m)')
-        
-        # Add grid
-        ax.grid(True, alpha=0.3)
-        
-        # Add values on each cell with one decimal place
-        for i in range(n_south_north):
-            for j in range(n_west_east):
-                value = plot_data[i, j]
-                text_color = 'white' if value > np.mean(plot_data) else 'black'
-                ax.text(j, i, f'{value:.1f}', 
-                       ha='center', va='center', color=text_color, fontweight='bold', fontsize=10)
-        
-        plt.tight_layout()
-        
-        if save_plots:
-            # Create directory structure
-            height_m = int(dataset_with_ice_load.height.values[height_level])
-            
-            # Format ice threshold with appropriate precision and replace decimal point with 'p'
-            if ice_load_threshold == int(ice_load_threshold):
-                # If it's a whole number, format as integer
-                ice_threshold_str = f"{int(ice_load_threshold)}"
-            else:
-                # For decimal values, use appropriate precision to avoid rounding
-                ice_threshold_str = f"{ice_load_threshold:.2f}".rstrip('0').rstrip('.')
-            ice_threshold_str = ice_threshold_str.replace('.', 'p')
-            
-            if BigDomain and OffOn:
-                base_dir = os.path.join("results", "figures", "BigDomain", OffOn, "spatial_gradient", "Ice_load_grid")
-            else:
-                base_dir = os.path.join("results", "figures", "spatial_gradient", "Ice_load_grid")
-            specific_dir = f"ice_load_grid_{height_m}_{ice_threshold_str}"
-            ice_load_plots_dir = os.path.join(base_dir, specific_dir)
-            os.makedirs(ice_load_plots_dir, exist_ok=True)
-            
-            print(f"   Saving plots to: {ice_load_plots_dir}")
-            
-            # Create filename
-            filename_parts = ["mean_annual_total_ice_load"]
-            if months is not None:
-                months_str = "_".join(map(str, sorted(months)))
-                filename_parts.append(f"months_{months_str}")
-            
-            plot_filename = "_".join(filename_parts) + ".png"
-            plot_path = os.path.join(ice_load_plots_dir, plot_filename)
-            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-            print(f"   Spatial grid plot saved to: {plot_path}")
-        
-        plt.close()
+        print(f"   Will save plots to: {ice_load_plots_dir}")
         
         # Create cartopy terrain map with mean annual ice load
         print(f"\n6. Creating cartopy terrain map with mean annual ice load...")
@@ -1950,21 +2087,22 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
             # Add colorbar
             cbar = plt.colorbar(ice_load_plot, ax=ax, shrink=0.8, pad=0.02)
             cbar_label = f'Mean Annual Total Ice Load (kg/m)\n[Clipped at 90th percentile: {vmax:.1f}]'
-            cbar.set_label(cbar_label, fontsize=12)
+            cbar.set_label(cbar_label, fontsize=16)
+            cbar.ax.tick_params(labelsize=15)
             
             # Add gridlines with labels
             gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                              linewidth=1, color='gray', alpha=0.5, linestyle='--')
             gl.top_labels = False
             gl.right_labels = False
-            gl.xlabel_style = {'size': 10, 'color': 'black'}
-            gl.ylabel_style = {'size': 10, 'color': 'black'}
+            gl.xlabel_style = {'size': 20, 'color': 'black'}
+            gl.ylabel_style = {'size': 20, 'color': 'black'}
             
             # Add title
             title_text = (f'Mean Annual Total Ice Load on Terrain Map\n'
                          f'Threshold: {ice_load_threshold:.1f} kg/m, '
                          f'Height: {dataset_with_ice_load.height.values[height_level]} m')
-            ax.set_title(title_text, fontsize=14, weight='bold', pad=20)
+            ax.set_title(title_text, fontsize=28, weight='bold', pad=20)
             
             plt.tight_layout()
             
@@ -1988,71 +2126,8 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         except Exception as e:
             print(f"   Error creating cartopy terrain map: {e}")
         
-        # Create time series plot for each cell
-        print(f"\n7. Creating annual time series plots for each grid cell...")
-        
-        n_cols = min(n_west_east, 3)  # Maximum 3 columns for better visibility
-        n_rows = int(np.ceil((n_south_north * n_west_east) / n_cols))
-        
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5*n_cols, 4*n_rows))
-        if n_rows == 1 and n_cols == 1:
-            axes = [axes]
-        elif n_rows == 1 or n_cols == 1:
-            axes = axes.flatten()
-        else:
-            axes = axes.flatten()
-        
-        cell_count = 0
-        for i in range(n_south_north):
-            for j in range(n_west_east):
-                if cell_count < len(axes):
-                    ax = axes[cell_count]
-                    
-                    # Get annual totals for this cell
-                    cell_data = annual_totals.isel(south_north=i, west_east=j)
-                    years_data = cell_data.year.values
-                    values_data = cell_data.values
-                    
-                    # Plot annual totals
-                    ax.plot(years_data, values_data, 'o-', linewidth=2, markersize=6)
-                    
-                    # Add mean line
-                    mean_val = results['grid_statistics'][f'cell_{i}_{j}']['mean_annual_total']
-                    ax.axhline(y=mean_val, color='red', linestyle='--', linewidth=2, 
-                             label=f'Mean: {mean_val:.1f}')
-                    
-                    ax.set_xlabel('Year')
-                    ax.set_ylabel('Annual Total Ice Load (kg/m)')
-                    ax.set_title(f'Cell ({i},{j})')
-                    ax.grid(True, alpha=0.3)
-                    ax.legend(fontsize=8)
-                    
-                    # Set reasonable y-limits
-                    if np.max(values_data) > 0:
-                        ax.set_ylim(bottom=0)
-                
-                cell_count += 1
-        
-        # Hide unused subplots
-        for idx in range(cell_count, len(axes)):
-            axes[idx].set_visible(False)
-        
-        plt.suptitle(f'Annual Total Ice Load Time Series\n(Threshold: {ice_load_threshold:.1f} kg/m, Height: {dataset_with_ice_load.height.values[height_level]} m)', 
-                     fontsize=16)
-        plt.tight_layout()
-        
-        if save_plots:
-            timeseries_filename_parts = ["annual_totals_timeseries"]
-            if months is not None:
-                months_str = "_".join(map(str, sorted(months)))
-                timeseries_filename_parts.append(f"months_{months_str}")
-            
-            timeseries_filename = "_".join(timeseries_filename_parts) + ".png"
-            timeseries_path = os.path.join(ice_load_plots_dir, timeseries_filename)
-            plt.savefig(timeseries_path, dpi=300, bbox_inches='tight')
-            print(f"   Time series plots saved to: {timeseries_path}")
-        
-        plt.close()
+        # Skip time series plots to save memory
+        print(f"\n7. Skipping time series plots (only generating cartopy map as requested)...")
         
         # Print summary statistics
         print(f"\n8. Summary Statistics:")
@@ -2231,9 +2306,11 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
         
         fig, ax = plt.subplots(1, 1, figsize=(12, 10))
         
-        # Create the main plot
+        # Create the main plot with synchronized color scale
+        vmin = custom_vmin if custom_vmin is not None else 0
+        vmax = custom_vmax if custom_vmax is not None else None
         im = ax.imshow(exceedance_matrix, cmap=colormap, origin='lower', 
-                      interpolation='nearest', aspect='auto')
+                      interpolation='nearest', aspect='auto', vmin=vmin, vmax=vmax)
         
         # Set title and labels
         unit_label = units.capitalize()
@@ -2242,29 +2319,22 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
         
         ax.set_title(f'Ice Load Threshold Exceedance Map\n'
                     f'Threshold: {ice_load_threshold:.3f} kg/m\n'
-                    f'Mean Annual Exceedance ({unit_label})')
-        ax.set_xlabel('West-East Grid Points')
-        ax.set_ylabel('South-North Grid Points')
+                    f'Mean Annual Exceedance ({unit_label})', fontsize=28)
+        ax.set_xlabel('West-East Grid Points', fontsize=24)
+        ax.set_ylabel('South-North Grid Points', fontsize=24)
         
         # Add colorbar
         cbar = plt.colorbar(im, ax=ax, shrink=0.8, aspect=20)
-        cbar.set_label(f'Exceedance ({unit_label}/Year)')
+        cbar.set_label(f'Exceedance ({unit_label}/Year)', fontsize=16)
+        cbar.ax.tick_params(labelsize=15)
+        
+        # Set axis tick label size
+        ax.tick_params(axis='both', labelsize=20)
         
         # Add grid lines
         ax.set_xticks(range(n_west_east))
         ax.set_yticks(range(n_south_north))
         ax.grid(True, alpha=0.3, color='white', linewidth=0.5)
-        
-        # Add cell values as text labels if requested
-        if grid_labels:
-            for i in range(n_south_north):
-                for j in range(n_west_east):
-                    value = exceedance_matrix[i, j]
-                    if not np.isnan(value):
-                        # Choose text color based on background
-                        text_color = 'white' if value > np.nanmean(exceedance_matrix) else 'black'
-                        ax.text(j, i, f'{value:.1f}', ha='center', va='center',
-                               color=text_color, fontsize=8, weight='bold')
         
         # Add coordinate references
         ax.set_xticks(range(n_west_east))
@@ -2440,21 +2510,22 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
                 cbar_label = f'Threshold Exceedance ({unit_label}/Year)\\n[Clipped at 90th percentile: {vmax:.1f}]'
             else:
                 cbar_label = f'Threshold Exceedance ({unit_label}/Year)'
-            cbar.set_label(cbar_label, fontsize=12)
+            cbar.set_label(cbar_label, fontsize=24)
+            cbar.ax.tick_params(labelsize=30)
             
             # Add gridlines with labels
             gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                              linewidth=1, color='gray', alpha=0.5, linestyle='--')
             gl.top_labels = False
             gl.right_labels = False
-            gl.xlabel_style = {'size': 10, 'color': 'black'}
-            gl.ylabel_style = {'size': 10, 'color': 'black'}
+            gl.xlabel_style = {'size': 30, 'color': 'black'}
+            gl.ylabel_style = {'size': 30, 'color': 'black'}
             
             # Add title
             title_text = (f'Ice Load Threshold Exceedance on Terrain Map\\\\n'
                          f'Threshold: {ice_load_threshold:.3f} kg/m, '
                          f'Height: {dataset_with_ice_load.height.values[height_level]} m')
-            ax.set_title(title_text, fontsize=14, weight='bold', pad=20)
+            ax.set_title(title_text, fontsize=28, weight='bold', pad=20)
             
             # Add statistics information
             if len(valid_exceedances) > 0:
@@ -2465,7 +2536,7 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
                 else:
                     info_text = (f"Range: {data_min:.1f} - {data_max:.1f} {unit_label.lower()}/year | "
                                 f"Mean: {data_mean:.1f} {unit_label.lower()}/year")
-                ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=9,
+                ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=27,
                         bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
             
             plt.tight_layout()
@@ -2492,7 +2563,7 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
             ax1.hist(valid_exceedances, bins=min(20, len(np.unique(valid_exceedances))), 
                     alpha=0.7, color='skyblue', edgecolor='black')
             ax1.set_xlabel(f'Exceedance ({unit_label}/Year)')
-            ax1.set_ylabel('Number of Grid Cells')
+            ax1.set_ylabel('Number of Grid Cells', fontsize=24)
             ax1.set_title(f'Distribution of Threshold Exceedances\nThreshold: {ice_load_threshold:.3f} kg/m')
             ax1.grid(True, alpha=0.3)
             
@@ -2508,9 +2579,9 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
             
             if row_data:
                 ax2.boxplot(row_data, labels=row_labels)
-                ax2.set_xlabel('Grid Row (South to North)')
+                ax2.set_xlabel('Grid Row (South to North)', fontsize=24)
                 ax2.set_ylabel(f'Exceedance ({unit_label}/Year)')
-                ax2.set_title('Exceedance by Grid Row')
+                ax2.set_title('Exceedance by Grid Row', fontsize=28)
                 ax2.grid(True, alpha=0.3)
                 ax2.tick_params(axis='x', rotation=45)
             
@@ -2651,10 +2722,10 @@ def wind_rose(dataset, height_level=0, wd_variable='WD', save_plot=True, bins=16
     yticks = np.linspace(0, max_pct, num=5)
     ax.set_yticks(yticks)
     ax.set_yticklabels([f'{y:.1f}%' for y in yticks])
-    ax.set_ylabel('Frequency (%)', labelpad=30, fontsize=12)
+    ax.set_ylabel('Frequency (%)', labelpad=30, fontsize=24)
     if title is None:
         title = f"Wind Rose at Height Index {height_level}"
-    ax.set_title(title, va='bottom', fontsize=14)
+    ax.set_title(title, va='bottom', fontsize=28)
 
     # Save plot (do not show)
     output_dir = os.path.join("results", "figures", "geographical_maps")
@@ -3046,36 +3117,31 @@ def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height
         
         fig, ax = plt.subplots(1, 1, figsize=(12, 10))
         
-        # Create the main plot
+        # Create the main plot with synchronized color scale
+        vmin = custom_vmin if custom_vmin is not None else 0
+        vmax = custom_vmax if custom_vmax is not None else None
         im = ax.imshow(criteria_matrix, cmap=colormap, origin='lower', 
-                      interpolation='nearest', aspect='auto')
+                      interpolation='nearest', aspect='auto', vmin=vmin, vmax=vmax)
         
         # Set title and labels
         ax.set_title(f'Temperature-Humidity Criteria Exceedance Map\n'
                     f'T ≤ {temperature_threshold:.2f} K AND relative_humidity ≥ {humidity_threshold:.3f}\n'
-                    f'Mean Annual Hours Meeting Criteria')
-        ax.set_xlabel('West-East Grid Points')
-        ax.set_ylabel('South-North Grid Points')
+                    f'Mean Annual Hours Meeting Criteria', fontsize=28)
+        ax.set_xlabel('West-East Grid Points', fontsize=24)
+        ax.set_ylabel('South-North Grid Points', fontsize=24)
         
         # Add colorbar
         cbar = plt.colorbar(im, ax=ax, shrink=0.8, aspect=20)
-        cbar.set_label('Hours/Year Meeting Criteria')
+        cbar.set_label('Hours/Year Meeting Criteria', fontsize=16)
+        cbar.ax.tick_params(labelsize=15)
+        
+        # Set axis tick label size
+        ax.tick_params(axis='both', labelsize=20)
         
         # Add grid lines
         ax.set_xticks(range(n_west_east))
         ax.set_yticks(range(n_south_north))
         ax.grid(True, alpha=0.3, color='white', linewidth=0.5)
-        
-        # Add cell values as text labels if requested
-        if grid_labels:
-            for i in range(n_south_north):
-                for j in range(n_west_east):
-                    value = criteria_matrix[i, j]
-                    if not np.isnan(value):
-                        # Choose text color based on background
-                        text_color = 'white' if value > np.nanmean(criteria_matrix) else 'black'
-                        ax.text(j, i, f'{value:.1f}', ha='center', va='center',
-                               color=text_color, fontsize=8, weight='bold')
         
         # Add coordinate references
         ax.set_xticks(range(n_west_east))
@@ -3247,21 +3313,22 @@ def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height
                 cbar_label = f'Hours/Year Meeting Criteria\\n[Clipped at 90th percentile: {vmax:.1f}]'
             else:
                 cbar_label = 'Hours/Year Meeting Criteria'
-            cbar.set_label(cbar_label, fontsize=12)
+            cbar.set_label(cbar_label, fontsize=24)
+            cbar.ax.tick_params(labelsize=30)
             
             # Add gridlines with labels
             gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                              linewidth=1, color='gray', alpha=0.5, linestyle='--')
             gl.top_labels = False
             gl.right_labels = False
-            gl.xlabel_style = {'size': 10, 'color': 'black'}
-            gl.ylabel_style = {'size': 10, 'color': 'black'}
+            gl.xlabel_style = {'size': 30, 'color': 'black'}
+            gl.ylabel_style = {'size': 30, 'color': 'black'}
             
             # Add title
             title_text = (f'Temperature-Humidity Criteria Exceedance on Terrain Map\\n'
                          f'T ≤ {temperature_threshold:.2f} K AND RH ≥ {humidity_threshold:.3f}, '
                          f'Height: {dataset.height.values[height_level]} m')
-            ax.set_title(title_text, fontsize=14, weight='bold', pad=20)
+            ax.set_title(title_text, fontsize=28, weight='bold', pad=20)
             
             # Add statistics information
             if len(valid_criteria_values) > 0:
@@ -3272,7 +3339,7 @@ def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height
                 else:
                     info_text = (f"Range: {data_min:.1f} - {data_max:.1f} hours/year | "
                                 f"Mean: {data_mean:.1f} hours/year")
-                ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=9,
+                ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=27,
                         bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
             
             plt.tight_layout()
@@ -3298,8 +3365,8 @@ def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height
             # Histogram of criteria values
             ax1.hist(valid_criteria, bins=min(20, len(np.unique(valid_criteria))), 
                     alpha=0.7, color='lightgreen', edgecolor='black')
-            ax1.set_xlabel('Hours/Year Meeting Criteria')
-            ax1.set_ylabel('Number of Grid Cells')
+            ax1.set_xlabel('Hours/Year Meeting Criteria', fontsize=24)
+            ax1.set_ylabel('Number of Grid Cells', fontsize=24)
             ax1.set_title(f'Distribution of Criteria Exceedances\n'
                          f'T ≤ {temperature_threshold:.2f} K AND relative_humidity ≥ {humidity_threshold:.3f}')
             ax1.grid(True, alpha=0.3)
@@ -3316,9 +3383,9 @@ def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height
             
             if row_data:
                 ax2.boxplot(row_data, labels=row_labels)
-                ax2.set_xlabel('Grid Row (South to North)')
-                ax2.set_ylabel('Hours/Year Meeting Criteria')
-                ax2.set_title('Criteria Exceedance by Grid Row')
+                ax2.set_xlabel('Grid Row (South to North)', fontsize=24)
+                ax2.set_ylabel('Hours/Year Meeting Criteria', fontsize=24)
+                ax2.set_title('Criteria Exceedance by Grid Row', fontsize=28)
                 ax2.grid(True, alpha=0.3)
                 ax2.tick_params(axis='x', rotation=45)
             
@@ -3439,46 +3506,46 @@ def create_spatial_gradient_plots(ice_load_data):
     
     # Original maximum ice load
     im1 = axes[0,0].pcolormesh(x_coords, y_coords, max_ice_2d, cmap='Blues', shading='auto')
-    axes[0,0].set_title('Maximum Ice Load')
+    axes[0,0].set_title('Maximum Ice Load', fontsize=28)
     axes[0,0].set_xticks(range(len(x_coords)))
     axes[0,0].set_xticklabels(range(1, len(x_coords)+1))
     axes[0,0].set_yticks(range(len(y_coords)))
     axes[0,0].set_yticklabels(range(1, len(y_coords)+1))
-    axes[0,0].set_xlabel('West-East Grid Points')
-    axes[0,0].set_ylabel('South-North Grid Points')
+    axes[0,0].set_xlabel('West-East Grid Points', fontsize=24)
+    axes[0,0].set_ylabel('South-North Grid Points', fontsize=24)
     plt.colorbar(im1, ax=axes[0,0], label='Ice Load (kg/m)')
     
     # X-direction gradient (West-East)
     im2 = axes[0,1].pcolormesh(x_coords, y_coords, grad_x, cmap='RdBu_r', shading='auto')
-    axes[0,1].set_title('Spatial Gradient (West-East)')
+    axes[0,1].set_title('Spatial Gradient (West-East)', fontsize=28)
     axes[0,1].set_xticks(range(len(x_coords)))
     axes[0,1].set_xticklabels(range(1, len(x_coords)+1))
     axes[0,1].set_yticks(range(len(y_coords)))
     axes[0,1].set_yticklabels(range(1, len(y_coords)+1))
-    axes[0,1].set_xlabel('West-East Grid Points')
-    axes[0,1].set_ylabel('South-North Grid Points')
+    axes[0,1].set_xlabel('West-East Grid Points', fontsize=24)
+    axes[0,1].set_ylabel('South-North Grid Points', fontsize=24)
     plt.colorbar(im2, ax=axes[0,1], label='Gradient (kg/m per grid)')
     
     # Y-direction gradient (South-North)
     im3 = axes[1,0].pcolormesh(x_coords, y_coords, grad_y, cmap='RdBu_r', shading='auto')
-    axes[1,0].set_title('Spatial Gradient (South-North)')
+    axes[1,0].set_title('Spatial Gradient (South-North)', fontsize=28)
     axes[1,0].set_xticks(range(len(x_coords)))
     axes[1,0].set_xticklabels(range(1, len(x_coords)+1))
     axes[1,0].set_yticks(range(len(y_coords)))
     axes[1,0].set_yticklabels(range(1, len(y_coords)+1))
-    axes[1,0].set_xlabel('West-East Grid Points')
-    axes[1,0].set_ylabel('South-North Grid Points')
+    axes[1,0].set_xlabel('West-East Grid Points', fontsize=24)
+    axes[1,0].set_ylabel('South-North Grid Points', fontsize=24)
     plt.colorbar(im3, ax=axes[1,0], label='Gradient (kg/m per grid)')
     
     # Gradient magnitude
     im4 = axes[1,1].pcolormesh(x_coords, y_coords, gradient_magnitude, cmap='plasma', shading='auto')
-    axes[1,1].set_title('Gradient Magnitude')
+    axes[1,1].set_title('Gradient Magnitude', fontsize=28)
     axes[1,1].set_xticks(range(len(x_coords)))
     axes[1,1].set_xticklabels(range(1, len(x_coords)+1))
     axes[1,1].set_yticks(range(len(y_coords)))
     axes[1,1].set_yticklabels(range(1, len(y_coords)+1))
-    axes[1,1].set_xlabel('West-East Grid Points')
-    axes[1,1].set_ylabel('South-North Grid Points')
+    axes[1,1].set_xlabel('West-East Grid Points', fontsize=24)
+    axes[1,1].set_ylabel('South-North Grid Points', fontsize=24)
     plt.colorbar(im4, ax=axes[1,1], label='Gradient Magnitude')
     
     plt.tight_layout()
@@ -3523,30 +3590,30 @@ def create_spatial_gradient_plots(ice_load_data):
     
     # Mean ice load over time
     im1 = axes[0,0].imshow(mean_ice_load, cmap='Blues', aspect='auto')
-    axes[0,0].set_title('Mean Ice Load Over Time')
-    axes[0,0].set_xlabel('West-East')
-    axes[0,0].set_ylabel('South-North')
+    axes[0,0].set_title('Mean Ice Load Over Time', fontsize=28)
+    axes[0,0].set_xlabel('West-East', fontsize=24)
+    axes[0,0].set_ylabel('South-North', fontsize=24)
     plt.colorbar(im1, ax=axes[0,0], label='Mean Ice Load (kg/m)')
     
     # Mean X-direction gradient (West-East)
     im2 = axes[0,1].imshow(mean_grad_x, cmap='RdBu_r', aspect='auto')
-    axes[0,1].set_title('Mean Spatial Gradient (West-East)')
-    axes[0,1].set_xlabel('West-East')
-    axes[0,1].set_ylabel('South-North')
+    axes[0,1].set_title('Mean Spatial Gradient (West-East)', fontsize=28)
+    axes[0,1].set_xlabel('West-East', fontsize=24)
+    axes[0,1].set_ylabel('South-North', fontsize=24)
     plt.colorbar(im2, ax=axes[0,1], label='Mean Gradient (kg/m per grid)')
     
     # Mean Y-direction gradient (South-North)
     im3 = axes[1,0].imshow(mean_grad_y, cmap='RdBu_r', aspect='auto')
-    axes[1,0].set_title('Mean Spatial Gradient (South-North)')
-    axes[1,0].set_xlabel('West-East')
-    axes[1,0].set_ylabel('South-North')
+    axes[1,0].set_title('Mean Spatial Gradient (South-North)', fontsize=28)
+    axes[1,0].set_xlabel('West-East', fontsize=24)
+    axes[1,0].set_ylabel('South-North', fontsize=24)
     plt.colorbar(im3, ax=axes[1,0], label='Mean Gradient (kg/m per grid)')
     
     # Mean gradient magnitude
     im4 = axes[1,1].imshow(mean_gradient_magnitude, cmap='plasma', aspect='auto')
-    axes[1,1].set_title('Mean Gradient Magnitude')
-    axes[1,1].set_xlabel('West-East')
-    axes[1,1].set_ylabel('South-North')
+    axes[1,1].set_title('Mean Gradient Magnitude', fontsize=28)
+    axes[1,1].set_xlabel('West-East', fontsize=24)
+    axes[1,1].set_ylabel('South-North', fontsize=24)
     plt.colorbar(im4, ax=axes[1,1], label='Mean Gradient Magnitude')
     
     plt.tight_layout()
@@ -3639,7 +3706,7 @@ def create_spatial_gradient_plots(ice_load_data):
         ax1.add_feature(cfeature.OCEAN, color='lightblue', alpha=0.3)
         ax1.add_feature(cfeature.LAND, color='lightgray', alpha=0.3)
         ax1.gridlines(draw_labels=True, alpha=0.5)
-        ax1.set_title('Maximum Ice Load (Geographical)')
+        ax1.set_title('Maximum Ice Load (Geographical)', fontsize=28)
         plt.colorbar(im1, ax=ax1, label='Ice Load (kg/m)', shrink=0.8)
         
         # Plot 2: Mean ice load with geographical features
@@ -3651,7 +3718,7 @@ def create_spatial_gradient_plots(ice_load_data):
         ax2.add_feature(cfeature.OCEAN, color='lightblue', alpha=0.3)
         ax2.add_feature(cfeature.LAND, color='lightgray', alpha=0.3)
         ax2.gridlines(draw_labels=True, alpha=0.5)
-        ax2.set_title('Mean Ice Load (Geographical)')
+        ax2.set_title('Mean Ice Load (Geographical)', fontsize=28)
         plt.colorbar(im2, ax=ax2, label='Ice Load (kg/m)', shrink=0.8)
         
         # Plot 3: Grid overlay showing actual grid points
@@ -3663,7 +3730,7 @@ def create_spatial_gradient_plots(ice_load_data):
         ax3.add_feature(cfeature.OCEAN, color='lightblue', alpha=0.3)
         ax3.add_feature(cfeature.LAND, color='lightgray', alpha=0.3)
         ax3.gridlines(draw_labels=True, alpha=0.5)
-        ax3.set_title('Model Grid Points')
+        ax3.set_title('Model Grid Points', fontsize=28)
         
         # Plot 4: Ice load with contours
         ax4 = plt.subplot(2, 2, 4, projection=ccrs.PlateCarree())
@@ -3671,11 +3738,11 @@ def create_spatial_gradient_plots(ice_load_data):
                             cmap='Blues', transform=ccrs.PlateCarree(), alpha=0.8)
         contours = ax4.contour(lons, lats, max_ice_load, levels=10, 
                               colors='black', alpha=0.6, transform=ccrs.PlateCarree())
-        ax4.clabel(contours, inline=True, fontsize=8)
+        ax4.clabel(contours, inline=True, fontsize=24)
         ax4.add_feature(cfeature.COASTLINE, alpha=0.7)
         ax4.add_feature(cfeature.BORDERS, alpha=0.5)
         ax4.gridlines(draw_labels=True, alpha=0.5)
-        ax4.set_title('Maximum Ice Load with Contours')
+        ax4.set_title('Maximum Ice Load with Contours', fontsize=28)
         plt.colorbar(im4, ax=ax4, label='Ice Load (kg/m)', shrink=0.8)
         
     else:
@@ -3684,32 +3751,32 @@ def create_spatial_gradient_plots(ice_load_data):
         
         # Plot 1: Maximum ice load
         im1 = axes[0,0].pcolormesh(lons, lats, max_ice_load, cmap='Blues')
-        axes[0,0].set_title('Maximum Ice Load')
-        axes[0,0].set_xlabel('Longitude')
-        axes[0,0].set_ylabel('Latitude')
+        axes[0,0].set_title('Maximum Ice Load', fontsize=28)
+        axes[0,0].set_xlabel('Longitude', fontsize=24)
+        axes[0,0].set_ylabel('Latitude', fontsize=24)
         plt.colorbar(im1, ax=axes[0,0], label='Ice Load (kg/m)')
         
         # Plot 2: Mean ice load
         im2 = axes[0,1].pcolormesh(lons, lats, mean_ice_load, cmap='Blues')
-        axes[0,1].set_title('Mean Ice Load')
-        axes[0,1].set_xlabel('Longitude')
-        axes[0,1].set_ylabel('Latitude')
+        axes[0,1].set_title('Mean Ice Load', fontsize=28)
+        axes[0,1].set_xlabel('Longitude', fontsize=24)
+        axes[0,1].set_ylabel('Latitude', fontsize=24)
         plt.colorbar(im2, ax=axes[0,1], label='Ice Load (kg/m)')
         
         # Plot 3: Grid points
         axes[1,0].scatter(lons.flatten(), lats.flatten(), s=1, c='red', alpha=0.6)
-        axes[1,0].set_title('Model Grid Points')
-        axes[1,0].set_xlabel('Longitude')
-        axes[1,0].set_ylabel('Latitude')
+        axes[1,0].set_title('Model Grid Points', fontsize=28)
+        axes[1,0].set_xlabel('Longitude', fontsize=24)
+        axes[1,0].set_ylabel('Latitude', fontsize=24)
         axes[1,0].grid(True, alpha=0.3)
         
         # Plot 4: Ice load with contours
         im4 = axes[1,1].pcolormesh(lons, lats, max_ice_load, cmap='Blues', alpha=0.8)
         contours = axes[1,1].contour(lons, lats, max_ice_load, levels=10, colors='black', alpha=0.6)
-        axes[1,1].clabel(contours, inline=True, fontsize=8)
-        axes[1,1].set_title('Maximum Ice Load with Contours')
-        axes[1,1].set_xlabel('Longitude')
-        axes[1,1].set_ylabel('Latitude')
+        axes[1,1].clabel(contours, inline=True, fontsize=24)
+        axes[1,1].set_title('Maximum Ice Load with Contours', fontsize=28)
+        axes[1,1].set_xlabel('Longitude', fontsize=24)
+        axes[1,1].set_ylabel('Latitude', fontsize=24)
         plt.colorbar(im4, ax=axes[1,1], label='Ice Load (kg/m)')
     
     plt.tight_layout()
@@ -3725,34 +3792,34 @@ def create_spatial_gradient_plots(ice_load_data):
     
     # Plot 1: Latitude grid
     im1 = axes[0,0].imshow(lats, cmap='viridis', aspect='auto')
-    axes[0,0].set_title('Latitude Grid')
-    axes[0,0].set_xlabel('West-East Grid Index')
-    axes[0,0].set_ylabel('South-North Grid Index')
+    axes[0,0].set_title('Latitude Grid', fontsize=28)
+    axes[0,0].set_xlabel('West-East Grid Index', fontsize=24)
+    axes[0,0].set_ylabel('South-North Grid Index', fontsize=24)
     plt.colorbar(im1, ax=axes[0,0], label='Latitude (degrees)')
     
     # Plot 2: Longitude grid
     im2 = axes[0,1].imshow(lons, cmap='plasma', aspect='auto')
-    axes[0,1].set_title('Longitude Grid')
-    axes[0,1].set_xlabel('West-East Grid Index')
-    axes[0,1].set_ylabel('South-North Grid Index')
+    axes[0,1].set_title('Longitude Grid', fontsize=28)
+    axes[0,1].set_xlabel('West-East Grid Index', fontsize=24)
+    axes[0,1].set_ylabel('South-North Grid Index', fontsize=24)
     plt.colorbar(im2, ax=axes[0,1], label='Longitude (degrees)')
     
     # Plot 3: Grid spacing in latitude
     lat_spacing = np.diff(lats, axis=0)
     if lat_spacing.size > 0:
         im3 = axes[1,0].imshow(lat_spacing, cmap='RdYlBu', aspect='auto')
-        axes[1,0].set_title('Latitude Grid Spacing')
-        axes[1,0].set_xlabel('West-East Grid Index')
-        axes[1,0].set_ylabel('South-North Grid Index')
+        axes[1,0].set_title('Latitude Grid Spacing', fontsize=28)
+        axes[1,0].set_xlabel('West-East Grid Index', fontsize=24)
+        axes[1,0].set_ylabel('South-North Grid Index', fontsize=24)
         plt.colorbar(im3, ax=axes[1,0], label='Lat Spacing (degrees)')
     
     # Plot 4: Grid spacing in longitude
     lon_spacing = np.diff(lons, axis=1)
     if lon_spacing.size > 0:
         im4 = axes[1,1].imshow(lon_spacing, cmap='RdYlBu', aspect='auto')
-        axes[1,1].set_title('Longitude Grid Spacing')
-        axes[1,1].set_xlabel('West-East Grid Index')
-        axes[1,1].set_ylabel('South-North Grid Index')
+        axes[1,1].set_title('Longitude Grid Spacing', fontsize=28)
+        axes[1,1].set_xlabel('West-East Grid Index', fontsize=24)
+        axes[1,1].set_ylabel('South-North Grid Index', fontsize=24)
         plt.colorbar(im4, ax=axes[1,1], label='Lon Spacing (degrees)')
     
     plt.tight_layout()
@@ -3931,8 +3998,8 @@ def plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_bins=
                 if cell_count < len(axes):
                     ax = axes[cell_count]
                     ax.plot(ice_load_bins, duration_hours, 'b-', linewidth=2, marker='o', markersize=3)
-                    ax.set_xlabel('Ice Load (kg/m)')
-                    ax.set_ylabel('Hours/Year')
+                    ax.set_xlabel('Ice Load (kg/m)', fontsize=24)
+                    ax.set_ylabel('Hours/Year', fontsize=24)
                     ax.set_title(f'Cell ({i},{j})')
                     ax.grid(True, alpha=0.3)
                     ax.set_xlim(left=ice_load_threshold)
@@ -3981,8 +4048,8 @@ def plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_bins=
                            mean_duration + std_duration, alpha=0.3, color='red', 
                            label='±1 Standard Deviation')
             
-            plt.xlabel('Ice Load (kg/m)')
-            plt.ylabel('Hours per Year')
+            plt.xlabel('Ice Load (kg/m)', fontsize=24)
+            plt.ylabel('Hours per Year', fontsize=24)
             plt.title('Ice Load Duration Curve - Domain Average')
             plt.grid(True, alpha=0.3)
             plt.legend()
@@ -4132,8 +4199,8 @@ def plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_bins=
             im1 = axes[0, 0].imshow(ew_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
             axes[0, 0].set_title('East-West Gradient\n(Earth Mover\'s Distance)')
-            axes[0, 0].set_xlabel('West-East Grid Points')
-            axes[0, 0].set_ylabel('South-North Grid Points')
+            axes[0, 0].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[0, 0].set_ylabel('South-North Grid Points', fontsize=24)
             cbar1 = plt.colorbar(im1, ax=axes[0, 0], shrink=0.8)
             cbar1.set_label('Earth Mover\'s Distance')
             
@@ -4146,8 +4213,8 @@ def plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_bins=
             im2 = axes[0, 1].imshow(sn_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
             axes[0, 1].set_title('South-North Gradient\n(Earth Mover\'s Distance)')
-            axes[0, 1].set_xlabel('West-East Grid Points')
-            axes[0, 1].set_ylabel('South-North Grid Points')
+            axes[0, 1].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[0, 1].set_ylabel('South-North Grid Points', fontsize=24)
             cbar2 = plt.colorbar(im2, ax=axes[0, 1], shrink=0.8)
             cbar2.set_label('Earth Mover\'s Distance')
             
@@ -4158,9 +4225,9 @@ def plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_bins=
             # Plot 3: Combined gradients
             im3 = axes[1, 0].imshow(combined_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)')
-            axes[1, 0].set_xlabel('West-East Grid Points')
-            axes[1, 0].set_ylabel('South-North Grid Points')
+            axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)', fontsize=28)
+            axes[1, 0].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[1, 0].set_ylabel('South-North Grid Points', fontsize=24)
             cbar3 = plt.colorbar(im3, ax=axes[1, 0], shrink=0.8)
             cbar3.set_label('Average Wasserstein Distance')
             
@@ -4193,9 +4260,9 @@ def plot_ice_load_duration_curves(ice_load_data, save_plots=True, ice_load_bins=
             
             im4 = axes[1, 1].imshow(gradient_magnitude, cmap='plasma', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)')
-            axes[1, 1].set_xlabel('West-East Grid Points')
-            axes[1, 1].set_ylabel('South-North Grid Points')
+            axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)', fontsize=28)
+            axes[1, 1].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[1, 1].set_ylabel('South-North Grid Points', fontsize=24)
             cbar4 = plt.colorbar(im4, ax=axes[1, 1], shrink=0.8)
             cbar4.set_label('RMS Gradient Magnitude')
             
@@ -4393,8 +4460,8 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                 if cell_count < len(axes):
                     ax = axes[cell_count]
                     ax.plot(bin_centers, hist, 'b-', linewidth=2, marker='o', markersize=3)
-                    ax.set_xlabel('Ice Load (kg/m)')
-                    ax.set_ylabel('Probability Density')
+                    ax.set_xlabel('Ice Load (kg/m)', fontsize=24)
+                    ax.set_ylabel('Probability Density', fontsize=24)
                     ax.set_title(f'Cell ({i},{j})')
                     ax.grid(True, alpha=0.3)
                     ax.set_xlim(left=ice_load_threshold)
@@ -4448,8 +4515,8 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                            mean_pdf + std_pdf, alpha=0.3, color='red', 
                            label='±1 Standard Deviation')
             
-            plt.xlabel('Ice Load (kg/m)')
-            plt.ylabel('Probability Density')
+            plt.xlabel('Ice Load (kg/m)', fontsize=24)
+            plt.ylabel('Probability Density', fontsize=24)
             plt.title('Ice Load PDF - Domain Average')
             plt.grid(True, alpha=0.3)
             plt.legend()
@@ -4572,8 +4639,8 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             im1 = axes[0, 0].imshow(ew_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
             axes[0, 0].set_title('East-West Gradient\n(PDF Earth Mover\'s Distance)')
-            axes[0, 0].set_xlabel('West-East Grid Points')
-            axes[0, 0].set_ylabel('South-North Grid Points')
+            axes[0, 0].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[0, 0].set_ylabel('South-North Grid Points', fontsize=24)
             cbar1 = plt.colorbar(im1, ax=axes[0, 0], shrink=0.8)
             cbar1.set_label('Earth Mover\'s Distance')
             
@@ -4586,8 +4653,8 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             im2 = axes[0, 1].imshow(sn_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
             axes[0, 1].set_title('South-North Gradient\n(PDF Earth Mover\'s Distance)')
-            axes[0, 1].set_xlabel('West-East Grid Points')
-            axes[0, 1].set_ylabel('South-North Grid Points')
+            axes[0, 1].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[0, 1].set_ylabel('South-North Grid Points', fontsize=24)
             cbar2 = plt.colorbar(im2, ax=axes[0, 1], shrink=0.8)
             cbar2.set_label('Earth Mover\'s Distance')
             
@@ -4598,9 +4665,9 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             # Plot 3: Combined gradients
             im3 = axes[1, 0].imshow(combined_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)')
-            axes[1, 0].set_xlabel('West-East Grid Points')
-            axes[1, 0].set_ylabel('South-North Grid Points')
+            axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)', fontsize=28)
+            axes[1, 0].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[1, 0].set_ylabel('South-North Grid Points', fontsize=24)
             cbar3 = plt.colorbar(im3, ax=axes[1, 0], shrink=0.8)
             cbar3.set_label('Average Earth Mover\'s Distance')
             
@@ -4633,9 +4700,9 @@ def plot_ice_load_pdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             
             im4 = axes[1, 1].imshow(gradient_magnitude, cmap='plasma', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)')
-            axes[1, 1].set_xlabel('West-East Grid Points')
-            axes[1, 1].set_ylabel('South-North Grid Points')
+            axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)', fontsize=28)
+            axes[1, 1].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[1, 1].set_ylabel('South-North Grid Points', fontsize=24)
             cbar4 = plt.colorbar(im4, ax=axes[1, 1], shrink=0.8)
             cbar4.set_label('RMS Gradient Magnitude')
             
@@ -4907,8 +4974,8 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                     plot_bins = ice_load_bins[plot_mask]
                     plot_cdf = cdf_values[plot_mask]
                     ax.plot(plot_bins, plot_cdf, 'b-', linewidth=2, marker='o', markersize=3)
-                    ax.set_xlabel('Ice Load (kg/m)')
-                    ax.set_ylabel('Cumulative Probability')
+                    ax.set_xlabel('Ice Load (kg/m)', fontsize=24)
+                    ax.set_ylabel('Cumulative Probability', fontsize=24)
                     ax.set_title(f'Cell ({i},{j})')
                     ax.grid(True, alpha=0.3)
                     ax.set_xlim(left=ice_load_threshold)
@@ -4971,8 +5038,8 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
                            plot_mean_cdf + plot_std_cdf, alpha=0.3, color='red', 
                            label='±1 Standard Deviation')
             
-            plt.xlabel('Ice Load (kg/m)')
-            plt.ylabel('Cumulative Probability')
+            plt.xlabel('Ice Load (kg/m)', fontsize=24)
+            plt.ylabel('Cumulative Probability', fontsize=24)
             plt.title('Ice Load CDF - Domain Average')
             plt.grid(True, alpha=0.3)
             plt.legend()
@@ -5115,8 +5182,8 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             im1 = axes[0, 0].imshow(ew_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
             axes[0, 0].set_title('East-West Gradient\n(CDF Earth Mover\'s Distance)')
-            axes[0, 0].set_xlabel('West-East Grid Points')
-            axes[0, 0].set_ylabel('South-North Grid Points')
+            axes[0, 0].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[0, 0].set_ylabel('South-North Grid Points', fontsize=24)
             cbar1 = plt.colorbar(im1, ax=axes[0, 0], shrink=0.8)
             cbar1.set_label('Earth Mover\'s Distance (kg/m)')
             
@@ -5129,8 +5196,8 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             im2 = axes[0, 1].imshow(sn_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
             axes[0, 1].set_title('South-North Gradient\n(CDF Earth Mover\'s Distance)')
-            axes[0, 1].set_xlabel('West-East Grid Points')
-            axes[0, 1].set_ylabel('South-North Grid Points')
+            axes[0, 1].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[0, 1].set_ylabel('South-North Grid Points', fontsize=24)
             cbar2 = plt.colorbar(im2, ax=axes[0, 1], shrink=0.8)
             cbar2.set_label('Earth Mover\'s Distance (kg/m)')
             
@@ -5141,9 +5208,9 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             # Plot 3: Combined gradients
             im3 = axes[1, 0].imshow(combined_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)')
-            axes[1, 0].set_xlabel('West-East Grid Points')
-            axes[1, 0].set_ylabel('South-North Grid Points')
+            axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)', fontsize=28)
+            axes[1, 0].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[1, 0].set_ylabel('South-North Grid Points', fontsize=24)
             cbar3 = plt.colorbar(im3, ax=axes[1, 0], shrink=0.8)
             cbar3.set_label('Average Earth Mover\'s Distance (kg/m)')
             
@@ -5176,9 +5243,9 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             
             im4 = axes[1, 1].imshow(gradient_magnitude, cmap='plasma', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)')
-            axes[1, 1].set_xlabel('West-East Grid Points')
-            axes[1, 1].set_ylabel('South-North Grid Points')
+            axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)', fontsize=28)
+            axes[1, 1].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[1, 1].set_ylabel('South-North Grid Points', fontsize=24)
             cbar4 = plt.colorbar(im4, ax=axes[1, 1], shrink=0.8)
             cbar4.set_label('RMS Gradient Magnitude')
             
@@ -5234,9 +5301,9 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             # Plot 1: East-West gradients (normalized)
             im1_norm = axes_norm[0, 0].imshow(ew_gradients_normalized, cmap='RdBu_r', origin='lower', 
                                              interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
-            axes_norm[0, 0].set_title('East-West Gradient\n(Dimensionless, Relative to Domain Mean)')
-            axes_norm[0, 0].set_xlabel('West-East Grid Points')
-            axes_norm[0, 0].set_ylabel('South-North Grid Points')
+            axes_norm[0, 0].set_title('East-West Gradient\n(Dimensionless, Relative to Domain Mean)', fontsize=28)
+            axes_norm[0, 0].set_xlabel('West-East Grid Points', fontsize=24)
+            axes_norm[0, 0].set_ylabel('South-North Grid Points', fontsize=24)
             cbar1_norm = plt.colorbar(im1_norm, ax=axes_norm[0, 0], shrink=0.8)
             cbar1_norm.set_label('Gradient / Domain Mean')
             
@@ -5248,9 +5315,9 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             # Plot 2: South-North gradients (normalized)
             im2_norm = axes_norm[0, 1].imshow(sn_gradients_normalized, cmap='RdBu_r', origin='lower', 
                                              interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
-            axes_norm[0, 1].set_title('South-North Gradient\n(Dimensionless, Relative to Domain Mean)')
-            axes_norm[0, 1].set_xlabel('West-East Grid Points')
-            axes_norm[0, 1].set_ylabel('South-North Grid Points')
+            axes_norm[0, 1].set_title('South-North Gradient\n(Dimensionless, Relative to Domain Mean)', fontsize=28)
+            axes_norm[0, 1].set_xlabel('West-East Grid Points', fontsize=24)
+            axes_norm[0, 1].set_ylabel('South-North Grid Points', fontsize=24)
             cbar2_norm = plt.colorbar(im2_norm, ax=axes_norm[0, 1], shrink=0.8)
             cbar2_norm.set_label('Gradient / Domain Mean')
             
@@ -5261,9 +5328,9 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             # Plot 3: Combined gradients (normalized)
             im3_norm = axes_norm[1, 0].imshow(combined_gradients_normalized, cmap='RdBu_r', origin='lower', 
                                              interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
-            axes_norm[1, 0].set_title('Combined Spatial Gradient\n(Dimensionless, Relative to Domain Mean)')
-            axes_norm[1, 0].set_xlabel('West-East Grid Points')
-            axes_norm[1, 0].set_ylabel('South-North Grid Points')
+            axes_norm[1, 0].set_title('Combined Spatial Gradient\n(Dimensionless, Relative to Domain Mean)', fontsize=28)
+            axes_norm[1, 0].set_xlabel('West-East Grid Points', fontsize=24)
+            axes_norm[1, 0].set_ylabel('South-North Grid Points', fontsize=24)
             cbar3_norm = plt.colorbar(im3_norm, ax=axes_norm[1, 0], shrink=0.8)
             cbar3_norm.set_label('Gradient / Domain Mean')
             
@@ -5274,9 +5341,9 @@ def plot_ice_load_cdf_curves(ice_load_data, save_plots=True, ice_load_bins=None,
             # Plot 4: Gradient magnitude (normalized)
             im4_norm = axes_norm[1, 1].imshow(gradient_magnitude_normalized, cmap='RdBu_r', origin='lower', 
                                              interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
-            axes_norm[1, 1].set_title('Gradient Magnitude\n(Dimensionless, Relative to Domain Mean)')
-            axes_norm[1, 1].set_xlabel('West-East Grid Points')
-            axes_norm[1, 1].set_ylabel('South-North Grid Points')
+            axes_norm[1, 1].set_title('Gradient Magnitude\n(Dimensionless, Relative to Domain Mean)', fontsize=28)
+            axes_norm[1, 1].set_xlabel('West-East Grid Points', fontsize=24)
+            axes_norm[1, 1].set_ylabel('South-North Grid Points', fontsize=24)
             cbar4_norm = plt.colorbar(im4_norm, ax=axes_norm[1, 1], shrink=0.8)
             cbar4_norm.set_label('Gradient / Domain Mean')
             
@@ -5549,8 +5616,8 @@ def plot_ice_load_cdf_curves_log_scale(ice_load_data, save_plots=True, ice_load_
                     plot_cdf_safe = np.where(plot_cdf == 0, 1e-10, plot_cdf)
                     
                     ax.loglog(plot_bins, plot_cdf_safe, 'b-', linewidth=2, marker='o', markersize=3)
-                    ax.set_xlabel('Ice Load (kg/m, log scale)')
-                    ax.set_ylabel('Cumulative Probability (log scale)')
+                    ax.set_xlabel('Ice Load (kg/m, log scale)', fontsize=24)
+                    ax.set_ylabel('Cumulative Probability (log scale)', fontsize=24)
                     ax.set_title(f'Cell ({i},{j})')
                     ax.grid(True, alpha=0.3)
                     ax.set_xlim(left=max(ice_load_threshold, 1e-6))
@@ -5608,8 +5675,8 @@ def plot_ice_load_cdf_curves_log_scale(ice_load_data, save_plots=True, ice_load_
             plt.fill_between(plot_bins, plot_std_cdf_lower_safe, plot_std_cdf_upper_safe, 
                            alpha=0.3, color='red', label='±1 Standard Deviation')
             
-            plt.xlabel('Ice Load (kg/m, log scale)')
-            plt.ylabel('Cumulative Probability (log scale)')
+            plt.xlabel('Ice Load (kg/m, log scale)', fontsize=24)
+            plt.ylabel('Cumulative Probability (log scale)', fontsize=24)
             plt.title('Ice Load CDF - Domain Average (Log-Log Scale)')
             plt.grid(True, alpha=0.3)
             plt.legend()
@@ -5755,9 +5822,9 @@ def plot_ice_load_cdf_curves_log_scale(ice_load_data, save_plots=True, ice_load_
             # Plot 1: East-West gradients
             im1 = axes[0, 0].imshow(ew_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[0, 0].set_title('East-West Gradient\n(CDF L1 Distance, Log X-axis)')
-            axes[0, 0].set_xlabel('West-East Grid Points')
-            axes[0, 0].set_ylabel('South-North Grid Points')
+            axes[0, 0].set_title('East-West Gradient\n(CDF L1 Distance, Log X-axis)', fontsize=28)
+            axes[0, 0].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[0, 0].set_ylabel('South-North Grid Points', fontsize=24)
             cbar1 = plt.colorbar(im1, ax=axes[0, 0], shrink=0.8)
             cbar1.set_label('L1 Distance (Log X-axis)')
             
@@ -5769,9 +5836,9 @@ def plot_ice_load_cdf_curves_log_scale(ice_load_data, save_plots=True, ice_load_
             # Plot 2: South-North gradients
             im2 = axes[0, 1].imshow(sn_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[0, 1].set_title('South-North Gradient\n(CDF L1 Distance, Log X-axis)')
-            axes[0, 1].set_xlabel('West-East Grid Points')
-            axes[0, 1].set_ylabel('South-North Grid Points')
+            axes[0, 1].set_title('South-North Gradient\n(CDF L1 Distance, Log X-axis)', fontsize=28)
+            axes[0, 1].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[0, 1].set_ylabel('South-North Grid Points', fontsize=24)
             cbar2 = plt.colorbar(im2, ax=axes[0, 1], shrink=0.8)
             cbar2.set_label('L1 Distance (Log X-axis)')
             
@@ -5782,9 +5849,9 @@ def plot_ice_load_cdf_curves_log_scale(ice_load_data, save_plots=True, ice_load_
             # Plot 3: Combined gradients
             im3 = axes[1, 0].imshow(combined_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)')
-            axes[1, 0].set_xlabel('West-East Grid Points')
-            axes[1, 0].set_ylabel('South-North Grid Points')
+            axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)', fontsize=28)
+            axes[1, 0].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[1, 0].set_ylabel('South-North Grid Points', fontsize=24)
             cbar3 = plt.colorbar(im3, ax=axes[1, 0], shrink=0.8)
             cbar3.set_label('Average L1 Distance (Log X-axis)')
             
@@ -5817,9 +5884,9 @@ def plot_ice_load_cdf_curves_log_scale(ice_load_data, save_plots=True, ice_load_
             
             im4 = axes[1, 1].imshow(gradient_magnitude, cmap='plasma', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)')
-            axes[1, 1].set_xlabel('West-East Grid Points')
-            axes[1, 1].set_ylabel('South-North Grid Points')
+            axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)', fontsize=28)
+            axes[1, 1].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[1, 1].set_ylabel('South-North Grid Points', fontsize=24)
             cbar4 = plt.colorbar(im4, ax=axes[1, 1], shrink=0.8)
             cbar4.set_label('RMS Gradient Magnitude')
             
@@ -6060,8 +6127,8 @@ def plot_ice_load_1_minus_cdf_curves(ice_load_data, save_plots=True, ice_load_bi
                     plot_bins = ice_load_bins[plot_mask]
                     plot_exceedance = exceedance_values[plot_mask]
                     ax.plot(plot_bins, plot_exceedance, 'b-', linewidth=2, marker='o', markersize=3)
-                    ax.set_xlabel('Ice Load (kg/m)')
-                    ax.set_ylabel('Exceedance Probability')
+                    ax.set_xlabel('Ice Load (kg/m)', fontsize=24)
+                    ax.set_ylabel('Exceedance Probability', fontsize=24)
                     ax.set_title(f'Cell ({i},{j})')
                     ax.grid(True, alpha=0.3)
                     ax.set_xlim(left=ice_load_threshold)
@@ -6111,8 +6178,8 @@ def plot_ice_load_1_minus_cdf_curves(ice_load_data, save_plots=True, ice_load_bi
                            plot_mean_exceedance + plot_std_exceedance, alpha=0.3, color='red', 
                            label='±1 Standard Deviation')
             
-            plt.xlabel('Ice Load (kg/m)')
-            plt.ylabel('Exceedance Probability')
+            plt.xlabel('Ice Load (kg/m)', fontsize=24)
+            plt.ylabel('Exceedance Probability', fontsize=24)
             plt.title('Ice Load Exceedance Probability - Domain Average')
             plt.grid(True, alpha=0.3)
             plt.legend()
@@ -6243,9 +6310,9 @@ def plot_ice_load_1_minus_cdf_curves(ice_load_data, save_plots=True, ice_load_bi
             # Plot 1: East-West gradients
             im1 = axes[0, 0].imshow(ew_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[0, 0].set_title('East-West Gradient\n(Exceedance L1 Distance)')
-            axes[0, 0].set_xlabel('West-East Grid Points')
-            axes[0, 0].set_ylabel('South-North Grid Points')
+            axes[0, 0].set_title('East-West Gradient\n(Exceedance L1 Distance)', fontsize=28)
+            axes[0, 0].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[0, 0].set_ylabel('South-North Grid Points', fontsize=24)
             cbar1 = plt.colorbar(im1, ax=axes[0, 0], shrink=0.8)
             cbar1.set_label('L1 Distance')
             
@@ -6257,9 +6324,9 @@ def plot_ice_load_1_minus_cdf_curves(ice_load_data, save_plots=True, ice_load_bi
             # Plot 2: South-North gradients
             im2 = axes[0, 1].imshow(sn_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[0, 1].set_title('South-North Gradient\n(Exceedance L1 Distance)')
-            axes[0, 1].set_xlabel('West-East Grid Points')
-            axes[0, 1].set_ylabel('South-North Grid Points')
+            axes[0, 1].set_title('South-North Gradient\n(Exceedance L1 Distance)', fontsize=28)
+            axes[0, 1].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[0, 1].set_ylabel('South-North Grid Points', fontsize=24)
             cbar2 = plt.colorbar(im2, ax=axes[0, 1], shrink=0.8)
             cbar2.set_label('L1 Distance')
             
@@ -6270,9 +6337,9 @@ def plot_ice_load_1_minus_cdf_curves(ice_load_data, save_plots=True, ice_load_bi
             # Plot 3: Combined gradients
             im3 = axes[1, 0].imshow(combined_gradients, cmap='viridis', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)')
-            axes[1, 0].set_xlabel('West-East Grid Points')
-            axes[1, 0].set_ylabel('South-North Grid Points')
+            axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)', fontsize=28)
+            axes[1, 0].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[1, 0].set_ylabel('South-North Grid Points', fontsize=24)
             cbar3 = plt.colorbar(im3, ax=axes[1, 0], shrink=0.8)
             cbar3.set_label('Average L1 Distance')
             
@@ -6305,9 +6372,9 @@ def plot_ice_load_1_minus_cdf_curves(ice_load_data, save_plots=True, ice_load_bi
             
             im4 = axes[1, 1].imshow(gradient_magnitude, cmap='plasma', origin='lower', 
                                    interpolation='nearest', aspect='auto')
-            axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)')
-            axes[1, 1].set_xlabel('West-East Grid Points')
-            axes[1, 1].set_ylabel('South-North Grid Points')
+            axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)', fontsize=28)
+            axes[1, 1].set_xlabel('West-East Grid Points', fontsize=24)
+            axes[1, 1].set_ylabel('South-North Grid Points', fontsize=24)
             cbar4 = plt.colorbar(im4, ax=axes[1, 1], shrink=0.8)
             cbar4.set_label('RMS Gradient Magnitude')
             
@@ -7685,8 +7752,8 @@ def analyze_ice_load_with_filtering_and_cdf(
         im1 = axes[0, 0].imshow(ew_gradients, cmap='viridis', origin='lower', 
                                interpolation='nearest', aspect='auto')
         axes[0, 0].set_title('East-West Gradient\n(CDF Earth Mover\'s Distance)')
-        axes[0, 0].set_xlabel('West-East Grid Points')
-        axes[0, 0].set_ylabel('South-North Grid Points')
+        axes[0, 0].set_xlabel('West-East Grid Points', fontsize=24)
+        axes[0, 0].set_ylabel('South-North Grid Points', fontsize=24)
         cbar1 = plt.colorbar(im1, ax=axes[0, 0], shrink=0.8)
         cbar1.set_label('Earth Mover\'s Distance (kg/m)')
         
@@ -7699,8 +7766,8 @@ def analyze_ice_load_with_filtering_and_cdf(
         im2 = axes[0, 1].imshow(sn_gradients, cmap='viridis', origin='lower', 
                                interpolation='nearest', aspect='auto')
         axes[0, 1].set_title('South-North Gradient\n(CDF Earth Mover\'s Distance)')
-        axes[0, 1].set_xlabel('West-East Grid Points')
-        axes[0, 1].set_ylabel('South-North Grid Points')
+        axes[0, 1].set_xlabel('West-East Grid Points', fontsize=24)
+        axes[0, 1].set_ylabel('South-North Grid Points', fontsize=24)
         cbar2 = plt.colorbar(im2, ax=axes[0, 1], shrink=0.8)
         cbar2.set_label('Earth Mover\'s Distance (kg/m)')
         
@@ -7711,9 +7778,9 @@ def analyze_ice_load_with_filtering_and_cdf(
         # Plot 3: Combined gradients
         im3 = axes[1, 0].imshow(combined_gradients, cmap='viridis', origin='lower', 
                                interpolation='nearest', aspect='auto')
-        axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)')
-        axes[1, 0].set_xlabel('West-East Grid Points')
-        axes[1, 0].set_ylabel('South-North Grid Points')
+        axes[1, 0].set_title('Combined Spatial Gradient\n(Average Neighbor Distance)', fontsize=28)
+        axes[1, 0].set_xlabel('West-East Grid Points', fontsize=24)
+        axes[1, 0].set_ylabel('South-North Grid Points', fontsize=24)
         cbar3 = plt.colorbar(im3, ax=axes[1, 0], shrink=0.8)
         cbar3.set_label('Average Earth Mover\'s Distance (kg/m)')
         
@@ -7745,9 +7812,9 @@ def analyze_ice_load_with_filtering_and_cdf(
         
         im4 = axes[1, 1].imshow(gradient_magnitude, cmap='plasma', origin='lower', 
                                interpolation='nearest', aspect='auto')
-        axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)')
-        axes[1, 1].set_xlabel('West-East Grid Points')
-        axes[1, 1].set_ylabel('South-North Grid Points')
+        axes[1, 1].set_title('Gradient Magnitude\n(RMS of EW and SN)', fontsize=28)
+        axes[1, 1].set_xlabel('West-East Grid Points', fontsize=24)
+        axes[1, 1].set_ylabel('South-North Grid Points', fontsize=24)
         cbar4 = plt.colorbar(im4, ax=axes[1, 1], shrink=0.8)
         cbar4.set_label('RMS Gradient Magnitude')
         
@@ -7794,9 +7861,9 @@ def analyze_ice_load_with_filtering_and_cdf(
         # Plot 1: East-West gradients (normalized)
         im1_norm = axes_norm[0, 0].imshow(ew_gradients_normalized, cmap='RdBu_r', origin='lower', 
                                          interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
-        axes_norm[0, 0].set_title('East-West Gradient\n(Dimensionless, Relative to Domain Mean)')
-        axes_norm[0, 0].set_xlabel('West-East Grid Points')
-        axes_norm[0, 0].set_ylabel('South-North Grid Points')
+        axes_norm[0, 0].set_title('East-West Gradient\n(Dimensionless, Relative to Domain Mean)', fontsize=28)
+        axes_norm[0, 0].set_xlabel('West-East Grid Points', fontsize=24)
+        axes_norm[0, 0].set_ylabel('South-North Grid Points', fontsize=24)
         cbar1_norm = plt.colorbar(im1_norm, ax=axes_norm[0, 0], shrink=0.8)
         cbar1_norm.set_label('Gradient / Domain Mean')
         
@@ -7808,9 +7875,9 @@ def analyze_ice_load_with_filtering_and_cdf(
         # Plot 2: South-North gradients (normalized)
         im2_norm = axes_norm[0, 1].imshow(sn_gradients_normalized, cmap='RdBu_r', origin='lower', 
                                          interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
-        axes_norm[0, 1].set_title('South-North Gradient\n(Dimensionless, Relative to Domain Mean)')
-        axes_norm[0, 1].set_xlabel('West-East Grid Points')
-        axes_norm[0, 1].set_ylabel('South-North Grid Points')
+        axes_norm[0, 1].set_title('South-North Gradient\n(Dimensionless, Relative to Domain Mean)', fontsize=28)
+        axes_norm[0, 1].set_xlabel('West-East Grid Points', fontsize=24)
+        axes_norm[0, 1].set_ylabel('South-North Grid Points', fontsize=24)
         cbar2_norm = plt.colorbar(im2_norm, ax=axes_norm[0, 1], shrink=0.8)
         cbar2_norm.set_label('Gradient / Domain Mean')
         
@@ -7821,9 +7888,9 @@ def analyze_ice_load_with_filtering_and_cdf(
         # Plot 3: Combined gradients (normalized)
         im3_norm = axes_norm[1, 0].imshow(combined_gradients_normalized, cmap='RdBu_r', origin='lower', 
                                          interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
-        axes_norm[1, 0].set_title('Combined Spatial Gradient\n(Dimensionless, Relative to Domain Mean)')
-        axes_norm[1, 0].set_xlabel('West-East Grid Points')
-        axes_norm[1, 0].set_ylabel('South-North Grid Points')
+        axes_norm[1, 0].set_title('Combined Spatial Gradient\n(Dimensionless, Relative to Domain Mean)', fontsize=28)
+        axes_norm[1, 0].set_xlabel('West-East Grid Points', fontsize=24)
+        axes_norm[1, 0].set_ylabel('South-North Grid Points', fontsize=24)
         cbar3_norm = plt.colorbar(im3_norm, ax=axes_norm[1, 0], shrink=0.8)
         cbar3_norm.set_label('Gradient / Domain Mean')
         
@@ -7834,9 +7901,9 @@ def analyze_ice_load_with_filtering_and_cdf(
         # Plot 4: Gradient magnitude (normalized)
         im4_norm = axes_norm[1, 1].imshow(gradient_magnitude_normalized, cmap='RdBu_r', origin='lower', 
                                          interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
-        axes_norm[1, 1].set_title('Gradient magnitude (RMS)')
-        axes_norm[1, 1].set_xlabel('West-East Grid Points')
-        axes_norm[1, 1].set_ylabel('South-North Grid Points')
+        axes_norm[1, 1].set_title('Gradient magnitude (RMS)', fontsize=28)
+        axes_norm[1, 1].set_xlabel('West-East Grid Points', fontsize=24)
+        axes_norm[1, 1].set_ylabel('South-North Grid Points', fontsize=24)
         cbar4_norm = plt.colorbar(im4_norm, ax=axes_norm[1, 1], shrink=0.8)
         cbar4_norm.set_label('Gradient / Domain Mean')
         
@@ -7908,8 +7975,8 @@ def analyze_ice_load_with_filtering_and_cdf(
                        plot_mean_cdf + plot_std_cdf, alpha=0.3, color='red', 
                        label='±1 Standard Deviation')
         
-        plt.xlabel('Ice Load (kg/m)')
-        plt.ylabel('Cumulative Probability')
+        plt.xlabel('Ice Load (kg/m)', fontsize=24)
+        plt.ylabel('Cumulative Probability', fontsize=24)
         plt.title('Ice Load CDF - Domain Average (Filtered Data)')
         plt.grid(True, alpha=0.3)
         plt.legend()
@@ -8369,40 +8436,51 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
         else:
             ice_load_bins = np.array([0.0, ice_load_threshold + 0.01])
     
-    # Perform CDF analysis for each grid cell (same as original)
-    print(f"\n3. CDF ANALYSIS")
-    print(f"=" * 15)
+    # Perform CDF analysis for each grid cell - OPTIMIZED WITH CHUNKING
+    print(f"\n3. CDF ANALYSIS (Optimized with Chunking)")
+    print(f"=" * 45)
     print(f"   Processing {n_south_north * n_west_east} grid cells...")
     
     cdf_results = {}
     cell_statistics = {}
     
+    # Process in chunks to show progress and avoid memory issues
+    total_cells = n_south_north * n_west_east
+    cells_processed = 0
+    valid_cells = 0
+    
+    # Process one row at a time to show progress
     for i in range(n_south_north):
+        # Extract all cells in this row at once (more efficient)
+        row_data = ice_data_clean.isel(south_north=i).values  # shape: (n_time, n_west_east)
+        
         for j in range(n_west_east):
             # Extract time series for this grid cell
-            cell_data = ice_data_clean.isel(south_north=i, west_east=j)
-            cell_values = cell_data.values
+            cell_values = row_data[:, j]
             
             # Remove NaN values
             valid_mask = ~np.isnan(cell_values)
             cell_values_clean = cell_values[valid_mask]
             
             if len(cell_values_clean) == 0:
+                cells_processed += 1
                 continue
             
             # Filter values to be >= threshold
             cell_values_filtered = cell_values_clean[cell_values_clean >= ice_load_threshold]
             
             if len(cell_values_filtered) == 0:
+                cells_processed += 1
                 continue
             
-            # Calculate CDF
-            cdf_values = []
-            for ice_threshold in ice_load_bins:
-                prob = np.sum(cell_values_filtered <= ice_threshold) / len(cell_values_filtered)
-                cdf_values.append(prob)
+            # Calculate CDF using vectorized operations (much faster)
+            # Instead of looping through each bin, use searchsorted
+            sorted_values = np.sort(cell_values_filtered)
+            n_values = len(sorted_values)
             
-            cdf_values = np.array(cdf_values)
+            # Use numpy's searchsorted for efficient CDF calculation
+            indices = np.searchsorted(sorted_values, ice_load_bins, side='right')
+            cdf_values = indices / n_values
             
             # Store results
             cell_key = f'cell_{i}_{j}'
@@ -8412,18 +8490,25 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
                 'position': (i, j)
             }
             
-            # Calculate statistics
+            # Calculate statistics using vectorized operations
             cell_statistics[cell_key] = {
-                'max_ice_load': float(np.max(cell_values_filtered)),
+                'max_ice_load': float(sorted_values[-1]),  # Already sorted
                 'mean_ice_load': float(np.mean(cell_values_filtered)),
                 'std_ice_load': float(np.std(cell_values_filtered)),
-                'median_ice_load': float(np.median(cell_values_filtered)),
-                'percentile_95': float(np.percentile(cell_values_filtered, 95)),
-                'percentile_99': float(np.percentile(cell_values_filtered, 99)),
-                'n_valid_points': len(cell_values_filtered)
+                'median_ice_load': float(sorted_values[n_values // 2]),  # Median from sorted
+                'percentile_95': float(sorted_values[int(0.95 * n_values)]),
+                'percentile_99': float(sorted_values[int(0.99 * n_values)]),
+                'n_valid_points': n_values
             }
+            
+            cells_processed += 1
+            valid_cells += 1
+        
+        # Print progress every row
+        progress_pct = (i + 1) / n_south_north * 100
+        print(f"   Progress: Row {i+1}/{n_south_north} ({progress_pct:.1f}%) - {valid_cells} valid cells found", end='\r')
     
-    print(f"   Processed {len(cdf_results)} valid grid cells")
+    print(f"\n   Processed {cells_processed} total cells, {valid_cells} valid cells with data")
     
     # Calculate weighted spatial gradients using configurable neighborhood
     print(f"\n4. WEIGHTED SPATIAL GRADIENT ANALYSIS")
@@ -8494,27 +8579,43 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
         else:
             gradient_mean = gradient_std = gradient_min = gradient_max = 0
         
-        # ABSOLUTE GRADIENT PLOT
-        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+        # ABSOLUTE GRADIENT PLOT (separate figure)
+        fig1 = plt.figure(figsize=(10, 8))
+        ax1 = fig1.add_subplot(111)
         
         # Plot 1: Absolute weighted gradients
-        im1 = axes[0].imshow(weighted_gradients, cmap='viridis', origin='lower', 
+        im1 = ax1.imshow(weighted_gradients, cmap='viridis', origin='lower', 
                            interpolation='nearest', aspect='auto')
-        axes[0].set_title(f'Weighted Spatial Gradient\n({neighborhood_type}, {weight_scheme} weighting)')
-        axes[0].set_xlabel('West-East Grid Points')
-        axes[0].set_ylabel('South-North Grid Points')
-        cbar1 = plt.colorbar(im1, ax=axes[0], shrink=0.8)
+        ax1.set_title(f'Weighted Spatial Gradient\n({neighborhood_type}, {weight_scheme} weighting)')
+        ax1.set_xlabel('West-East Grid Points', fontsize=24)
+        ax1.set_ylabel('South-North Grid Points', fontsize=24)
+        cbar1 = plt.colorbar(im1, ax=ax1, shrink=0.8)
         cbar1.set_label('Weighted Earth Mover\'s Distance (kg/m)')
         
         # Add grid lines and statistics text
-        axes[0].set_xticks(range(n_west_east))
-        axes[0].set_yticks(range(n_south_north))
-        axes[0].grid(True, alpha=0.3)
+        ax1.set_xticks(range(n_west_east))
+        ax1.set_yticks(range(n_south_north))
+        ax1.grid(True, alpha=0.3)
         
         # Add statistics text box
         stats_text = f'Mean: {gradient_mean:.3f}\nStd: {gradient_std:.3f}\nMin: {gradient_min:.3f}\nMax: {gradient_max:.3f}'
-        axes[0].text(0.02, 0.98, stats_text, transform=axes[0].transAxes, 
+        ax1.text(0.02, 0.98, stats_text, transform=ax1.transAxes, 
                    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+        
+        plt.tight_layout()
+        
+        # Save absolute weighted spatial gradient plot
+        if save_plots:
+            gradient_filename_abs = f"weighted_spatial_gradients_absolute_{neighborhood_type}_{weight_scheme}.png"
+            gradient_path_abs = os.path.join(base_results_dir, gradient_filename_abs)
+            plt.savefig(gradient_path_abs, dpi=300, bbox_inches='tight')
+            print(f"   Absolute weighted spatial gradient plot saved to: {gradient_path_abs}")
+        
+        plt.close()
+        
+        # NORMALIZED GRADIENT PLOT (separate figure)
+        fig2 = plt.figure(figsize=(10, 8))
+        ax2 = fig2.add_subplot(111)
         
         # Plot 2: Normalized weighted gradients
         if gradient_mean > 0:
@@ -8522,31 +8623,33 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
         else:
             weighted_gradients_normalized = weighted_gradients
             
-        im2 = axes[1].imshow(weighted_gradients_normalized, cmap='RdBu_r', origin='lower', 
+        im2 = ax2.imshow(weighted_gradients_normalized, cmap='RdBu_r', origin='lower', 
                            interpolation='nearest', aspect='auto', vmin=0.5, vmax=1.5)
-        axes[1].set_title(f'Normalized Weighted Spatial Gradient\n(Relative to Domain Mean)')
-        axes[1].set_xlabel('West-East Grid Points')
-        axes[1].set_ylabel('South-North Grid Points')
-        cbar2 = plt.colorbar(im2, ax=axes[1], shrink=0.8)
-        cbar2.set_label('Gradient / Domain Mean')
+        ax2.set_title(f'Normalized Weighted Spatial Gradient\n(Relative to Domain Mean)', fontsize=28)
+        ax2.set_xlabel('West-East Grid Points', fontsize=24)
+        ax2.set_ylabel('South-North Grid Points', fontsize=24)
+        cbar2 = plt.colorbar(im2, ax=ax2, shrink=0.8)
+        cbar2.set_label('Gradient / Domain Mean', fontsize=16)
+        cbar2.ax.tick_params(labelsize=15)
         
-        axes[1].set_xticks(range(n_west_east))
-        axes[1].set_yticks(range(n_south_north))
-        axes[1].grid(True, alpha=0.3)
+        ax2.set_xticks(range(n_west_east))
+        ax2.set_yticks(range(n_south_north))
+        ax2.tick_params(axis='both', labelsize=20)
+        ax2.grid(True, alpha=0.3)
         
         # Add normalization factor text
         norm_text = f'Normalization factor:\n{gradient_mean:.3f} kg/m'
-        axes[1].text(0.02, 0.98, norm_text, transform=axes[1].transAxes, 
+        ax2.text(0.02, 0.98, norm_text, transform=ax2.transAxes, fontsize=15,
                    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
         
         plt.tight_layout()
         
-        # Save weighted spatial gradient plots
+        # Save normalized weighted spatial gradient plot
         if save_plots:
-            gradient_filename = f"weighted_spatial_gradients_{neighborhood_type}_{weight_scheme}.png"
-            gradient_path = os.path.join(base_results_dir, gradient_filename)
-            plt.savefig(gradient_path, dpi=300, bbox_inches='tight')
-            print(f"   Weighted spatial gradient plots saved to: {gradient_path}")
+            gradient_filename_norm = f"weighted_spatial_gradients_normalized_{neighborhood_type}_{weight_scheme}.png"
+            gradient_path_norm = os.path.join(base_results_dir, gradient_filename_norm)
+            plt.savefig(gradient_path_norm, dpi=300, bbox_inches='tight')
+            print(f"   Normalized weighted spatial gradient plot saved to: {gradient_path_norm}")
         
         plt.close()
         
@@ -8664,26 +8767,27 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
             
             # Add colorbar
             cbar = plt.colorbar(gradient_plot, ax=ax, shrink=0.8, pad=0.02)
-            cbar.set_label('Normalized Weighted Spatial Gradient\n(Relative to Domain Mean)', fontsize=12)
+            cbar.set_label('Normalized Weighted Spatial Gradient\n(Relative to Domain Mean)', fontsize=48)
+            cbar.ax.tick_params(labelsize=30)
             
             # Add gridlines with labels
             gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                              linewidth=1, color='gray', alpha=0.5, linestyle='--')
             gl.top_labels = False
             gl.right_labels = False
-            gl.xlabel_style = {'size': 10, 'color': 'black'}
-            gl.ylabel_style = {'size': 10, 'color': 'black'}
+            gl.xlabel_style = {'size': 30, 'color': 'black'}
+            gl.ylabel_style = {'size': 30, 'color': 'black'}
             
             # Add title with comprehensive information
             title_text = (f'Normalized Weighted Spatial Gradient on Terrain Map\n'
                          f'{neighborhood_type}, {weight_scheme} weighting, '
                          f'Height: {dataset_with_ice_load.height.values[height_level]} m')
-            ax.set_title(title_text, fontsize=14, weight='bold', pad=20)
+            ax.set_title(title_text, fontsize=56, weight='bold', pad=20)
             
             # Add margin and method information
             info_text = (f"Margin: {margin_degrees}° | Zoom: {zoom_level} | "
                         f"Normalization: {gradient_mean:.3f} kg/m")
-            ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=10,
+            ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=60,
                     bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
             
             plt.tight_layout()
@@ -8884,22 +8988,23 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
                 cbar_label = f'Mean Annual Total Ice Load (kg/m)\n[Clipped at 90th percentile: {vmax:.1f}]'
             else:
                 cbar_label = 'Mean Annual Total Ice Load (kg/m)'
-            cbar.set_label(cbar_label, fontsize=12)
+            cbar.set_label(cbar_label, fontsize=24)
+            cbar.ax.tick_params(labelsize=30)
             
             # Add gridlines with labels
             gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                              linewidth=1, color='gray', alpha=0.5, linestyle='--')
             gl.top_labels = False
             gl.right_labels = False
-            gl.xlabel_style = {'size': 10, 'color': 'black'}
-            gl.ylabel_style = {'size': 10, 'color': 'black'}
+            gl.xlabel_style = {'size': 30, 'color': 'black'}
+            gl.ylabel_style = {'size': 30, 'color': 'black'}
             
             # Add title with comprehensive information
             months_str = f", months {months}" if months else ""
             title_text = (f'Mean Annual Total Ice Load per Grid Cell on Terrain Map\\n'
                          f'Height: {dataset_with_ice_load.height.values[height_level]} m, '
                          f'Threshold: {ice_load_threshold:.1f} kg/m{months_str}')
-            ax.set_title(title_text, fontsize=14, weight='bold', pad=20)
+            ax.set_title(title_text, fontsize=28, weight='bold', pad=20)
             
             # Add statistics information with outlier information
             if outlier_clipped:
@@ -8909,7 +9014,7 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
             else:
                 info_text = (f"Range: {np.min(mean_annual_totals):.1f} - {np.max(mean_annual_totals):.1f} kg/m | "
                             f"Mean: {np.mean(mean_annual_totals):.1f} kg/m")
-            ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=9,
+            ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=27,
                     bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
             
             plt.tight_layout()
@@ -8940,48 +9045,48 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
         print(f"   Error in spatial gradient analysis: {e}")
         gradient_results = None
     
-    # Create summary CDF plot (same as original)
-    print(f"\n6. CREATING SUMMARY CDF PLOT")
-    print(f"=" * 28)
-    
-    if cdf_results:
-        # Calculate mean CDF curve across all cells
-        all_cdf_curves = []
-        for cell_data in cdf_results.values():
-            all_cdf_curves.append(cell_data['cdf_values'])
-        
-        mean_cdf = np.mean(all_cdf_curves, axis=0)
-        std_cdf = np.std(all_cdf_curves, axis=0)
-        
-        plt.figure(figsize=(10, 6))
-        plot_mask = ice_load_bins >= ice_load_threshold
-        
-        plot_bins = ice_load_bins[plot_mask]
-        plot_mean_cdf = mean_cdf[plot_mask]
-        plot_std_cdf = std_cdf[plot_mask]
-        
-        plt.plot(plot_bins, plot_mean_cdf, 'r-', linewidth=3, label='Mean across all cells')
-        plt.fill_between(plot_bins, plot_mean_cdf - plot_std_cdf, 
-                       plot_mean_cdf + plot_std_cdf, alpha=0.3, color='red', 
-                       label='±1 Standard Deviation')
-        
-        plt.xlabel('Ice Load (kg/m)')
-        plt.ylabel('Cumulative Probability')
-        plt.title(f'Ice Load CDF - Domain Average\n({neighborhood_type}, {weight_scheme} weighting)')
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-        plt.xlim(left=ice_load_threshold)
-        plt.ylim([0, 1])
-        
-        plt.tight_layout()
-        
-        if save_plots:
-            summary_filename = f"ice_load_cdf_summary_{neighborhood_type}_{weight_scheme}.png"
-            summary_path = os.path.join(base_results_dir, summary_filename)
-            plt.savefig(summary_path, dpi=300, bbox_inches='tight')
-            print(f"   Summary CDF plot saved to: {summary_path}")
-        
-        plt.close()
+    # # Create summary CDF plot (same as original)
+    # print(f"\n6. CREATING SUMMARY CDF PLOT")
+    # print(f"=" * 28)
+    # 
+    # if cdf_results:
+    #     # Calculate mean CDF curve across all cells
+    #     all_cdf_curves = []
+    #     for cell_data in cdf_results.values():
+    #         all_cdf_curves.append(cell_data['cdf_values'])
+    #     
+    #     mean_cdf = np.mean(all_cdf_curves, axis=0)
+    #     std_cdf = np.std(all_cdf_curves, axis=0)
+    #     
+    #     plt.figure(figsize=(10, 6))
+    #     plot_mask = ice_load_bins >= ice_load_threshold
+    #     
+    #     plot_bins = ice_load_bins[plot_mask]
+    #     plot_mean_cdf = mean_cdf[plot_mask]
+    #     plot_std_cdf = std_cdf[plot_mask]
+    #     
+    #     plt.plot(plot_bins, plot_mean_cdf, 'r-', linewidth=3, label='Mean across all cells')
+    #     plt.fill_between(plot_bins, plot_mean_cdf - plot_std_cdf, 
+    #                    plot_mean_cdf + plot_std_cdf, alpha=0.3, color='red', 
+    #                    label='±1 Standard Deviation')
+    #     
+    #     plt.xlabel('Ice Load (kg/m)', fontsize=24)
+    #     plt.ylabel('Cumulative Probability', fontsize=24)
+    #     plt.title(f'Ice Load CDF - Domain Average\n({neighborhood_type}, {weight_scheme} weighting)')
+    #     plt.grid(True, alpha=0.3)
+    #     plt.legend()
+    #     plt.xlim(left=ice_load_threshold)
+    #     plt.ylim([0, 1])
+    #     
+    #     plt.tight_layout()
+    #     
+    #     if save_plots:
+    #         summary_filename = f"ice_load_cdf_summary_{neighborhood_type}_{weight_scheme}.png"
+    #         summary_path = os.path.join(base_results_dir, summary_filename)
+    #         plt.savefig(summary_path, dpi=300, bbox_inches='tight')
+    #         print(f"   Summary CDF plot saved to: {summary_path}")
+    #     
+    #     plt.close()
     
     # Save enhanced analysis summary file
     if save_plots:
@@ -9039,8 +9144,8 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
             
             f.write(f"\nFILES GENERATED:\n")
             f.write("-" * 20 + "\n")
-            f.write(f"- weighted_spatial_gradients_{neighborhood_type}_{weight_scheme}.png\n")
-            f.write(f"- ice_load_cdf_summary_{neighborhood_type}_{weight_scheme}.png\n")
+            f.write(f"- weighted_spatial_gradients_absolute_{neighborhood_type}_{weight_scheme}.png\n")
+            f.write(f"- weighted_spatial_gradients_normalized_{neighborhood_type}_{weight_scheme}.png\n")
             f.write("- weighted_neighborhood_analysis_summary.txt (this file)\n")
         
         print(f"   Enhanced analysis summary saved to: {summary_file_path}")
@@ -9152,33 +9257,33 @@ def create_spatial_gradient_time_evolution_plots(ice_load_data):
                           gradient_magnitude_mean - gradient_magnitude_std, 
                           gradient_magnitude_mean + gradient_magnitude_std, 
                           alpha=0.3, color='blue', label='±1 Std Dev')
-    axes[0,0].set_title('Spatial Gradient Magnitude Evolution')
-    axes[0,0].set_xlabel('Time')
-    axes[0,0].set_ylabel('Gradient Magnitude (kg/m per grid)')
+    axes[0,0].set_title('Spatial Gradient Magnitude Evolution', fontsize=28)
+    axes[0,0].set_xlabel('Time', fontsize=24)
+    axes[0,0].set_ylabel('Gradient Magnitude (kg/m per grid)', fontsize=24)
     axes[0,0].legend()
     axes[0,0].grid(True, alpha=0.3)
     
     # Plot 2: Directional gradient evolution (West-East)
     axes[0,1].plot(time_pd, gradient_x_mean, color='orange', alpha=0.8)
-    axes[0,1].set_title('Mean West-East Gradient Evolution')
-    axes[0,1].set_xlabel('Time')
-    axes[0,1].set_ylabel('West-East Gradient (kg/m per grid)')
+    axes[0,1].set_title('Mean West-East Gradient Evolution', fontsize=28)
+    axes[0,1].set_xlabel('Time', fontsize=24)
+    axes[0,1].set_ylabel('West-East Gradient (kg/m per grid)', fontsize=24)
     axes[0,1].axhline(y=0, color='black', linestyle='--', alpha=0.5)
     axes[0,1].grid(True, alpha=0.3)
     
     # Plot 3: Directional gradient evolution (South-North)
     axes[1,0].plot(time_pd, gradient_y_mean, color='green', alpha=0.8)
-    axes[1,0].set_title('Mean South-North Gradient Evolution')
-    axes[1,0].set_xlabel('Time')
-    axes[1,0].set_ylabel('South-North Gradient (kg/m per grid)')
+    axes[1,0].set_title('Mean South-North Gradient Evolution', fontsize=28)
+    axes[1,0].set_xlabel('Time', fontsize=24)
+    axes[1,0].set_ylabel('South-North Gradient (kg/m per grid)', fontsize=24)
     axes[1,0].axhline(y=0, color='black', linestyle='--', alpha=0.5)
     axes[1,0].grid(True, alpha=0.3)
     
     # Plot 4: Gradient variability over time
     axes[1,1].plot(time_pd, gradient_magnitude_std, color='purple', alpha=0.8)
-    axes[1,1].set_title('Spatial Gradient Variability Over Time')
-    axes[1,1].set_xlabel('Time')
-    axes[1,1].set_ylabel('Gradient Std Dev (kg/m per grid)')
+    axes[1,1].set_title('Spatial Gradient Variability Over Time', fontsize=28)
+    axes[1,1].set_xlabel('Time', fontsize=24)
+    axes[1,1].set_ylabel('Gradient Std Dev (kg/m per grid)', fontsize=24)
     axes[1,1].grid(True, alpha=0.3)
     
     plt.tight_layout()
@@ -9215,9 +9320,9 @@ def create_spatial_gradient_time_evolution_plots(ice_load_data):
                           np.array(hourly_grad_mean) - np.array(hourly_grad_std),
                           np.array(hourly_grad_mean) + np.array(hourly_grad_std),
                           alpha=0.3, color='blue')
-    axes[0,0].set_title('Average Gradient Magnitude by Hour of Day')
-    axes[0,0].set_xlabel('Hour of Day')
-    axes[0,0].set_ylabel('Mean Gradient Magnitude')
+    axes[0,0].set_title('Average Gradient Magnitude by Hour of Day', fontsize=28)
+    axes[0,0].set_xlabel('Hour of Day', fontsize=24)
+    axes[0,0].set_ylabel('Mean Gradient Magnitude', fontsize=24)
     axes[0,0].set_xticks(range(0, 24, 3))
     axes[0,0].grid(True, alpha=0.3)
     
@@ -9233,9 +9338,9 @@ def create_spatial_gradient_time_evolution_plots(ice_load_data):
             monthly_grad_mean.append(np.nan)
     
     axes[0,1].bar(month_names, monthly_grad_mean, color='orange', alpha=0.7)
-    axes[0,1].set_title('Average Gradient Magnitude by Month')
-    axes[0,1].set_xlabel('Month')
-    axes[0,1].set_ylabel('Mean Gradient Magnitude')
+    axes[0,1].set_title('Average Gradient Magnitude by Month', fontsize=28)
+    axes[0,1].set_xlabel('Month', fontsize=24)
+    axes[0,1].set_ylabel('Mean Gradient Magnitude', fontsize=24)
     axes[0,1].tick_params(axis='x', rotation=45)
     axes[0,1].grid(True, alpha=0.3)
     
@@ -9249,9 +9354,9 @@ def create_spatial_gradient_time_evolution_plots(ice_load_data):
             hourly_grad_x.append(np.nan)
     
     axes[1,0].plot(range(24), hourly_grad_x, marker='s', color='red')
-    axes[1,0].set_title('Average West-East Gradient by Hour of Day')
-    axes[1,0].set_xlabel('Hour of Day')
-    axes[1,0].set_ylabel('Mean West-East Gradient')
+    axes[1,0].set_title('Average West-East Gradient by Hour of Day', fontsize=28)
+    axes[1,0].set_xlabel('Hour of Day', fontsize=24)
+    axes[1,0].set_ylabel('Mean West-East Gradient', fontsize=24)
     axes[1,0].set_xticks(range(0, 24, 3))
     axes[1,0].axhline(y=0, color='black', linestyle='--', alpha=0.5)
     axes[1,0].grid(True, alpha=0.3)
@@ -9266,9 +9371,9 @@ def create_spatial_gradient_time_evolution_plots(ice_load_data):
             hourly_grad_y.append(np.nan)
     
     axes[1,1].plot(range(24), hourly_grad_y, marker='^', color='green')
-    axes[1,1].set_title('Average South-North Gradient by Hour of Day')
-    axes[1,1].set_xlabel('Hour of Day')
-    axes[1,1].set_ylabel('Mean South-North Gradient')
+    axes[1,1].set_title('Average South-North Gradient by Hour of Day', fontsize=28)
+    axes[1,1].set_xlabel('Hour of Day', fontsize=24)
+    axes[1,1].set_ylabel('Mean South-North Gradient', fontsize=24)
     axes[1,1].set_xticks(range(0, 24, 3))
     axes[1,1].axhline(y=0, color='black', linestyle='--', alpha=0.5)
     axes[1,1].grid(True, alpha=0.3)
@@ -9327,25 +9432,25 @@ def create_temporal_gradient_plots(ice_load_data):
     
     # Mean temporal gradient over time
     axes[0,0].plot(temp_grad_mean.time, temp_grad_mean.values)
-    axes[0,0].set_title('Mean Temporal Gradient (Rate of Change)')
-    axes[0,0].set_xlabel('Time')
-    axes[0,0].set_ylabel('Mean Rate of Change (kg/m per 30min)')
+    axes[0,0].set_title('Mean Temporal Gradient (Rate of Change)', fontsize=28)
+    axes[0,0].set_xlabel('Time', fontsize=24)
+    axes[0,0].set_ylabel('Mean Rate of Change (kg/m per 30min)', fontsize=24)
     axes[0,0].grid(True, alpha=0.3)
     axes[0,0].axhline(y=0, color='red', linestyle='--', alpha=0.5)
     
     # Standard deviation of temporal gradient
     axes[0,1].plot(temp_grad_std.time, temp_grad_std.values, color='orange')
-    axes[0,1].set_title('Temporal Gradient Variability')
-    axes[0,1].set_xlabel('Time')
-    axes[0,1].set_ylabel('Std Dev of Rate of Change (kg/m per 30min)')
+    axes[0,1].set_title('Temporal Gradient Variability', fontsize=28)
+    axes[0,1].set_xlabel('Time', fontsize=24)
+    axes[0,1].set_ylabel('Std Dev of Rate of Change (kg/m per 30min)', fontsize=24)
     axes[0,1].grid(True, alpha=0.3)
     
     # Maximum and minimum temporal gradients
     axes[1,0].plot(temp_grad_max.time, temp_grad_max.values, label='Maximum', color='red')
     axes[1,0].plot(temp_grad_min.time, temp_grad_min.values, label='Minimum', color='blue')
-    axes[1,0].set_title('Extreme Temporal Gradients')
-    axes[1,0].set_xlabel('Time')
-    axes[1,0].set_ylabel('Rate of Change (kg/m per 30min)')
+    axes[1,0].set_title('Extreme Temporal Gradients', fontsize=28)
+    axes[1,0].set_xlabel('Time', fontsize=24)
+    axes[1,0].set_ylabel('Rate of Change (kg/m per 30min)', fontsize=24)
     axes[1,0].legend()
     axes[1,0].grid(True, alpha=0.3)
     axes[1,0].axhline(y=0, color='black', linestyle='--', alpha=0.5)
@@ -9355,9 +9460,9 @@ def create_temporal_gradient_plots(ice_load_data):
     all_temp_gradients = all_temp_gradients[~np.isnan(all_temp_gradients)]
     
     axes[1,1].hist(all_temp_gradients, bins=50, alpha=0.7, edgecolor='black')
-    axes[1,1].set_title('Distribution of Temporal Gradients')
-    axes[1,1].set_xlabel('Rate of Change (kg/m per 30min)')
-    axes[1,1].set_ylabel('Frequency')
+    axes[1,1].set_title('Distribution of Temporal Gradients', fontsize=28)
+    axes[1,1].set_xlabel('Rate of Change (kg/m per 30min)', fontsize=24)
+    axes[1,1].set_ylabel('Frequency', fontsize=24)
     axes[1,1].axvline(x=0, color='red', linestyle='--', alpha=0.7)
     axes[1,1].grid(True, alpha=0.3)
     
@@ -9628,9 +9733,9 @@ def ice_load_resampling_analysis(
                             [long_term_stats['mean'] - long_term_stats['std']] * len(years_list),
                             [long_term_stats['mean'] + long_term_stats['std']] * len(years_list),
                             alpha=0.2, color='red', label='±1 Std Dev')
-    axes[0, 0].set_xlabel('Year')
-    axes[0, 0].set_ylabel('Mean Ice Load (kg/m)')
-    axes[0, 0].set_title('Yearly Mean Ice Load vs Long-term Average')
+    axes[0, 0].set_xlabel('Year', fontsize=24)
+    axes[0, 0].set_ylabel('Mean Ice Load (kg/m)', fontsize=24)
+    axes[0, 0].set_title('Yearly Mean Ice Load vs Long-term Average', fontsize=28)
     axes[0, 0].grid(True, alpha=0.3)
     axes[0, 0].legend()
     
@@ -9638,9 +9743,9 @@ def ice_load_resampling_analysis(
     axes[0, 1].plot(years_list, yearly_max, 'g-s', linewidth=2, markersize=4, label='Yearly Maximum')
     axes[0, 1].axhline(y=long_term_stats['max'], color='orange', linestyle='--', linewidth=2,
                        label=f'Long-term Max ({long_term_stats["max"]:.3f})')
-    axes[0, 1].set_xlabel('Year')
-    axes[0, 1].set_ylabel('Maximum Ice Load (kg/m)')
-    axes[0, 1].set_title('Yearly Maximum Ice Load')
+    axes[0, 1].set_xlabel('Year', fontsize=24)
+    axes[0, 1].set_ylabel('Maximum Ice Load (kg/m)', fontsize=24)
+    axes[0, 1].set_title('Yearly Maximum Ice Load', fontsize=28)
     axes[0, 1].grid(True, alpha=0.3)
     axes[0, 1].legend()
     
@@ -9648,9 +9753,9 @@ def ice_load_resampling_analysis(
     colors = ['red' if x > 0 else 'blue' for x in yearly_deviations]
     axes[1, 0].bar(years_list, yearly_deviations, color=colors, alpha=0.7, width=0.8)
     axes[1, 0].axhline(y=0, color='black', linestyle='-', linewidth=1)
-    axes[1, 0].set_xlabel('Year')
-    axes[1, 0].set_ylabel('Deviation from Long-term Mean (kg/m)')
-    axes[1, 0].set_title('Yearly Deviations from Long-term Average')
+    axes[1, 0].set_xlabel('Year', fontsize=24)
+    axes[1, 0].set_ylabel('Deviation from Long-term Mean (kg/m)', fontsize=24)
+    axes[1, 0].set_title('Yearly Deviations from Long-term Average', fontsize=28)
     axes[1, 0].grid(True, alpha=0.3)
     
     # Subplot 4: Normalized deviations
@@ -9659,9 +9764,9 @@ def ice_load_resampling_analysis(
     axes[1, 1].axhline(y=0, color='black', linestyle='-', linewidth=1)
     axes[1, 1].axhline(y=1, color='red', linestyle='--', alpha=0.7, label='+1 Std Dev')
     axes[1, 1].axhline(y=-1, color='red', linestyle='--', alpha=0.7, label='-1 Std Dev')
-    axes[1, 1].set_xlabel('Year')
-    axes[1, 1].set_ylabel('Normalized Deviation (σ)')
-    axes[1, 1].set_title('Normalized Yearly Deviations')
+    axes[1, 1].set_xlabel('Year', fontsize=24)
+    axes[1, 1].set_ylabel('Normalized Deviation (σ)', fontsize=24)
+    axes[1, 1].set_title('Normalized Yearly Deviations', fontsize=28)
     axes[1, 1].grid(True, alpha=0.3)
     axes[1, 1].legend()
     
@@ -9684,7 +9789,7 @@ def ice_load_resampling_analysis(
         axes[0, 0].axhline(y=long_term_stats['mean'], color='red', linestyle='--', linewidth=2,
                            label=f'Overall Mean ({long_term_stats["mean"]:.3f})')
         axes[0, 0].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[0, 0].set_ylabel('Mean Ice Load (kg/m)')
+        axes[0, 0].set_ylabel('Mean Ice Load (kg/m)', fontsize=24)
         axes[0, 0].set_title(f'{resampling_years}-Year Period Means')
         axes[0, 0].set_xticks(x_pos)
         axes[0, 0].set_xticklabels(period_labels, rotation=45)
@@ -9696,7 +9801,7 @@ def ice_load_resampling_analysis(
         axes[0, 1].axhline(y=long_term_stats['std'], color='blue', linestyle='--', linewidth=2,
                            label=f'Overall Std ({long_term_stats["std"]:.3f})')
         axes[0, 1].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[0, 1].set_ylabel('Standard Deviation (kg/m)')
+        axes[0, 1].set_ylabel('Standard Deviation (kg/m)', fontsize=24)
         axes[0, 1].set_title(f'{resampling_years}-Year Period Variability')
         axes[0, 1].set_xticks(x_pos)
         axes[0, 1].set_xticklabels(period_labels, rotation=45)
@@ -9709,7 +9814,7 @@ def ice_load_resampling_analysis(
         axes[1, 0].bar(x_pos, period_deviations, color=colors_period, alpha=0.7)
         axes[1, 0].axhline(y=0, color='black', linestyle='-', linewidth=1)
         axes[1, 0].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[1, 0].set_ylabel('Deviation from Overall Mean (kg/m)')
+        axes[1, 0].set_ylabel('Deviation from Overall Mean (kg/m)', fontsize=24)
         axes[1, 0].set_title(f'{resampling_years}-Year Period Deviations')
         axes[1, 0].set_xticks(x_pos)
         axes[1, 0].set_xticklabels(period_labels, rotation=45)
@@ -9723,7 +9828,7 @@ def ice_load_resampling_analysis(
         axes[1, 1].axhline(y=overall_cv, color='purple', linestyle='--', linewidth=2,
                            label=f'Overall CV ({overall_cv:.3f})')
         axes[1, 1].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[1, 1].set_ylabel('Coefficient of Variation')
+        axes[1, 1].set_ylabel('Coefficient of Variation', fontsize=24)
         axes[1, 1].set_title(f'{resampling_years}-Year Period Relative Variability')
         axes[1, 1].set_xticks(x_pos)
         axes[1, 1].set_xticklabels(period_labels, rotation=45)
@@ -9754,9 +9859,9 @@ def ice_load_resampling_analysis(
     axes[0].axhline(y=np.percentile(all_values_clean, 99), color='red', linestyle='--', alpha=0.7)
     axes[0].axhline(y=long_term_stats['mean'], color='blue', linestyle='--', alpha=0.7)
     
-    axes[0].set_xlabel('Year')
-    axes[0].set_ylabel('Ice Load (kg/m)')
-    axes[0].set_title('Ice Load Percentiles Evolution Over Time')
+    axes[0].set_xlabel('Year', fontsize=24)
+    axes[0].set_ylabel('Ice Load (kg/m)', fontsize=24)
+    axes[0].set_title('Ice Load Percentiles Evolution Over Time', fontsize=28)
     axes[0].grid(True, alpha=0.3)
     axes[0].legend()
     
@@ -9766,8 +9871,8 @@ def ice_load_resampling_analysis(
                     patch_artist=True,
                     boxprops=dict(facecolor='lightblue', alpha=0.7),
                     medianprops=dict(color='red', linewidth=2))
-    axes[1].set_ylabel('Ice Load (kg/m)')
-    axes[1].set_title('Distribution of Yearly Statistics')
+    axes[1].set_ylabel('Ice Load (kg/m)', fontsize=24)
+    axes[1].set_title('Distribution of Yearly Statistics', fontsize=28)
     axes[1].grid(True, alpha=0.3)
     
     plt.tight_layout()
@@ -10176,7 +10281,7 @@ def ice_load_resampling_analysis_hours(
         axes[0, 0].axhline(y=period_avg, color='red', linestyle='--', linewidth=2,
                            label=f'Expected Total ({period_avg:.1f})')
         axes[0, 0].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[0, 0].set_ylabel('Grid Mean Total Exceedance Hours')
+        axes[0, 0].set_ylabel('Grid Mean Total Exceedance Hours', fontsize=24)
         axes[0, 0].set_title(f'{resampling_years}-Year Period Grid Mean Total Hours')
         axes[0, 0].set_xticks(x_pos)
         axes[0, 0].set_xticklabels(period_labels, rotation=45)
@@ -10190,7 +10295,7 @@ def ice_load_resampling_analysis_hours(
         axes[0, 1].axhline(y=mean_of_period_means, color='blue', linestyle='--', linewidth=2,
                            label=f'Mean of Period Means ({mean_of_period_means:.1f})')
         axes[0, 1].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[0, 1].set_ylabel('Mean Hours per Cell')
+        axes[0, 1].set_ylabel('Mean Hours per Cell', fontsize=24)
         axes[0, 1].set_title(f'{resampling_years}-Year Period Mean Hours per Cell')
         axes[0, 1].set_xticks(x_pos)
         axes[0, 1].set_xticklabels(period_labels, rotation=45)
@@ -10203,7 +10308,7 @@ def ice_load_resampling_analysis_hours(
         axes[1, 0].bar(x_pos, period_deviations, color=colors_period, alpha=0.7)
         axes[1, 0].axhline(y=0, color='black', linestyle='-', linewidth=1)
         axes[1, 0].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[1, 0].set_ylabel('Deviation from Period Means Average (hours)')
+        axes[1, 0].set_ylabel('Deviation from Period Means Average (hours)', fontsize=24)
         axes[1, 0].set_title(f'{resampling_years}-Year Period Deviations')
         axes[1, 0].set_xticks(x_pos)
         axes[1, 0].set_xticklabels(period_labels, rotation=45)
@@ -10220,7 +10325,7 @@ def ice_load_resampling_analysis_hours(
         axes[1, 1].axhline(y=overall_pct, color='purple', linestyle='--', linewidth=2,
                            label=f'Overall ({overall_pct:.1f}%)')
         axes[1, 1].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[1, 1].set_ylabel('Cells with Exceedance (%)')
+        axes[1, 1].set_ylabel('Cells with Exceedance (%)', fontsize=24)
         axes[1, 1].set_title(f'{resampling_years}-Year Period Spatial Coverage')
         axes[1, 1].set_xticks(x_pos)
         axes[1, 1].set_xticklabels(period_labels, rotation=45)
@@ -10251,9 +10356,9 @@ def ice_load_resampling_analysis_hours(
     axes[0].axhline(y=np.mean(yearly_percentiles['p95']), color='red', linestyle='--', alpha=0.7)
     axes[0].axhline(y=np.mean(yearly_mean_hours), color='blue', linestyle='--', alpha=0.7)
     
-    axes[0].set_xlabel('Year')
-    axes[0].set_ylabel('Exceedance Hours per Cell')
-    axes[0].set_title('Exceedance Hours Percentiles Evolution Over Time')
+    axes[0].set_xlabel('Year', fontsize=24)
+    axes[0].set_ylabel('Exceedance Hours per Cell', fontsize=24)
+    axes[0].set_title('Exceedance Hours Percentiles Evolution Over Time', fontsize=28)
     axes[0].grid(True, alpha=0.3)
     axes[0].legend()
     
@@ -10263,8 +10368,8 @@ def ice_load_resampling_analysis_hours(
                     patch_artist=True,
                     boxprops=dict(facecolor='lightblue', alpha=0.7),
                     medianprops=dict(color='red', linewidth=2))
-    axes[1].set_ylabel('Exceedance Hours per Cell')
-    axes[1].set_title('Distribution of Yearly Exceedance Hours Statistics')
+    axes[1].set_ylabel('Exceedance Hours per Cell', fontsize=24)
+    axes[1].set_title('Distribution of Yearly Exceedance Hours Statistics', fontsize=28)
     axes[1].grid(True, alpha=0.3)
     
     plt.tight_layout()
@@ -10805,11 +10910,11 @@ def plot_grid_with_extra_point(dataset, extra_point_coords, extra_point_label='E
                    marker='*', label=extra_point_label)
         
         # Customize the plot
-        plt.xlabel('Longitude (°)')
-        plt.ylabel('Latitude (°)')
+        plt.xlabel('Longitude (°)', fontsize=24)
+        plt.ylabel('Latitude (°)', fontsize=24)
         plt.title(plot_title)
         plt.grid(True, alpha=0.3, linestyle='--')
-        plt.legend(fontsize=12)
+        plt.legend(fontsize=24)
         
         # Add coordinate labels for grid points (if not too many)
         if lats.size <= 25:  # Only for small grids
@@ -10817,13 +10922,13 @@ def plot_grid_with_extra_point(dataset, extra_point_coords, extra_point_label='E
                 for j in range(lats.shape[1]):
                     plt.annotate(f'({j},{i})', (lons[i,j], lats[i,j]), 
                                xytext=(5, 5), textcoords='offset points', 
-                               fontsize=8, alpha=0.7)
+                               fontsize=24, alpha=0.7)
         
         # Add coordinate annotation for extra point
         plt.annotate(f'{extra_point_label}\n({extra_lon:.4f}°, {extra_lat:.4f}°)', 
                     (extra_lon, extra_lat), 
                     xytext=(10, 10), textcoords='offset points', 
-                    fontsize=10, fontweight='bold',
+                    fontsize=30, fontweight='bold',
                     bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.7))
         
         # Set equal aspect ratio to maintain grid proportions
@@ -11150,7 +11255,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                     label=f'EMD Hourly ({emd_column})')
             ax1.plot(newa_clean.index, newa_clean.values, 'r-', alpha=0.7, linewidth=0.5, 
                     label=f'NEWA Hourly (ICE_LOAD)')
-            ax1.set_ylabel('Ice Load (kg/m)')
+            ax1.set_ylabel('Ice Load (kg/m)', fontsize=24)
             ax1.set_title(f'Hourly Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
@@ -11164,7 +11269,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                     label=f'EMD Daily Mean ({emd_column})')
             ax2.plot(newa_daily_avg.index, newa_daily_avg.values, 'r-', alpha=0.8, linewidth=1.0, 
                     label=f'NEWA Daily Mean (ICE_LOAD)')
-            ax2.set_ylabel('Ice Load (kg/m)')
+            ax2.set_ylabel('Ice Load (kg/m)', fontsize=24)
             ax2.set_title(f'Daily Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
             ax2.legend()
             ax2.grid(True, alpha=0.3)
@@ -11178,15 +11283,15 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                     label=f'EMD Weekly Mean ({emd_column})')
             ax3.plot(newa_weekly_avg.index, newa_weekly_avg.values, 'r-', alpha=0.9, linewidth=1.5, 
                     label=f'NEWA Weekly Mean (ICE_LOAD)')
-            ax3.set_xlabel('Time')
-            ax3.set_ylabel('Ice Load (kg/m)')
+            ax3.set_xlabel('Time', fontsize=24)
+            ax3.set_ylabel('Ice Load (kg/m)', fontsize=24)
             ax3.set_title(f'Weekly Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
             ax3.legend()
             ax3.grid(True, alpha=0.3)
             
             plt.suptitle(f'Multi-Scale Ice Load Comparison: EMD vs NEWA at {height}m (Lines Only)\n'
                         f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=16, y=0.98)
+                        fontsize=32, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
@@ -11202,7 +11307,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             # Subplot 1: Original hourly data (scatter only)
             ax1.scatter(emd_clean.index, emd_clean.values, c='blue', s=0.5, alpha=0.6, label=f'EMD Hourly ({emd_column})')
             ax1.scatter(newa_clean.index, newa_clean.values, c='red', s=0.5, alpha=0.6, label=f'NEWA Hourly (ICE_LOAD)')
-            ax1.set_ylabel('Ice Load (kg/m)')
+            ax1.set_ylabel('Ice Load (kg/m)', fontsize=24)
             ax1.set_title(f'Hourly Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
@@ -11210,7 +11315,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             # Subplot 2: Daily averages (scatter only)
             ax2.scatter(emd_daily_avg.index, emd_daily_avg.values, c='blue', s=3, alpha=0.7, label=f'EMD Daily Mean ({emd_column})')
             ax2.scatter(newa_daily_avg.index, newa_daily_avg.values, c='red', s=3, alpha=0.7, label=f'NEWA Daily Mean (ICE_LOAD)')
-            ax2.set_ylabel('Ice Load (kg/m)')
+            ax2.set_ylabel('Ice Load (kg/m)', fontsize=24)
             ax2.set_title(f'Daily Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
             ax2.legend()
             ax2.grid(True, alpha=0.3)
@@ -11218,15 +11323,15 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             # Subplot 3: Weekly averages (scatter only)
             ax3.scatter(emd_weekly_avg.index, emd_weekly_avg.values, c='blue', s=10, alpha=0.8, label=f'EMD Weekly Mean ({emd_column})')
             ax3.scatter(newa_weekly_avg.index, newa_weekly_avg.values, c='red', s=10, alpha=0.8, label=f'NEWA Weekly Mean (ICE_LOAD)')
-            ax3.set_xlabel('Time')
-            ax3.set_ylabel('Ice Load (kg/m)')
+            ax3.set_xlabel('Time', fontsize=24)
+            ax3.set_ylabel('Ice Load (kg/m)', fontsize=24)
             ax3.set_title(f'Weekly Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
             ax3.legend()
             ax3.grid(True, alpha=0.3)
             
             plt.suptitle(f'Multi-Scale Ice Load Comparison: EMD vs NEWA at {height}m (Scatter Only)\n'
                         f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=16, y=0.98)
+                        fontsize=32, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
@@ -11245,7 +11350,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             ax1.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax1.axhline(y=bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Mean Bias: {bias:.3f} kg/m')
-            ax1.set_ylabel('Difference (NEWA - EMD) [kg/m]')
+            ax1.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=24)
             ax1.set_title(f'Hourly Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
@@ -11257,7 +11362,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax2.axhline(y=daily_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Daily Mean Bias: {daily_bias:.3f} kg/m')
-            ax2.set_ylabel('Difference (NEWA - EMD) [kg/m]')
+            ax2.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=24)
             ax2.set_title(f'Daily Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
             ax2.legend()
             ax2.grid(True, alpha=0.3)
@@ -11269,15 +11374,15 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             ax3.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax3.axhline(y=weekly_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Weekly Mean Bias: {weekly_bias:.3f} kg/m')
-            ax3.set_xlabel('Time')
-            ax3.set_ylabel('Difference (NEWA - EMD) [kg/m]')
+            ax3.set_xlabel('Time', fontsize=24)
+            ax3.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=24)
             ax3.set_title(f'Weekly Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
             ax3.legend()
             ax3.grid(True, alpha=0.3)
             
             plt.suptitle(f'Multi-Scale Ice Load Differences: NEWA - EMD at {height}m (Lines Only)\n'
                         f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=16, y=0.98)
+                        fontsize=32, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
@@ -11295,7 +11400,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             ax1.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax1.axhline(y=bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Mean Bias: {bias:.3f} kg/m')
-            ax1.set_ylabel('Difference (NEWA - EMD) [kg/m]')
+            ax1.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=24)
             ax1.set_title(f'Hourly Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
@@ -11305,7 +11410,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax2.axhline(y=daily_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Daily Mean Bias: {daily_bias:.3f} kg/m')
-            ax2.set_ylabel('Difference (NEWA - EMD) [kg/m]')
+            ax2.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=24)
             ax2.set_title(f'Daily Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
             ax2.legend()
             ax2.grid(True, alpha=0.3)
@@ -11315,15 +11420,15 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             ax3.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax3.axhline(y=weekly_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Weekly Mean Bias: {weekly_bias:.3f} kg/m')
-            ax3.set_xlabel('Time')
-            ax3.set_ylabel('Difference (NEWA - EMD) [kg/m]')
+            ax3.set_xlabel('Time', fontsize=24)
+            ax3.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=24)
             ax3.set_title(f'Weekly Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
             ax3.legend()
             ax3.grid(True, alpha=0.3)
             
             plt.suptitle(f'Multi-Scale Ice Load Differences: NEWA - EMD at {height}m (Scatter Only)\n'
                         f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=16, y=0.98)
+                        fontsize=32, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
@@ -11374,20 +11479,20 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                          f'Intercept = {intercept:.3f}')
             
             # Position text box in upper left corner
-            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=11,
+            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=22,
                    verticalalignment='top', horizontalalignment='left',
                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
             
             # Set labels and title
-            ax.set_xlabel(f'NEWA Ice Load (kg/m) at {height}m', fontsize=12)
-            ax.set_ylabel(f'EMD Ice Load (kg/m) at {height}m', fontsize=12)
+            ax.set_xlabel(f'NEWA Ice Load (kg/m) at {height}m', fontsize=24)
+            ax.set_ylabel(f'EMD Ice Load (kg/m) at {height}m', fontsize=24)
             ax.set_title(f'EMD vs NEWA Ice Load Scatter Plot at {height}m (Icing Season Only)\n'
                         f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=14, pad=15)
+                        fontsize=28, pad=15)
             
             # Add grid and legend
             ax.grid(True, alpha=0.3)
-            ax.legend(loc='lower right', fontsize=10)
+            ax.legend(loc='lower right', fontsize=30)
             
             # Make axes equal for better visualization of agreement
             ax.set_aspect('equal', adjustable='box')
@@ -11444,15 +11549,15 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                 ax.plot(regression_x, regression_y, 'r-', linewidth=2, alpha=0.8,
                        label=f'Linear regression (y = {slope:.3f}x + {intercept:.3f})')
                 
-                ax.set_xlabel(f'NEWA Ice Load (kg/m) at {height}m', fontsize=12)
-                ax.set_ylabel(f'EMD Ice Load (kg/m) at {height}m', fontsize=12)
+                ax.set_xlabel(f'NEWA Ice Load (kg/m) at {height}m', fontsize=24)
+                ax.set_ylabel(f'EMD Ice Load (kg/m) at {height}m', fontsize=24)
                 ax.set_title(f'EMD vs NEWA Ice Load Scatter Plot at {height}m (Non-Zero Values Only)\n'
                             f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                            fontsize=14, pad=15)
+                            fontsize=28, pad=15)
                 
                 # Add grid and legend
                 ax.grid(True, alpha=0.3)
-                ax.legend(loc='lower right', fontsize=10)
+                ax.legend(loc='lower right', fontsize=30)
                 
                 # Make axes equal for better visualization of agreement
                 ax.set_aspect('equal', adjustable='box')
@@ -11468,7 +11573,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                              f'Intercept = {intercept:.3f}')
                 
                 # Position text box in upper left corner (same as normal scatter plot)
-                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=11,
+                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=22,
                        verticalalignment='top', horizontalalignment='left',
                        bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
                 
@@ -11516,13 +11621,13 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                 height_b = bar.get_height()
                 ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5,
                        f'{percentage:.1f}%\n({count:,} hours)',
-                       ha='center', va='bottom', fontweight='bold', fontsize=11)
+                       ha='center', va='bottom', fontweight='bold', fontsize=22)
             
-            ax.set_ylabel('Percentage of Zero Values (%)', fontsize=12, fontweight='bold')
+            ax.set_ylabel('Percentage of Zero Values (%)', fontsize=24, fontweight='bold')
             ax.set_title(f'Zero Value Analysis at {height:.0f}m\n'
                         f'Total timestamps: {total_timestamps:,} hours\n'
                         f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=14, fontweight='bold')
+                        fontsize=28, fontweight='bold')
             ax.grid(True, alpha=0.3, axis='y')
             ax.set_ylim(0, max(zero_percentages) * 1.15)
             
@@ -11535,7 +11640,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             
             ax.text(0.02, 0.05, stats_text, transform=ax.transAxes,
                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.9),
-                   verticalalignment='bottom', horizontalalignment='left', fontsize=10)
+                   verticalalignment='bottom', horizontalalignment='left', fontsize=30)
             
             plt.tight_layout()
             
@@ -11578,11 +11683,11 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                 for patch, color in zip(box_plot['boxes'], colors):
                     patch.set_facecolor(color)
                 
-                ax.set_ylabel('Ice Load [kg/m]', fontsize=12, fontweight='bold')
+                ax.set_ylabel('Ice Load [kg/m]', fontsize=24, fontweight='bold')
                 ax.set_title(f'Distribution of Positive Ice Load Values at {height}m\n'
                             f'Positive values: EMD={len(emd_positive):,}, NEWA={len(newa_positive):,}\n'
                             f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                            fontsize=14, fontweight='bold')
+                            fontsize=28, fontweight='bold')
                 ax.grid(True, alpha=0.3)
                 
                 # Calculate and display statistics
@@ -11630,7 +11735,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                 
                 ax.text(1.02, 1.0, stats_text, transform=ax.transAxes,
                        bbox=dict(boxstyle='round', facecolor='white', alpha=0.9),
-                       verticalalignment='top', fontsize=9, family='monospace')
+                       verticalalignment='top', fontsize=27, family='monospace')
                 
                 # Add legend explaining box plot elements
                 legend_text = 'Box Plot Elements:\n'
@@ -11642,7 +11747,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                 
                 ax.text(0.02, 0.98, legend_text, transform=ax.transAxes,
                        bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8),
-                       verticalalignment='top', fontsize=9)
+                       verticalalignment='top', fontsize=27)
                 
                 plt.tight_layout()
                 
@@ -11720,34 +11825,34 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             
             # Add colorbar with better formatting
             cbar = plt.colorbar(im, shrink=0.6, pad=0.02)
-            cbar.set_label('Hourly Mean Ice Load Difference (NEWA - EMD) [kg/m]', fontsize=14)
-            cbar.ax.tick_params(labelsize=12)
+            cbar.set_label('Hourly Mean Ice Load Difference (NEWA - EMD) [kg/m]', fontsize=28)
+            cbar.ax.tick_params(labelsize=30)
             
             # Set labels and ticks with better formatting for all months
-            plt.xlabel('Day of Year', fontsize=14)
-            plt.ylabel('Year', fontsize=14)
+            plt.xlabel('Day of Year', fontsize=28)
+            plt.ylabel('Year', fontsize=28)
             plt.title(f'Daily Mean Ice Load Differences Grid: NEWA - EMD at {height}m (All Months)\n'
                      f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km\n'
-                     f'Each cell = daily mean difference for that specific year and day', fontsize=16, pad=20)
+                     f'Each cell = daily mean difference for that specific year and day', fontsize=32, pad=20)
             
             # Set year labels
             year_indices = np.arange(0, len(pivot_grid.index))
             year_step = max(1, len(pivot_grid.index)//15)
             year_ticks = year_indices[::year_step]
-            plt.yticks(year_ticks, [pivot_grid.index[i] for i in year_ticks], fontsize=12)
+            plt.yticks(year_ticks, [pivot_grid.index[i] for i in year_ticks], fontsize=24)
             
             # Set day of year labels (all months)
             month_starts = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
             month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            plt.xticks(month_starts, month_labels, rotation=0, fontsize=12)
+            plt.xticks(month_starts, month_labels, rotation=0, fontsize=24)
             
             # Add secondary x-axis with day numbers
             ax2 = plt.gca().secondary_xaxis('top')
             day_ticks = np.arange(0, 366, 30)
             ax2.set_xticks(day_ticks)
-            ax2.set_xlabel('Day of Year', fontsize=12)
-            ax2.tick_params(labelsize=10)
+            ax2.set_xlabel('Day of Year', fontsize=24)
+            ax2.tick_params(labelsize=20)
             
             # Improve layout
             plt.tight_layout()
@@ -12214,9 +12319,9 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
             for patch, color in zip(box_plot_daily['boxes'], colors):
                 patch.set_facecolor(color)
             
-            ax1.set_ylabel('Mean Daily Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=12, fontweight='bold')
+            ax1.set_ylabel('Mean Daily Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=24, fontweight='bold')
             ax1.set_title(f'Typical Day Comparison at {height}m\n'
-                         f'Distribution of Daily Means of Hourly Ice Load (n={len(emd_daily_aligned)})', fontsize=11, fontweight='bold')
+                         f'Distribution of Daily Means of Hourly Ice Load (n={len(emd_daily_aligned)})', fontsize=22, fontweight='bold')
             ax1.grid(True, alpha=0.3)
             
             # Plot 2: Weekly means box plot
@@ -12233,9 +12338,9 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
             for patch, color in zip(box_plot_weekly['boxes'], colors):
                 patch.set_facecolor(color)
             
-            ax2.set_ylabel('Mean Weekly Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=12, fontweight='bold')
+            ax2.set_ylabel('Mean Weekly Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=24, fontweight='bold')
             ax2.set_title(f'Typical Week Comparison at {height}m\n'
-                         f'Distribution of Weekly Means of Hourly Ice Load (n={len(emd_weekly_aligned)})', fontsize=11, fontweight='bold')
+                         f'Distribution of Weekly Means of Hourly Ice Load (n={len(emd_weekly_aligned)})', fontsize=22, fontweight='bold')
             ax2.grid(True, alpha=0.3)
             
             # Plot 3: Yearly means box plot
@@ -12252,9 +12357,9 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
             for patch, color in zip(box_plot_yearly['boxes'], colors):
                 patch.set_facecolor(color)
             
-            ax3.set_ylabel('Mean Yearly Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=12, fontweight='bold')
+            ax3.set_ylabel('Mean Yearly Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=24, fontweight='bold')
             ax3.set_title(f'Typical Year Comparison at {height}m\n'
-                         f'Distribution of Yearly Means of Hourly Ice Load (n={len(emd_yearly_aligned)})', fontsize=11, fontweight='bold')
+                         f'Distribution of Yearly Means of Hourly Ice Load (n={len(emd_yearly_aligned)})', fontsize=22, fontweight='bold')
             ax3.grid(True, alpha=0.3)
             
             # Add overall title with filtering information
@@ -12265,11 +12370,11 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
                         f'Temporal Means of Hourly Ice Load Values\n'
                         f'{threshold_text} | {nonzero_text}\n'
                         f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=14, fontweight='bold', y=0.96)
+                        fontsize=28, fontweight='bold', y=0.96)
             
             # Add legend explaining box plot elements
             legend_text = 'Box Plot Elements:\n━ Red line: Median\n┅ Black line: Mean\n□ Box: Q25-Q75 (IQR)\n┬ Whiskers: 1.5×IQR\n○ Outliers'
-            fig.text(0.02, 0.02, legend_text, fontsize=9, 
+            fig.text(0.02, 0.02, legend_text, fontsize=27, 
                     bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8),
                     verticalalignment='bottom')
             
@@ -12323,7 +12428,7 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
             table = ax.table(cellText=stats_table_data[1:], colLabels=stats_table_data[0], 
                            cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
             table.auto_set_font_size(False)
-            table.set_fontsize(10)
+            table.set_fontsize(30)
             table.scale(1, 2)
             
             # Style the table
@@ -12344,7 +12449,7 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
             ax.set_title(f'Typical Patterns Statistics Summary at {height}m\n'
                         f'Temporal Means of Hourly Ice Load Values in kg/m (Icing Season Only)\n'
                         f'{threshold_text} | {nonzero_text}',
-                        fontsize=14, fontweight='bold', pad=20)
+                        fontsize=28, fontweight='bold', pad=20)
             
             plt.tight_layout()
             
@@ -12683,7 +12788,7 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
                 ax3.axvline(np.mean(newa_nonzero), color='orange', linestyle='--', alpha=0.8, label='NEWA Mean')
             else:
                 ax3.text(0.5, 0.5, 'Insufficient non-zero data\nfor log-log PDF', 
-                        ha='center', va='center', transform=ax3.transAxes, fontsize=12)
+                        ha='center', va='center', transform=ax3.transAxes, fontsize=24)
             
             ax3.set_xlabel('Ice Load [kg/m]', fontweight='bold')
             ax3.set_ylabel('Probability Density', fontweight='bold')
@@ -12741,7 +12846,7 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
             table = ax6.table(cellText=stats_data[1:], colLabels=stats_data[0], 
                              cellLoc='center', loc='center', bbox=[0.05, 0.1, 0.9, 0.8])
             table.auto_set_font_size(False)
-            table.set_fontsize(9)
+            table.set_fontsize(27)
             table.scale(1, 1.5)
             
             # Style the table
@@ -12764,7 +12869,7 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
             fig.suptitle(f'PDF Analysis: EMD vs NEWA Ice Load at {height}m - 6 Comprehensive Plots\n'
                         f'Distribution Comparison (Icing Season Only) | {threshold_text} | {nonzero_text}\n'
                         f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=16, fontweight='bold', y=0.96)
+                        fontsize=32, fontweight='bold', y=0.96)
             
             plt.tight_layout()
             plt.subplots_adjust(top=0.88)
@@ -13109,7 +13214,7 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
             ax1.plot(emd_clean.index, emd_clean.values, 'b-', alpha=0.7, linewidth=0.5, label=f'EMD Hourly ({emd_column})')
             ax1.plot(newa_clean.index, newa_clean.values, 'r-', alpha=0.7, linewidth=0.5, label=f'NEWA Hourly (ACCRE_CYL)')
-            ax1.set_ylabel('Ice Accretion (g/h)')
+            ax1.set_ylabel('Ice Accretion (g/h)', fontsize=24)
             ax1.set_title(f'Hourly Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
@@ -13117,7 +13222,7 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             newa_daily_avg = newa_clean.resample('D').mean()
             ax2.plot(emd_daily_avg.index, emd_daily_avg.values, 'b-', alpha=0.8, linewidth=1.0, label=f'EMD Daily Mean ({emd_column})')
             ax2.plot(newa_daily_avg.index, newa_daily_avg.values, 'r-', alpha=0.8, linewidth=1.0, label=f'NEWA Daily Mean (ACCRE_CYL)')
-            ax2.set_ylabel('Ice Accretion (g/h)')
+            ax2.set_ylabel('Ice Accretion (g/h)', fontsize=24)
             ax2.set_title(f'Daily Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
             ax2.legend()
             ax2.grid(True, alpha=0.3)
@@ -13125,12 +13230,12 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             newa_weekly_avg = newa_clean.resample('W').mean()
             ax3.plot(emd_weekly_avg.index, emd_weekly_avg.values, 'b-', alpha=0.9, linewidth=1.5, label=f'EMD Weekly Mean ({emd_column})')
             ax3.plot(newa_weekly_avg.index, newa_weekly_avg.values, 'r-', alpha=0.9, linewidth=1.5, label=f'NEWA Weekly Mean (ACCRE_CYL)')
-            ax3.set_xlabel('Time')
-            ax3.set_ylabel('Ice Accretion (g/h)')
+            ax3.set_xlabel('Time', fontsize=24)
+            ax3.set_ylabel('Ice Accretion (g/h)', fontsize=24)
             ax3.set_title(f'Weekly Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
             ax3.legend()
             ax3.grid(True, alpha=0.3)
-            plt.suptitle(f'Multi-Scale Ice Accretion Comparison: EMD vs NEWA at {height}m (Lines Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=16, y=0.98)
+            plt.suptitle(f'Multi-Scale Ice Accretion Comparison: EMD vs NEWA at {height}m (Lines Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=32, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             timeseries_lines_path = os.path.join(base_dir, f'multi_scale_timeseries_lines_{height:.0f}m.png')
@@ -13143,24 +13248,24 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
             ax1.scatter(emd_clean.index, emd_clean.values, c='blue', s=0.5, alpha=0.6, label=f'EMD Hourly ({emd_column})')
             ax1.scatter(newa_clean.index, newa_clean.values, c='red', s=0.5, alpha=0.6, label=f'NEWA Hourly (ACCRE_CYL)')
-            ax1.set_ylabel('Ice Accretion (g/h)')
+            ax1.set_ylabel('Ice Accretion (g/h)', fontsize=24)
             ax1.set_title(f'Hourly Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
             ax2.scatter(emd_daily_avg.index, emd_daily_avg.values, c='blue', s=3, alpha=0.7, label=f'EMD Daily Mean ({emd_column})')
             ax2.scatter(newa_daily_avg.index, newa_daily_avg.values, c='red', s=3, alpha=0.7, label=f'NEWA Daily Mean (ACCRE_CYL)')
-            ax2.set_ylabel('Ice Accretion (g/h)')
+            ax2.set_ylabel('Ice Accretion (g/h)', fontsize=24)
             ax2.set_title(f'Daily Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
             ax2.legend()
             ax2.grid(True, alpha=0.3)
             ax3.scatter(emd_weekly_avg.index, emd_weekly_avg.values, c='blue', s=10, alpha=0.8, label=f'EMD Weekly Mean ({emd_column})')
             ax3.scatter(newa_weekly_avg.index, newa_weekly_avg.values, c='red', s=10, alpha=0.8, label=f'NEWA Weekly Mean (ACCRE_CYL)')
-            ax3.set_xlabel('Time')
-            ax3.set_ylabel('Ice Accretion (g/h)')
+            ax3.set_xlabel('Time', fontsize=24)
+            ax3.set_ylabel('Ice Accretion (g/h)', fontsize=24)
             ax3.set_title(f'Weekly Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
             ax3.legend()
             ax3.grid(True, alpha=0.3)
-            plt.suptitle(f'Multi-Scale Ice Accretion Comparison: EMD vs NEWA at {height}m (Scatter Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=16, y=0.98)
+            plt.suptitle(f'Multi-Scale Ice Accretion Comparison: EMD vs NEWA at {height}m (Scatter Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=32, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             timeseries_scatter_path = os.path.join(base_dir, f'multi_scale_timeseries_scatter_{height:.0f}m.png')
@@ -13175,7 +13280,7 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             ax1.plot(differences.index, differences.values, 'g-', alpha=0.7, linewidth=0.5)
             ax1.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax1.axhline(y=bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Mean Bias: {bias:.3f} g/h')
-            ax1.set_ylabel('Difference (NEWA - EMD) [g/h]')
+            ax1.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=24)
             ax1.set_title(f'Hourly Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
@@ -13184,7 +13289,7 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             ax2.plot(daily_differences_ts.index, daily_differences_ts.values, 'g-', alpha=0.8, linewidth=1.0)
             ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax2.axhline(y=daily_bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Daily Mean Bias: {daily_bias:.3f} g/h')
-            ax2.set_ylabel('Difference (NEWA - EMD) [g/h]')
+            ax2.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=24)
             ax2.set_title(f'Daily Mean Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
             ax2.legend()
             ax2.grid(True, alpha=0.3)
@@ -13193,12 +13298,12 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             ax3.plot(weekly_differences_ts.index, weekly_differences_ts.values, 'g-', alpha=0.9, linewidth=1.5)
             ax3.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax3.axhline(y=weekly_bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Weekly Mean Bias: {weekly_bias:.3f} g/h')
-            ax3.set_xlabel('Time')
-            ax3.set_ylabel('Difference (NEWA - EMD) [g/h]')
+            ax3.set_xlabel('Time', fontsize=24)
+            ax3.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=24)
             ax3.set_title(f'Weekly Mean Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
             ax3.legend()
             ax3.grid(True, alpha=0.3)
-            plt.suptitle(f'Multi-Scale Ice Accretion Differences: NEWA - EMD at {height}m (Lines Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=16, y=0.98)
+            plt.suptitle(f'Multi-Scale Ice Accretion Differences: NEWA - EMD at {height}m (Lines Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=32, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             differences_lines_path = os.path.join(base_dir, f'multi_scale_differences_lines_{height:.0f}m.png')
@@ -13212,26 +13317,26 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             ax1.scatter(differences.index, differences.values, c='green', s=0.5, alpha=0.6)
             ax1.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax1.axhline(y=bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Mean Bias: {bias:.3f} g/h')
-            ax1.set_ylabel('Difference (NEWA - EMD) [g/h]')
+            ax1.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=24)
             ax1.set_title(f'Hourly Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
             ax2.scatter(daily_differences_ts.index, daily_differences_ts.values, c='green', s=3, alpha=0.7)
             ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax2.axhline(y=daily_bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Daily Mean Bias: {daily_bias:.3f} g/h')
-            ax2.set_ylabel('Difference (NEWA - EMD) [g/h]')
+            ax2.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=24)
             ax2.set_title(f'Daily Mean Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
             ax2.legend()
             ax2.grid(True, alpha=0.3)
             ax3.scatter(weekly_differences_ts.index, weekly_differences_ts.values, c='green', s=10, alpha=0.8)
             ax3.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax3.axhline(y=weekly_bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Weekly Mean Bias: {weekly_bias:.3f} g/h')
-            ax3.set_xlabel('Time')
-            ax3.set_ylabel('Difference (NEWA - EMD) [g/h]')
+            ax3.set_xlabel('Time', fontsize=24)
+            ax3.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=24)
             ax3.set_title(f'Weekly Mean Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
             ax3.legend()
             ax3.grid(True, alpha=0.3)
-            plt.suptitle(f'Multi-Scale Ice Accretion Differences: NEWA - EMD at {height}m (Scatter Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=16, y=0.98)
+            plt.suptitle(f'Multi-Scale Ice Accretion Differences: NEWA - EMD at {height}m (Scatter Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=32, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             differences_scatter_path = os.path.join(base_dir, f'multi_scale_differences_scatter_{height:.0f}m.png')
@@ -13258,12 +13363,12 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             regression_y = slope * regression_x + intercept
             ax.plot(regression_x, regression_y, 'r-', linewidth=2, alpha=0.8, label=f'Linear regression (y = {slope:.3f}x + {intercept:.3f})')
             stats_text = (f'N = {len(emd_clean)}\nR² = {r2:.3f}\nCorrelation = {correlation:.3f}\nRMSE = {rmse:.3f} g/h\nMAE = {mae:.3f} g/h\nBias = {bias:.3f} g/h\nSlope = {slope:.3f}\nIntercept = {intercept:.3f}')
-            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=11, verticalalignment='top', horizontalalignment='left', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
-            ax.set_xlabel(f'NEWA Ice Accretion (g/h) at {height}m', fontsize=12)
-            ax.set_ylabel(f'EMD Ice Accretion (g/h) at {height}m', fontsize=12)
-            ax.set_title(f'EMD vs NEWA Ice Accretion Scatter Plot at {height}m (Icing Season Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, pad=15)
+            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=22, verticalalignment='top', horizontalalignment='left', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
+            ax.set_xlabel(f'NEWA Ice Accretion (g/h) at {height}m', fontsize=24)
+            ax.set_ylabel(f'EMD Ice Accretion (g/h) at {height}m', fontsize=24)
+            ax.set_title(f'EMD vs NEWA Ice Accretion Scatter Plot at {height}m (Icing Season Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, pad=15)
             ax.grid(True, alpha=0.3)
-            ax.legend(loc='lower right', fontsize=10)
+            ax.legend(loc='lower right', fontsize=30)
             ax.set_aspect('equal', adjustable='box')
             plt.tight_layout()
             scatter_regression_path = os.path.join(base_dir, f'emd_vs_newa_scatter_{height:.0f}m.png')
@@ -13293,14 +13398,14 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
                 regression_x = np.array(xlim)
                 regression_y = slope * regression_x + intercept
                 ax.plot(regression_x, regression_y, 'r-', linewidth=2, alpha=0.8, label=f'Linear regression (y = {slope:.3f}x + {intercept:.3f})')
-                ax.set_xlabel(f'NEWA Ice Accretion (g/h) at {height}m', fontsize=12)
-                ax.set_ylabel(f'EMD Ice Accretion (g/h) at {height}m', fontsize=12)
-                ax.set_title(f'EMD vs NEWA Ice Accretion Scatter Plot at {height}m (Non-Zero Values Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, pad=15)
+                ax.set_xlabel(f'NEWA Ice Accretion (g/h) at {height}m', fontsize=24)
+                ax.set_ylabel(f'EMD Ice Accretion (g/h) at {height}m', fontsize=24)
+                ax.set_title(f'EMD vs NEWA Ice Accretion Scatter Plot at {height}m (Non-Zero Values Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, pad=15)
                 ax.grid(True, alpha=0.3)
-                ax.legend(loc='lower right', fontsize=10)
+                ax.legend(loc='lower right', fontsize=30)
                 ax.set_aspect('equal', adjustable='box')
                 stats_text = (f'N = {len(emd_nonzero)}\nR² = {r_value**2:.3f}\nCorrelation = {np.corrcoef(emd_nonzero, newa_nonzero)[0,1]:.3f}\nRMSE = {np.sqrt(np.mean((newa_nonzero - emd_nonzero)**2)):.3f} g/h\nMAE = {np.mean(np.abs(newa_nonzero - emd_nonzero)):.3f} g/h\nBias = {np.mean(newa_nonzero - emd_nonzero):.3f} g/h\nSlope = {slope:.3f}\nIntercept = {intercept:.3f}')
-                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=11, verticalalignment='top', horizontalalignment='left', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
+                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=22, verticalalignment='top', horizontalalignment='left', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
                 plt.tight_layout()
                 nonzero_scatter_path = os.path.join(base_dir, f'emd_vs_newa_scatter_nonzero_{height:.0f}m.png')
                 plt.savefig(nonzero_scatter_path, dpi=150, facecolor='white')
@@ -13333,9 +13438,9 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             bars = ax.bar(datasets, zero_percentages, color=colors, alpha=0.7, edgecolor='black', linewidth=1)
             for i, (bar, count, percentage) in enumerate(zip(bars, zero_counts, zero_percentages)):
                 height_b = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=11)
-            ax.set_ylabel('Percentage of Zero Values (%)', fontsize=12, fontweight='bold')
-            ax.set_title(f'Zero Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold')
+                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=22)
+            ax.set_ylabel('Percentage of Zero Values (%)', fontsize=24, fontweight='bold')
+            ax.set_title(f'Zero Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, fontweight='bold')
             ax.grid(True, alpha=0.3, axis='y')
             ax.set_ylim(0, max(zero_percentages) * 1.15)
             stats_text = f'Summary:\n'
@@ -13343,7 +13448,7 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             stats_text += f'NEWA zeros: {newa_zero_count:,} ({newa_zero_percentage:.1f}%)\n'
             stats_text += f'Both zero: {((emd_clean == 0) & (newa_clean == 0)).sum():,}\n'
             stats_text += f'Either zero: {((emd_clean == 0) | (newa_clean == 0)).sum():,}'
-            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=10)
+            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=30)
             plt.tight_layout()
 
             # Ensure saving directory exists
@@ -13365,9 +13470,9 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             bars = ax.bar(datasets, neg_percentages, color=colors, alpha=0.7, edgecolor='black', linewidth=1)
             for i, (bar, count, percentage) in enumerate(zip(bars, neg_counts, neg_percentages)):
                 height_b = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=11)
-            ax.set_ylabel('Percentage of Negative Values (%)', fontsize=12, fontweight='bold')
-            ax.set_title(f'Negative Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold')
+                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=22)
+            ax.set_ylabel('Percentage of Negative Values (%)', fontsize=24, fontweight='bold')
+            ax.set_title(f'Negative Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, fontweight='bold')
             ax.grid(True, alpha=0.3, axis='y')
             ax.set_ylim(0, max(neg_percentages) * 1.15)
             stats_text = f'Summary:\n'
@@ -13375,7 +13480,7 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             stats_text += f'NEWA negatives: {newa_neg_count:,} ({newa_neg_percentage:.1f}%)\n'
             stats_text += f'Both negative: {((emd_clean < 0) & (newa_clean < 0)).sum():,}\n'
             stats_text += f'Either negative: {((emd_clean < 0) | (newa_clean < 0)).sum():,}'
-            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=10)
+            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=30)
             plt.tight_layout()
             neg_analysis_path = os.path.join(base_dir, f'negative_values_analysis_{height:.0f}m.png')
             plt.savefig(neg_analysis_path, dpi=150, facecolor='white')
@@ -13394,9 +13499,9 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             bars = ax.bar(datasets, pos_percentages, color=colors, alpha=0.7, edgecolor='black', linewidth=1)
             for i, (bar, count, percentage) in enumerate(zip(bars, pos_counts, pos_percentages)):
                 height_b = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=11)
-            ax.set_ylabel('Percentage of Positive Values (%)', fontsize=12, fontweight='bold')
-            ax.set_title(f'Positive Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold')
+                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=22)
+            ax.set_ylabel('Percentage of Positive Values (%)', fontsize=24, fontweight='bold')
+            ax.set_title(f'Positive Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, fontweight='bold')
             ax.grid(True, alpha=0.3, axis='y')
             ax.set_ylim(0, max(pos_percentages) * 1.15)
             stats_text = f'Summary:\n'
@@ -13404,7 +13509,7 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             stats_text += f'NEWA positives: {newa_pos_count:,} ({newa_pos_percentage:.1f}%)\n'
             stats_text += f'Both positive: {((emd_clean > 0) & (newa_clean > 0)).sum():,}\n'
             stats_text += f'Either positive: {((emd_clean > 0) | (newa_clean > 0)).sum():,}'
-            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=10)
+            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=30)
             plt.tight_layout()
             pos_analysis_path = os.path.join(base_dir, f'positive_values_analysis_{height:.0f}m.png')
             plt.savefig(pos_analysis_path, dpi=150, facecolor='white')
@@ -13424,8 +13529,8 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
                 box_plot = ax.boxplot(box_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
                 for patch, color in zip(box_plot['boxes'], colors):
                     patch.set_facecolor(color)
-                ax.set_ylabel('Ice Accretion [g/h]', fontsize=12, fontweight='bold')
-                ax.set_title(f'Distribution of Positive Ice Accretion Values at {height}m\nPositive values: EMD={len(emd_positive):,}, NEWA={len(newa_positive):,}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold')
+                ax.set_ylabel('Ice Accretion [g/h]', fontsize=24, fontweight='bold')
+                ax.set_title(f'Distribution of Positive Ice Accretion Values at {height}m\nPositive values: EMD={len(emd_positive):,}, NEWA={len(newa_positive):,}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, fontweight='bold')
                 ax.grid(True, alpha=0.3)
                 emd_stats = {
                     'count': len(emd_positive),
@@ -13464,14 +13569,14 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
                 stats_text += f'  Med:  {newa_stats["median"]:.4f} g/h\n'
                 stats_text += f'  Q75:  {newa_stats["q75"]:.4f} g/h\n'
                 stats_text += f'  Max:  {newa_stats["max"]:.4f} g/h'
-                ax.text(1.02, 1.0, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='top', fontsize=9, family='monospace')
+                ax.text(1.02, 1.0, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='top', fontsize=27, family='monospace')
                 legend_text = 'Box Plot Elements:\n'
                 legend_text += '━ Red line: Median\n'
                 legend_text += '┅ Black line: Mean\n'
                 legend_text += '□ Box: Q25-Q75 (IQR)\n'
                 legend_text += '┬ Whiskers: 1.5×IQR\n'
                 legend_text += '○ Outliers'
-                ax.text(0.02, 0.98, legend_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8), verticalalignment='top', fontsize=9)
+                ax.text(0.02, 0.98, legend_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8), verticalalignment='top', fontsize=27)
                 plt.tight_layout()
                 positive_boxplot_path = os.path.join(base_dir, f'positive_values_boxplot_{height:.0f}m.png')
                 plt.savefig(positive_boxplot_path, dpi=150, facecolor='white', bbox_inches='tight')
@@ -13515,23 +13620,23 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             plt.gca().set_yticks(np.arange(-0.5, grid_array.shape[0], 1), minor=True)
             plt.grid(which="minor", color="black", linestyle='-', linewidth=0.1, alpha=0.2)
             cbar = plt.colorbar(im, shrink=0.6, pad=0.02)
-            cbar.set_label('Hourly Mean Ice Accretion Difference (NEWA - EMD) [g/h]', fontsize=14)
-            cbar.ax.tick_params(labelsize=12)
-            plt.xlabel('Day of Year', fontsize=14)
-            plt.ylabel('Year', fontsize=14)
-            plt.title(f'Daily Mean Ice Accretion Differences Grid: NEWA - EMD at {height}m (All Months)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km\nEach cell = daily mean difference for that specific year and day', fontsize=16, pad=20)
+            cbar.set_label('Hourly Mean Ice Accretion Difference (NEWA - EMD) [g/h]', fontsize=28)
+            cbar.ax.tick_params(labelsize=30)
+            plt.xlabel('Day of Year', fontsize=28)
+            plt.ylabel('Year', fontsize=28)
+            plt.title(f'Daily Mean Ice Accretion Differences Grid: NEWA - EMD at {height}m (All Months)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km\nEach cell = daily mean difference for that specific year and day', fontsize=32, pad=20)
             year_indices = np.arange(0, len(pivot_grid.index))
             year_step = max(1, len(pivot_grid.index)//15)
             year_ticks = year_indices[::year_step]
-            plt.yticks(year_ticks, [pivot_grid.index[i] for i in year_ticks], fontsize=12)
+            plt.yticks(year_ticks, [pivot_grid.index[i] for i in year_ticks], fontsize=24)
             month_starts = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
             month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            plt.xticks(month_starts, month_labels, rotation=0, fontsize=12)
+            plt.xticks(month_starts, month_labels, rotation=0, fontsize=24)
             ax2 = plt.gca().secondary_xaxis('top')
             day_ticks = np.arange(0, 366, 30)
             ax2.set_xticks(day_ticks)
-            ax2.set_xlabel('Day of Year', fontsize=12)
-            ax2.tick_params(labelsize=10)
+            ax2.set_xlabel('Day of Year', fontsize=24)
+            ax2.tick_params(labelsize=20)
             plt.tight_layout()
             plt.subplots_adjust(top=0.85)
             daily_grid_path = os.path.join(base_dir, f'hourly_mean_grid_all_months_{height:.0f}m.png')
@@ -13870,30 +13975,30 @@ def emd_newa_accretion_typical(emd_data, dataset_with_ice_load, height, emd_coor
             box_plot_daily = ax1.boxplot(daily_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
             for patch, color in zip(box_plot_daily['boxes'], colors):
                 patch.set_facecolor(color)
-            ax1.set_ylabel('Mean Daily Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=12, fontweight='bold')
-            ax1.set_title(f'Typical Day Comparison at {height}m\nDistribution of Daily Means of Hourly Ice Accretion (n={len(emd_daily_aligned)})', fontsize=11, fontweight='bold')
+            ax1.set_ylabel('Mean Daily Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=24, fontweight='bold')
+            ax1.set_title(f'Typical Day Comparison at {height}m\nDistribution of Daily Means of Hourly Ice Accretion (n={len(emd_daily_aligned)})', fontsize=22, fontweight='bold')
             ax1.grid(True, alpha=0.3)
             ax2 = axes[1]
             weekly_data = [emd_weekly_aligned.values, newa_weekly_aligned.values]
             box_plot_weekly = ax2.boxplot(weekly_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
             for patch, color in zip(box_plot_weekly['boxes'], colors):
                 patch.set_facecolor(color)
-            ax2.set_ylabel('Mean Weekly Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=12, fontweight='bold')
-            ax2.set_title(f'Typical Week Comparison at {height}m\nDistribution of Weekly Means of Hourly Ice Accretion (n={len(emd_weekly_aligned)})', fontsize=11, fontweight='bold')
+            ax2.set_ylabel('Mean Weekly Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=24, fontweight='bold')
+            ax2.set_title(f'Typical Week Comparison at {height}m\nDistribution of Weekly Means of Hourly Ice Accretion (n={len(emd_weekly_aligned)})', fontsize=22, fontweight='bold')
             ax2.grid(True, alpha=0.3)
             ax3 = axes[2]
             yearly_data = [emd_yearly_aligned.values, newa_yearly_aligned.values]
             box_plot_yearly = ax3.boxplot(yearly_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
             for patch, color in zip(box_plot_yearly['boxes'], colors):
                 patch.set_facecolor(color)
-            ax3.set_ylabel('Mean Yearly Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=12, fontweight='bold')
-            ax3.set_title(f'Typical Year Comparison at {height}m\nDistribution of Yearly Means of Hourly Ice Accretion (n={len(emd_yearly_aligned)})', fontsize=11, fontweight='bold')
+            ax3.set_ylabel('Mean Yearly Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=24, fontweight='bold')
+            ax3.set_title(f'Typical Year Comparison at {height}m\nDistribution of Yearly Means of Hourly Ice Accretion (n={len(emd_yearly_aligned)})', fontsize=22, fontweight='bold')
             ax3.grid(True, alpha=0.3)
             threshold_text = f"Ice Accretion Threshold: >={ice_accretion_threshold} g/h" if ice_accretion_threshold > 0 else "No Ice Accretion Threshold"
             nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
-            fig.suptitle(f'Typical Accretion Patterns Analysis: EMD vs NEWA at {height}m (Icing Season Only)\nTemporal Means of Hourly Ice Accretion Values\n{threshold_text} | {nonzero_text}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold', y=0.96)
+            fig.suptitle(f'Typical Accretion Patterns Analysis: EMD vs NEWA at {height}m (Icing Season Only)\nTemporal Means of Hourly Ice Accretion Values\n{threshold_text} | {nonzero_text}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, fontweight='bold', y=0.96)
             legend_text = 'Box Plot Elements:\n━ Red line: Median\n┅ Black line: Mean\n□ Box: Q25-Q75 (IQR)\n┬ Whiskers: 1.5×IQR\n○ Outliers'
-            fig.text(0.02, 0.02, legend_text, fontsize=9, bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8), verticalalignment='bottom')
+            fig.text(0.02, 0.02, legend_text, fontsize=27, bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8), verticalalignment='bottom')
             plt.tight_layout()
             plt.subplots_adjust(top=0.80, bottom=0.15)
             typical_patterns_path = os.path.join(base_dir, f'typical_accretion_patterns_comparison_{height:.0f}m.png')
@@ -13912,7 +14017,7 @@ def emd_newa_accretion_typical(emd_data, dataset_with_ice_load, height, emd_coor
             stats_table_data.append(['', 'NEWA', f"{newa_yearly_stats['count']}", f"{newa_yearly_stats['mean']:.4f}", f"{newa_yearly_stats['std']:.4f}", f"{newa_yearly_stats['min']:.4f}", f"{newa_yearly_stats['q25']:.4f}", f"{newa_yearly_stats['median']:.4f}", f"{newa_yearly_stats['q75']:.4f}", f"{newa_yearly_stats['max']:.4f}"])
             table = ax.table(cellText=stats_table_data[1:], colLabels=stats_table_data[0], cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
             table.auto_set_font_size(False)
-            table.set_fontsize(10)
+            table.set_fontsize(30)
             table.scale(1, 2)
             for i in range(len(stats_table_data)):
                 for j in range(len(stats_table_data[0])):
@@ -13926,7 +14031,7 @@ def emd_newa_accretion_typical(emd_data, dataset_with_ice_load, height, emd_coor
                         cell.set_facecolor('#FFF3E0')
             threshold_text = f"Ice Accretion Threshold: >={ice_accretion_threshold} g/h" if ice_accretion_threshold > 0 else "No Ice Accretion Threshold"
             nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
-            ax.set_title(f'Typical Accretion Patterns Statistics Summary at {height}m\nTemporal Means of Hourly Ice Accretion Values in g/h (Icing Season Only)\n{threshold_text} | {nonzero_text}', fontsize=14, fontweight='bold', pad=20)
+            ax.set_title(f'Typical Accretion Patterns Statistics Summary at {height}m\nTemporal Means of Hourly Ice Accretion Values in g/h (Icing Season Only)\n{threshold_text} | {nonzero_text}', fontsize=28, fontweight='bold', pad=20)
             plt.tight_layout()
             stats_table_path = os.path.join(base_dir, f'typical_accretion_patterns_statistics_{height:.0f}m.png')
             plt.savefig(stats_table_path, dpi=150, facecolor='white', bbox_inches='tight')
@@ -14291,7 +14396,7 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
                 ax3.axvline(np.mean(newa_nonzero), color='orange', linestyle='--', alpha=0.8, label='NEWA Mean')
             else:
                 ax3.text(0.5, 0.5, 'Insufficient non-zero data\nfor log-log PDF', 
-                        ha='center', va='center', transform=ax3.transAxes, fontsize=12)
+                        ha='center', va='center', transform=ax3.transAxes, fontsize=24)
             
             ax3.set_xlabel('Ice Accretion [g/h]', fontweight='bold')
             ax3.set_ylabel('Probability Density', fontweight='bold')
@@ -14349,7 +14454,7 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
             table = ax6.table(cellText=stats_data[1:], colLabels=stats_data[0], 
                              cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
             table.auto_set_font_size(False)
-            table.set_fontsize(10)
+            table.set_fontsize(30)
             table.scale(1, 1.5)
             
             # Style the table
@@ -14368,7 +14473,7 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
 
             threshold_text = f"Ice Accretion Threshold: >={ice_accretion_threshold} g/h" if ice_accretion_threshold > 0 else "No Ice Accretion Threshold"
             nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
-            fig.suptitle(f'Probability Density Function Analysis: EMD vs NEWA at {height}m\nIce Accretion Distribution Comparison (Icing Season Only) - 6 Analysis Views\n{threshold_text} | {nonzero_text}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=14, fontweight='bold', y=0.95)
+            fig.suptitle(f'Probability Density Function Analysis: EMD vs NEWA at {height}m\nIce Accretion Distribution Comparison (Icing Season Only) - 6 Analysis Views\n{threshold_text} | {nonzero_text}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, fontweight='bold', y=0.95)
             plt.tight_layout()
             plt.subplots_adjust(top=0.85)
             pdf_plot_path = os.path.join(base_dir, f'pdf_comparison_{height:.0f}m.png')
@@ -14394,7 +14499,7 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
             ]
             table = ax.table(cellText=stats_data[1:], colLabels=stats_data[0], cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
             table.auto_set_font_size(False)
-            table.set_fontsize(11)
+            table.set_fontsize(22)
             table.scale(1, 2)
             for i in range(len(stats_data)):
                 for j in range(len(stats_data[0])):
@@ -14410,7 +14515,7 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
                         cell.set_facecolor('#F3E5F5')
             threshold_text = f"Ice Accretion Threshold: >={ice_accretion_threshold} mm/h" if ice_accretion_threshold > 0 else "No Ice Accretion Threshold"
             nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
-            ax.set_title(f'PDF Statistical Comparison Summary at {height}m\nIce Accretion Distribution Statistics [g/h] (Icing Season Only)\n{threshold_text} | {nonzero_text}', fontsize=14, fontweight='bold', pad=20)
+            ax.set_title(f'PDF Statistical Comparison Summary at {height}m\nIce Accretion Distribution Statistics [g/h] (Icing Season Only)\n{threshold_text} | {nonzero_text}', fontsize=28, fontweight='bold', pad=20)
             plt.tight_layout()
             stats_table_path = os.path.join(base_dir, f'pdf_statistics_{height:.0f}m.png')
             plt.savefig(stats_table_path, dpi=150, facecolor='white', bbox_inches='tight')
@@ -14592,9 +14697,9 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         x = range(1, 13)
         ax1.plot(x, monthly_stats['mean'], 'ro-', linewidth=2, markersize=6, label='Mean')
         ax1.fill_between(x, monthly_stats['min'], monthly_stats['max'], alpha=0.3, color='lightblue', label='Min-Max Range')
-        ax1.set_xlabel('Month')
-        ax1.set_ylabel('Temperature (°C)')
-        ax1.set_title('Monthly Temperature Statistics')
+        ax1.set_xlabel('Month', fontsize=24)
+        ax1.set_ylabel('Temperature (°C)', fontsize=24)
+        ax1.set_title('Monthly Temperature Statistics', fontsize=28)
         ax1.set_xticks(x)
         ax1.set_xticklabels(months, rotation=45)
         ax1.legend()
@@ -14605,8 +14710,8 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         seasonal_order = ['Winter', 'Spring', 'Summer', 'Autumn']
         df_season = df[df['season'].isin(seasonal_order)]
         sns.boxplot(data=df_season, x='season', y='temperature', order=seasonal_order, ax=ax2)
-        ax2.set_title('Seasonal Temperature Distribution')
-        ax2.set_ylabel('Temperature (°C)')
+        ax2.set_title('Seasonal Temperature Distribution', fontsize=28)
+        ax2.set_ylabel('Temperature (°C)', fontsize=24)
         ax2.grid(True, alpha=0.3)
         
         # Temperature time series (annual means)
@@ -14617,9 +14722,9 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         p = np.poly1d(z)
         ax3.plot(annual_temp.index, p(annual_temp.index), 'r--', alpha=0.8, 
                 label=f'Trend: {z[0]:.3f}°C/year')
-        ax3.set_xlabel('Year')
-        ax3.set_ylabel('Annual Mean Temperature (°C)')
-        ax3.set_title('Annual Temperature Trend')
+        ax3.set_xlabel('Year', fontsize=24)
+        ax3.set_ylabel('Annual Mean Temperature (°C)', fontsize=24)
+        ax3.set_title('Annual Temperature Trend', fontsize=28)
         ax3.legend()
         ax3.grid(True, alpha=0.3)
         
@@ -14629,13 +14734,13 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         ax4.axvline(df['temperature'].mean(), color='red', linestyle='--', linewidth=2, 
                    label=f'Mean: {df["temperature"].mean():.1f}°C')
         ax4.axvline(0, color='blue', linestyle=':', linewidth=2, label='Freezing Point')
-        ax4.set_xlabel('Temperature (°C)')
-        ax4.set_ylabel('Frequency')
-        ax4.set_title('Temperature Distribution')
+        ax4.set_xlabel('Temperature (°C)', fontsize=24)
+        ax4.set_ylabel('Frequency', fontsize=24)
+        ax4.set_title('Temperature Distribution', fontsize=28)
         ax4.legend()
         ax4.grid(True, alpha=0.3)
         
-        plt.suptitle(f'Temperature Analysis at {height_m}m Height', fontsize=16, fontweight='bold')
+        plt.suptitle(f'Temperature Analysis at {height_m}m Height', fontsize=32, fontweight='bold')
         plt.tight_layout()
         
         if save_plots:
@@ -14655,9 +14760,9 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         
         ax1 = axes[0, 0]
         bars = ax1.bar(x, monthly_precip['mean'], alpha=0.7, color='steelblue')
-        ax1.set_xlabel('Month')
-        ax1.set_ylabel('Mean Precipitation Rate (mm/h)')
-        ax1.set_title('Monthly Mean Precipitation Rate')
+        ax1.set_xlabel('Month', fontsize=24)
+        ax1.set_ylabel('Mean Precipitation Rate (mm/h)', fontsize=24)
+        ax1.set_title('Monthly Mean Precipitation Rate', fontsize=28)
         ax1.set_xticks(x)
         ax1.set_xticklabels(months, rotation=45)
         ax1.grid(True, alpha=0.3)
@@ -14665,7 +14770,7 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         # Add values on bars
         for bar, val in zip(bars, monthly_precip['mean']):
             ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.001,
-                    f'{val:.3f}', ha='center', va='bottom', fontsize=8)
+                    f'{val:.3f}', ha='center', va='bottom', fontsize=24)
         
         # Seasonal precipitation
         ax2 = axes[0, 1]
@@ -14673,17 +14778,17 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         seasonal_precip = seasonal_precip.reindex(seasonal_order)
         colors = ['lightblue', 'lightgreen', 'orange', 'brown']
         bars = ax2.bar(seasonal_order, seasonal_precip.values, color=colors, alpha=0.7)
-        ax2.set_title('Total Seasonal Precipitation')
-        ax2.set_ylabel('Total Precipitation (mm)')
+        ax2.set_title('Total Seasonal Precipitation', fontsize=28)
+        ax2.set_ylabel('Total Precipitation (mm)', fontsize=24)
         ax2.grid(True, alpha=0.3)
         
         # Precipitation intensity distribution
         ax3 = axes[1, 0]
         precip_nonzero = df[df['precipitation'] > 0]['precipitation']
         ax3.hist(precip_nonzero, bins=50, alpha=0.7, color='green', edgecolor='black')
-        ax3.set_xlabel('Precipitation Rate (mm/h)')
-        ax3.set_ylabel('Frequency')
-        ax3.set_title('Precipitation Intensity Distribution (Wet Hours Only)')
+        ax3.set_xlabel('Precipitation Rate (mm/h)', fontsize=24)
+        ax3.set_ylabel('Frequency', fontsize=24)
+        ax3.set_title('Precipitation Intensity Distribution (Wet Hours Only)', fontsize=28)
         ax3.set_yscale('log')
         ax3.grid(True, alpha=0.3)
         
@@ -14691,14 +14796,14 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         ax4 = axes[1, 1]
         precip_freq = (df['precipitation'] > 0).groupby(df['month']).mean() * 100
         bars = ax4.bar(x, precip_freq.values, alpha=0.7, color='darkgreen')
-        ax4.set_xlabel('Month')
-        ax4.set_ylabel('Precipitation Frequency (%)')
-        ax4.set_title('Monthly Precipitation Frequency')
+        ax4.set_xlabel('Month', fontsize=24)
+        ax4.set_ylabel('Precipitation Frequency (%)', fontsize=24)
+        ax4.set_title('Monthly Precipitation Frequency', fontsize=28)
         ax4.set_xticks(x)
         ax4.set_xticklabels(months, rotation=45)
         ax4.grid(True, alpha=0.3)
         
-        plt.suptitle(f'Precipitation Analysis at {height_m}m Height', fontsize=16, fontweight='bold')
+        plt.suptitle(f'Precipitation Analysis at {height_m}m Height', fontsize=32, fontweight='bold')
         plt.tight_layout()
         
         if save_plots:
@@ -14721,9 +14826,9 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         ax1.fill_between(x, monthly_ws['mean'] - monthly_ws['std'], 
                         monthly_ws['mean'] + monthly_ws['std'], 
                         alpha=0.3, color='lightblue', label='±1 Std Dev')
-        ax1.set_xlabel('Month')
-        ax1.set_ylabel('Wind Speed (m/s)')
-        ax1.set_title('Monthly Wind Speed Statistics')
+        ax1.set_xlabel('Month', fontsize=24)
+        ax1.set_ylabel('Wind Speed (m/s)', fontsize=24)
+        ax1.set_title('Monthly Wind Speed Statistics', fontsize=28)
         ax1.set_xticks(x)
         ax1.set_xticklabels(months, rotation=45)
         ax1.legend()
@@ -14732,8 +14837,8 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         # Seasonal wind speed
         ax2 = axes[0, 1]
         sns.boxplot(data=df_season, x='season', y='wind_speed', order=seasonal_order, ax=ax2)
-        ax2.set_title('Seasonal Wind Speed Distribution')
-        ax2.set_ylabel('Wind Speed (m/s)')
+        ax2.set_title('Seasonal Wind Speed Distribution', fontsize=28)
+        ax2.set_ylabel('Wind Speed (m/s)', fontsize=24)
         ax2.grid(True, alpha=0.3)
         
         # Wind speed distribution
@@ -14741,9 +14846,9 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         ax3.hist(df['wind_speed'], bins=50, alpha=0.7, color='orange', edgecolor='black', density=True)
         ax3.axvline(df['wind_speed'].mean(), color='red', linestyle='--', linewidth=2,
                    label=f'Mean: {df["wind_speed"].mean():.1f} m/s')
-        ax3.set_xlabel('Wind Speed (m/s)')
-        ax3.set_ylabel('Probability Density')
-        ax3.set_title('Wind Speed Distribution')
+        ax3.set_xlabel('Wind Speed (m/s)', fontsize=24)
+        ax3.set_ylabel('Probability Density', fontsize=24)
+        ax3.set_title('Wind Speed Distribution', fontsize=28)
         ax3.legend()
         ax3.grid(True, alpha=0.3)
         
@@ -14755,13 +14860,13 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         p_ws = np.poly1d(z_ws)
         ax4.plot(annual_ws.index, p_ws(annual_ws.index), 'r--', alpha=0.8,
                 label=f'Trend: {z_ws[0]:.3f} m/s/year')
-        ax4.set_xlabel('Year')
-        ax4.set_ylabel('Annual Mean Wind Speed (m/s)')
-        ax4.set_title('Annual Wind Speed Trend')
+        ax4.set_xlabel('Year', fontsize=24)
+        ax4.set_ylabel('Annual Mean Wind Speed (m/s)', fontsize=24)
+        ax4.set_title('Annual Wind Speed Trend', fontsize=28)
         ax4.legend()
         ax4.grid(True, alpha=0.3)
         
-        plt.suptitle(f'Wind Speed Analysis at {height_m}m Height', fontsize=16, fontweight='bold')
+        plt.suptitle(f'Wind Speed Analysis at {height_m}m Height', fontsize=32, fontweight='bold')
         plt.tight_layout()
         
         if save_plots:
@@ -14782,9 +14887,9 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         hist, bins = np.histogram(df['wind_speed'], bins=wind_bins, density=True)
         bin_centers = (bins[:-1] + bins[1:]) / 2
         ax1.bar(bin_centers, hist * 100, alpha=0.7, color='skyblue', edgecolor='black', width=0.8)
-        ax1.set_xlabel('Wind Speed (m/s)')
-        ax1.set_ylabel('Frequency (%)')
-        ax1.set_title('Wind Speed Frequency Distribution')
+        ax1.set_xlabel('Wind Speed (m/s)', fontsize=24)
+        ax1.set_ylabel('Frequency (%)', fontsize=24)
+        ax1.set_title('Wind Speed Frequency Distribution', fontsize=28)
         ax1.grid(True, alpha=0.3)
         
         # Add wind power classes
@@ -14802,9 +14907,9 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         monthly_power = power_density.groupby(df['month']).mean()
         
         bars = ax2.bar(x, monthly_power.values, alpha=0.7, color='purple')
-        ax2.set_xlabel('Month')
-        ax2.set_ylabel('Wind Power Density (W/m²)')
-        ax2.set_title('Monthly Mean Wind Power Density')
+        ax2.set_xlabel('Month', fontsize=24)
+        ax2.set_ylabel('Wind Power Density (W/m²)', fontsize=24)
+        ax2.set_title('Monthly Mean Wind Power Density', fontsize=28)
         ax2.set_xticks(x)
         ax2.set_xticklabels(months, rotation=45)
         ax2.grid(True, alpha=0.3)
@@ -14827,9 +14932,9 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         ax3.plot(x_weibull, pdf_weibull, 'r-', linewidth=3, 
                 label=f'Weibull (k={shape:.2f}, λ={scale:.2f})')
         
-        ax3.set_xlabel('Wind Speed (m/s)')
-        ax3.set_ylabel('Probability Density')
-        ax3.set_title('Wind Speed Distribution and Weibull Fit')
+        ax3.set_xlabel('Wind Speed (m/s)', fontsize=24)
+        ax3.set_ylabel('Probability Density', fontsize=24)
+        ax3.set_title('Wind Speed Distribution and Weibull Fit', fontsize=28)
         ax3.legend()
         ax3.grid(True, alpha=0.3)
         
@@ -14839,14 +14944,14 @@ def climate_analysis(dataset, height_level=0, save_plots=True, results_subdir="c
         calm_freq = (df['wind_speed'] < calm_threshold).groupby(df['month']).mean() * 100
         
         bars = ax4.bar(x, calm_freq.values, alpha=0.7, color='lightcoral')
-        ax4.set_xlabel('Month')
+        ax4.set_xlabel('Month', fontsize=24)
         ax4.set_ylabel(f'Calm Conditions Frequency (< {calm_threshold} m/s, %)')
-        ax4.set_title('Monthly Calm Conditions Frequency')
+        ax4.set_title('Monthly Calm Conditions Frequency', fontsize=28)
         ax4.set_xticks(x)
         ax4.set_xticklabels(months, rotation=45)
         ax4.grid(True, alpha=0.3)
         
-        plt.suptitle(f'Wind Resource Analysis at {height_m}m Height', fontsize=16, fontweight='bold')
+        plt.suptitle(f'Wind Resource Analysis at {height_m}m Height', fontsize=32, fontweight='bold')
         plt.tight_layout()
         
         if save_plots:
@@ -15071,8 +15176,8 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
                            max(newa_final.max(), emd_final.max())], 
                           [min(newa_final.min(), emd_final.min()), 
                            max(newa_final.max(), emd_final.max())], 'r--', alpha=0.8)
-            axes[0,0].set_xlabel('NEWA Temperature (K)')
-            axes[0,0].set_ylabel('EMD Temperature (K)')
+            axes[0,0].set_xlabel('NEWA Temperature (K)', fontsize=24)
+            axes[0,0].set_ylabel('EMD Temperature (K)', fontsize=24)
             axes[0,0].set_title(f'Temperature Scatter Plot\nCorr = {stats["correlation"]:.3f}, N = {stats["n_points"]}')
             axes[0,0].grid(True, alpha=0.3)
             
@@ -15081,8 +15186,8 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
             axes[0,1].axhline(y=0, color='r', linestyle='--', alpha=0.8)
             axes[0,1].axhline(y=differences.mean(), color='g', linestyle='-', alpha=0.8, 
                              label=f'Mean bias = {differences.mean():.3f} K')
-            axes[0,1].set_xlabel('NEWA Temperature (K)')
-            axes[0,1].set_ylabel('Difference (EMD - NEWA) (K)')
+            axes[0,1].set_xlabel('NEWA Temperature (K)', fontsize=24)
+            axes[0,1].set_ylabel('Difference (EMD - NEWA) (K)', fontsize=24)
             axes[0,1].set_title(f'Temperature Differences vs NEWA\nRMSE = {stats["rmse"]:.3f} K')
             axes[0,1].legend()
             axes[0,1].grid(True, alpha=0.3)
@@ -15095,8 +15200,8 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
             axes[1,0].plot(sample_times.index, sample_times.values, alpha=0.7)
             axes[1,0].axhline(y=0, color='r', linestyle='--', alpha=0.8)
             axes[1,0].axhline(y=differences.mean(), color='g', linestyle='-', alpha=0.8)
-            axes[1,0].set_xlabel('Time')
-            axes[1,0].set_ylabel('Difference (EMD - NEWA) (K)')
+            axes[1,0].set_xlabel('Time', fontsize=24)
+            axes[1,0].set_ylabel('Difference (EMD - NEWA) (K)', fontsize=24)
             axes[1,0].set_title(f'Time Series of Differences (Random Sample: {sample_size} points)')
             axes[1,0].grid(True, alpha=0.3)
             axes[1,0].tick_params(axis='x', rotation=45)
@@ -15106,8 +15211,8 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
             axes[1,1].axvline(x=0, color='r', linestyle='--', alpha=0.8, label='Zero bias')
             axes[1,1].axvline(x=differences.mean(), color='g', linestyle='-', alpha=0.8, 
                              label=f'Mean bias = {differences.mean():.3f} K')
-            axes[1,1].set_xlabel('Difference (EMD - NEWA) (K)')
-            axes[1,1].set_ylabel('Probability Density')
+            axes[1,1].set_xlabel('Difference (EMD - NEWA) (K)', fontsize=24)
+            axes[1,1].set_ylabel('Probability Density', fontsize=24)
             axes[1,1].set_title(f'Distribution of Differences\nStd = {differences.std():.3f} K')
             axes[1,1].legend()
             axes[1,1].grid(True, alpha=0.3)
@@ -15132,8 +15237,8 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
             axes[0,0].set_xticks(range(1, 13))
             axes[0,0].set_xticklabels(month_names)
             axes[0,0].axhline(y=0, color='r', linestyle='--', alpha=0.8)
-            axes[0,0].set_ylabel('Mean Bias (EMD - NEWA) (K)')
-            axes[0,0].set_title('Monthly Temperature Bias Pattern')
+            axes[0,0].set_ylabel('Mean Bias (EMD - NEWA) (K)', fontsize=24)
+            axes[0,0].set_title('Monthly Temperature Bias Pattern', fontsize=28)
             axes[0,0].grid(True, alpha=0.3)
             
             # 2. Hourly bias pattern (if enough data)
@@ -15141,9 +15246,9 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
                 hourly_bias = differences.groupby(differences.index.hour).mean()
                 axes[0,1].plot(hourly_bias.index, hourly_bias.values, 'o-')
                 axes[0,1].axhline(y=0, color='r', linestyle='--', alpha=0.8)
-                axes[0,1].set_xlabel('Hour of Day')
-                axes[0,1].set_ylabel('Mean Bias (EMD - NEWA) (K)')
-                axes[0,1].set_title('Hourly Temperature Bias Pattern')
+                axes[0,1].set_xlabel('Hour of Day', fontsize=24)
+                axes[0,1].set_ylabel('Mean Bias (EMD - NEWA) (K)', fontsize=24)
+                axes[0,1].set_title('Hourly Temperature Bias Pattern', fontsize=28)
                 axes[0,1].grid(True, alpha=0.3)
                 axes[0,1].set_xticks(range(0, 24, 3))
             
@@ -15161,9 +15266,9 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
             
             axes[1,0].plot(bin_centers, binned_bias, 'o-')
             axes[1,0].axhline(y=0, color='r', linestyle='--', alpha=0.8)
-            axes[1,0].set_xlabel('NEWA Temperature (K)')
-            axes[1,0].set_ylabel('Mean Bias (EMD - NEWA) (K)')
-            axes[1,0].set_title('Temperature Bias vs Temperature Range')
+            axes[1,0].set_xlabel('NEWA Temperature (K)', fontsize=24)
+            axes[1,0].set_ylabel('Mean Bias (EMD - NEWA) (K)', fontsize=24)
+            axes[1,0].set_title('Temperature Bias vs Temperature Range', fontsize=28)
             axes[1,0].grid(True, alpha=0.3)
             
             # 4. Annual bias trend (if multiple years available)
@@ -15172,9 +15277,9 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
                 if len(annual_bias) > 1:
                     axes[1,1].plot(annual_bias.index, annual_bias.values, 'o-')
                     axes[1,1].axhline(y=0, color='r', linestyle='--', alpha=0.8)
-                    axes[1,1].set_xlabel('Year')
-                    axes[1,1].set_ylabel('Mean Bias (EMD - NEWA) (K)')
-                    axes[1,1].set_title('Annual Temperature Bias Trend')
+                    axes[1,1].set_xlabel('Year', fontsize=24)
+                    axes[1,1].set_ylabel('Mean Bias (EMD - NEWA) (K)', fontsize=24)
+                    axes[1,1].set_title('Annual Temperature Bias Trend', fontsize=28)
                     axes[1,1].grid(True, alpha=0.3)
                 else:
                     axes[1,1].text(0.5, 0.5, 'Insufficient data\nfor annual trend', 

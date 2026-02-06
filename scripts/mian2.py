@@ -12,7 +12,7 @@ if current_dir.endswith('scripts'):
     print(f"Changed working directory from {current_dir} to {os.getcwd()}")
 
 # PARAMETERS
-height = 2  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
+height = 1  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
 ice_load_method = 51  # Method for ice load calculation
 calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
 
@@ -134,15 +134,17 @@ else:
 #      show_colorbar=True
 #  )
 
-# print("\n=== ICE LOAD GRID VALUES ANALYSIS HOURS ===")
+print("\n=== ICE LOAD GRID VALUES ANALYSIS HOURS ===")
 
-# grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
-#     dataset_with_ice_load=dataset_with_ice_load,
-#     ice_load_variable='ICE_LOAD',
-#     height_level=height,
-#     ice_load_threshold=0,
-#     save_plots=True
-# )
+grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
+    dataset_with_ice_load=dataset_with_ice_load,
+    ice_load_variable='ICE_LOAD',
+    height_level=height,
+    ice_load_threshold=0.1,
+    save_plots=True,
+    custom_vmin=0,
+    custom_vmax=25
+)
 
 # WIND ROSE
 
@@ -159,17 +161,19 @@ else:
 #The rh is calculated using surface P, T and mixing ratio at height 
 # scale-height ~8km, from Ch.2 of 46100's book\notes, then consider d(ln p)/d(ln z)
 
-# dataset_ice_load_rh = fn.add_rh(dataset_with_ice_load=dataset_with_ice_load, height_l=height,
-#                                 phase= 'auto') #'liquid', 'solid', 'auto' – to make calculation valid in 'liquid' water (default) or 'solid' ice regimes. 'auto' will change regime based on determination of phase boundaries
+dataset_ice_load_rh = fn.add_rh(dataset_with_ice_load=dataset_with_ice_load, height_l=height,
+                                phase= 'auto') #'liquid', 'solid', 'auto' – to make calculation valid in 'liquid' water (default) or 'solid' ice regimes. 'auto' will change regime based on determination of phase boundaries
                                 
 
-# # print("\n=== ICING TEMPERATURE AND HUMIDITY CRITERIA ANALYSIS HOURS ===")
+print("\n=== ICING TEMPERATURE AND HUMIDITY CRITERIA ANALYSIS HOURS ===")
 
-# humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_ice_load_rh,
-#                                                     humidity_threshold=0.95,  # Relative Humidity threshold (%)
-#                                                     temperature_threshold=263.15,  # Temperature threshold (K)
-#                                                     height_level=height,
-#                                                     save_plots=True)
+humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_ice_load_rh,
+                                                    humidity_threshold=0.95,  # Relative Humidity threshold (%)
+                                                    temperature_threshold=263.15,  # Temperature threshold (K)
+                                                    height_level=height,
+                                                    save_plots=True,
+                                                    custom_vmin=0,
+                                                    custom_vmax=25)
 
 # SPATIAL GRADIENTS
 
@@ -269,27 +273,29 @@ else:
 #     percentile=None
 # )
 
-print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ; SYSTEMATIC + WEIGHTED NEIGHBOUR CELLS ===")
+# print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ; SYSTEMATIC + WEIGHTED NEIGHBOUR CELLS ===")
 
-results_w_weights = fn.analyze_ice_load_with_weighted_neighborhood_cdf(
-    dataset_with_ice_load=dataset_with_ice_load,  # Changed from 'dataset' to 'dataset_with_ice_load'
-    height_level=height,
-    neighborhood_type='24-neighbors', # '4-neighbors', '8-neighbors', '24-neighbors'
-    weight_scheme='distance',  # 'uniform', 'distance', 'custom'
-    # Filtering parameters (min, max for each variable)
-    WD_range=None,        # (min, max) for Wind Direction
-    WS_range=None,        # (min, max) for Wind Speed
-    T_range=None,         # (min, max) for Temperature
-    PBLH_range=None,      # (min, max) for Boundary Layer Height
-    PRECIP_range=None,    # (min, max) for Precipitation
-    QVAPOR_range=None,    # (min, max) for Water Vapor
-    RMOL_range=None,      # (min, max) for Monin-Obukhov Length
-    # CDF analysis parameters
-    ice_load_threshold=0.1,
-    ice_load_bins=None,
-    months=None,
-    percentile=None
-)
+# results_w_weights = fn.analyze_ice_load_with_weighted_neighborhood_cdf(
+#     dataset_with_ice_load=dataset_with_ice_load,  # Changed from 'dataset' to 'dataset_with_ice_load'
+#     height_level=height,
+#     neighborhood_type='24-neighbors', # '4-neighbors', '8-neighbors', '24-neighbors'
+#     weight_scheme='distance',  # 'uniform', 'distance', 'custom'
+#     # Filtering parameters (min, max for each variable)
+#     WD_range=None,        # (min, max) for Wind Direction
+#     WS_range=None,        # (min, max) for Wind Speed
+#     T_range=None,         # (min, max) for Temperature
+#     PBLH_range=None,      # (min, max) for Boundary Layer Height
+#     PRECIP_range=None,    # (min, max) for Precipitation
+#     QVAPOR_range=None,    # (min, max) for Water Vapor
+#     RMOL_range=None,      # (min, max) for Monin-Obukhov Length
+#     # CDF analysis parameters
+#     ice_load_threshold=0,
+#     ice_load_bins=None,
+#     months=None,
+#     percentile=None,
+#     margin_degrees=0.01,
+#     zoom_level=1
+# )
 
 
 # If custom weights:
