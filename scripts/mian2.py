@@ -12,7 +12,7 @@ if current_dir.endswith('scripts'):
     print(f"Changed working directory from {current_dir} to {os.getcwd()}")
 
 # PARAMETERS
-height = 1  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
+height = 0  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
 ice_load_method = 51  # Method for ice load calculation
 calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
 
@@ -84,8 +84,13 @@ dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 
 # ACCERATION
 
+# Fixed color scale range for ice accretion plots (adjust these values as needed)
+accretion_vmin = 0
+accretion_vmax = 1.5  # Adjust based on your expected range
+
 # Accreation for winter and time period + plot
-# fn.accreation_per_winter(dataset, start_date, end_date, height_level=height)
+fn.accreation_per_winter(dataset, start_date, end_date, height_level=height,
+                         custom_vmin=accretion_vmin, custom_vmax=accretion_vmax)
 
 
 
@@ -123,6 +128,10 @@ else:
 
 #Plot ice load values for each grid cell
 
+# Fixed color scale range (adjust these values as needed)
+# fixed_vmin = 0
+# fixed_vmax = 30  # Adjust based on your expected range
+
 # print("\n=== ICE LOAD GRID VALUES ANALYSIS ===")
 # grid_results = fn.plot_grid_ice_load_values(
 #      dataset_with_ice_load=dataset_with_ice_load,
@@ -131,20 +140,22 @@ else:
 #      ice_load_threshold=0,
 #      save_plots=True,
 #      months=None,  # Can specify winter months like [12, 1, 2, 3] if desired
-#      show_colorbar=True
+#      show_colorbar=True,
+#      custom_vmin=fixed_vmin,
+#      custom_vmax=fixed_vmax
 #  )
 
-print("\n=== ICE LOAD GRID VALUES ANALYSIS HOURS ===")
+# print("\n=== ICE LOAD GRID VALUES ANALYSIS HOURS ===")
 
-grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
-    dataset_with_ice_load=dataset_with_ice_load,
-    ice_load_variable='ICE_LOAD',
-    height_level=height,
-    ice_load_threshold=0.1,
-    save_plots=True,
-    custom_vmin=0,
-    custom_vmax=25
-)
+# grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     ice_load_variable='ICE_LOAD',
+#     height_level=height,
+#     ice_load_threshold=0.1,
+#     save_plots=True,
+#     custom_vmin=0,
+#     custom_vmax=25
+# )
 
 # WIND ROSE
 
@@ -161,19 +172,19 @@ grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
 #The rh is calculated using surface P, T and mixing ratio at height 
 # scale-height ~8km, from Ch.2 of 46100's book\notes, then consider d(ln p)/d(ln z)
 
-dataset_ice_load_rh = fn.add_rh(dataset_with_ice_load=dataset_with_ice_load, height_l=height,
-                                phase= 'auto') #'liquid', 'solid', 'auto' – to make calculation valid in 'liquid' water (default) or 'solid' ice regimes. 'auto' will change regime based on determination of phase boundaries
+# dataset_ice_load_rh = fn.add_rh(dataset_with_ice_load=dataset_with_ice_load, height_l=height,
+#                                 phase= 'auto') #'liquid', 'solid', 'auto' – to make calculation valid in 'liquid' water (default) or 'solid' ice regimes. 'auto' will change regime based on determination of phase boundaries
                                 
 
-print("\n=== ICING TEMPERATURE AND HUMIDITY CRITERIA ANALYSIS HOURS ===")
+# print("\n=== ICING TEMPERATURE AND HUMIDITY CRITERIA ANALYSIS HOURS ===")
 
-humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_ice_load_rh,
-                                                    humidity_threshold=0.95,  # Relative Humidity threshold (%)
-                                                    temperature_threshold=263.15,  # Temperature threshold (K)
-                                                    height_level=height,
-                                                    save_plots=True,
-                                                    custom_vmin=0,
-                                                    custom_vmax=25)
+# humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_ice_load_rh,
+#                                                     humidity_threshold=0.95,  # Relative Humidity threshold (%)
+#                                                     temperature_threshold=263.15,  # Temperature threshold (K)
+#                                                     height_level=height,
+#                                                     save_plots=True,
+#                                                     custom_vmin=0,
+#                                                     custom_vmax=25)
 
 # SPATIAL GRADIENTS
 

@@ -4,6 +4,11 @@ import functions as fn
 import pandas as pd
 import numpy as np
 import xarray as xr
+import dask
+
+# Configure dask for low memory usage
+dask.config.set(scheduler='synchronous')  # Use single-threaded scheduler to reduce memory overhead
+dask.config.set({'array.slicing.split_large_chunks': True})  # Allow automatic rechunking
 
 # Set working directory to project root if running from scripts folder
 current_dir = os.getcwd()
@@ -83,10 +88,15 @@ dates = pd.date_range(start_date, end_date, freq='YS-JUL')
 
 # ACCERATION
 
-# # Accreation for winter and time period + plot
-#fn.accreation_per_winter(data1, start_date, end_date, height_level=height, 
-#                         OffOn=OffOn, BigDomain=True, 
-#                         margin_degrees=0.5, zoom_level=6)
+# Accreation for winter and time period + plot
+
+# Fixed color scale range for ice accretion plots (adjust these values as needed)
+accretion_vmin = 0
+accretion_vmax = 4.5
+
+fn.accreation_per_winter(data1, start_date, end_date, height_level=height, 
+                        OffOn=OffOn, BigDomain=True, 
+                        margin_degrees=0.5, zoom_level=6, custom_vmin=accretion_vmin, custom_vmax=accretion_vmax)
 
 # ICE LOAD AND ICING TEMPERATURE AND HUMIDITY CRITERIA
 
@@ -116,8 +126,8 @@ if calculate_new_ice_load:
 else:
     print("Loading existing complete dataset with ice load...")
     filename = f"results/dataset_iceload_{OffOn}_19890701_20220701_h{height}.nc"
-    # Use chunking to avoid loading entire dataset into memory at once
-    dataset_with_ice_load = xr.open_dataset(filename, chunks={'time': 10000})  # Load complete dataset with chunks
+    # Use automatic chunking to match how the file was written and avoid memory issues
+    dataset_with_ice_load = xr.open_dataset(filename, chunks='auto')  # Load with automatic optimal chunks
 
     print(f"Loaded dataset from: {filename}")
     print(f"Dataset dimensions: {dataset_with_ice_load.dims}")
@@ -126,156 +136,80 @@ else:
 
 #Plot ice load values for each grid cell
 
-print("\n=== ICE LOAD GRID VALUES ANALYSIS ===")
-grid_results = fn.plot_grid_ice_load_values(
-      dataset_with_ice_load=dataset_with_ice_load,
-      ice_load_variable='ICE_LOAD',
-      height_level=height,
-      ice_load_threshold=0,
-      save_plots=True,
-      OffOn=OffOn,
-      BigDomain=True,
-      months=None,  # Can specify winter months like [12, 1, 2, 3] if desired
-      show_colorbar=True,
-      margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
-      zoom_level=6  # Zoom level for terrain tiles
- )
+# print("\n=== ICE LOAD GRID VALUES ANALYSIS ===")
+
+# # Fixed color scale range (adjust these values as needed)
+# fixed_vmin = 0
+# fixed_vmax = 150  # Adjust based on your expected range
+
+# grid_results = fn.plot_grid_ice_load_values(
+#       dataset_with_ice_load=dataset_with_ice_load,
+#       ice_load_variable='ICE_LOAD',
+#       height_level=height,
+#       ice_load_threshold=0,
+#       save_plots=True,
+#       OffOn=OffOn,
+#       BigDomain=True,
+#       months=None,  # Can specify winter months like [12, 1, 2, 3] if desired
+#       show_colorbar=True,
+#       margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
+#       zoom_level=6,  # Zoom level for terrain tiles
+#       custom_vmin=fixed_vmin,
+#       custom_vmax=fixed_vmax
+#  )
 
 # Calculate relative humidity first (needed for color scale calculation)
 # The rh is calculated using surface P, T and mixing ratio at height 
 # scale-height ~8km, from Ch.2 of 46100's book\notes, then consider d(ln p)/d(ln z)
 
-dataset_ice_load_rh = fn.add_rh(dataset_with_ice_load=dataset_with_ice_load, height_l=height,
-                                phase= 'auto') #'liquid', 'solid', 'auto' 
-                                                #– to make calculation valid in 'liquid' water 
-                                                #(default) or 'solid' ice regimes. 'auto' will 
-                                                # change regime based on determination of phase 
-                                                # boundaries
+# dataset_ice_load_rh = fn.add_rh(dataset_with_ice_load=dataset_with_ice_load, height_l=height,
+#                                 phase= 'auto') #'liquid', 'solid', 'auto' 
+#                                                 #– to make calculation valid in 'liquid' water 
+#                                                 #(default) or 'solid' ice regimes. 'auto' will 
+#                                                 # change regime based on determination of phase 
+#                                                 # boundaries
 
-# Plot ice load exceedance hours both th criteria and ice load criteria with same color scale
+# # Plot ice load exceedance hours both th criteria and ice load criteria with same color scale
 
-print("\n=== CALCULATING COMBINED COLOR SCALE RANGE ===")
+# print("\n=== USING FIXED COLOR SCALE TO AVOID MEMORY ISSUES ===")
 
-# Calculate ice load exceedance matrix for color scale determination
-print("Calculating ice load exceedance values...")
-ice_load_data = dataset_with_ice_load['ICE_LOAD'].isel(height=height)
-n_time = ice_load_data.sizes['time']
-n_south_north = ice_load_data.sizes['south_north']
-n_west_east = ice_load_data.sizes['west_east']
+# # Use fixed color scale values to avoid loading entire dataset into memory
+# combined_min = 0
+# combined_max_clipped = 3000  # Adjust this value based on your expected range
 
-time_index = pd.to_datetime(ice_load_data.time.values)
-n_years = len(time_index.year.unique())
-time_step_hours = (time_index[1] - time_index[0]).total_seconds() / 3600 if len(time_index) > 1 else 0.5
+# print(f"Using fixed color scale range: {combined_min:.1f} to {combined_max_clipped:.1f} hours/year")
+# print("(If plots show all one color, increase combined_max_clipped value)")
 
-# Calculate ice load exceedance matrix
-ice_data_clean = ice_load_data.where(ice_load_data >= 0, 0)
-ice_exceedance_matrix = np.zeros((n_south_north, n_west_east))
-
-for i in range(n_south_north):
-    for j in range(n_west_east):
-        cell_data = ice_data_clean.isel(south_north=i, west_east=j)
-        cell_values = cell_data.values
-        valid_mask = ~np.isnan(cell_values)
-        cell_values_clean = cell_values[valid_mask]
-        
-        if len(cell_values_clean) > 0:
-            exceedances = np.sum(cell_values_clean >= 0.1)  # Use same threshold as in main call
-            hours_per_year = (exceedances * time_step_hours) / n_years
-            ice_exceedance_matrix[i, j] = hours_per_year
-        else:
-            ice_exceedance_matrix[i, j] = np.nan
-
-# Calculate temperature-humidity criteria matrix for color scale determination
-print("Calculating temperature-humidity criteria values...")
-temp_data = dataset_ice_load_rh['T'].isel(height=height)
-humidity_data = dataset_ice_load_rh['relative_humidity']
-temp_hum_matrix = np.zeros((n_south_north, n_west_east))
-
-for i in range(n_south_north):
-    for j in range(n_west_east):
-        cell_temp = temp_data.isel(south_north=i, west_east=j)
-        cell_humidity = humidity_data.isel(south_north=i, west_east=j)
-        
-        temp_values = cell_temp.values
-        humidity_values = cell_humidity.values
-        
-        valid_mask = ~(np.isnan(temp_values) | np.isnan(humidity_values))
-        temp_clean = temp_values[valid_mask]
-        humidity_clean = humidity_values[valid_mask]
-        
-        if len(temp_clean) > 0 and len(humidity_clean) > 0:
-            temp_criteria = temp_clean <= 263.15  # Use same threshold as in main call
-            humidity_criteria = humidity_clean >= 0.95  # Use same threshold as in main call
-            both_criteria = temp_criteria & humidity_criteria
-            criteria_count = np.sum(both_criteria)
-            hours_per_year = (criteria_count * time_step_hours) / n_years
-            temp_hum_matrix[i, j] = hours_per_year
-        else:
-            temp_hum_matrix[i, j] = np.nan
-
-# Calculate combined min and max for consistent color scale
-valid_ice_values = ice_exceedance_matrix[~np.isnan(ice_exceedance_matrix)]
-valid_temp_hum_values = temp_hum_matrix[~np.isnan(temp_hum_matrix)]
-
-if len(valid_ice_values) > 0 and len(valid_temp_hum_values) > 0:
-    combined_min = min(np.min(valid_ice_values), np.min(valid_temp_hum_values))
-    combined_max = max(np.max(valid_ice_values), np.max(valid_temp_hum_values))
+# # Call both functions with the same color scale
+# grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     ice_load_variable='ICE_LOAD',
     
-    # Calculate combined 90th percentile for consistent clipping
-    all_combined_values = np.concatenate([valid_ice_values, valid_temp_hum_values])
-    combined_90p = np.percentile(all_combined_values, 90)
-    
-    # Check if we need 90th percentile clipping
-    outlier_ratio = combined_max / combined_90p if combined_90p > 0 else 1
-    if outlier_ratio > 2.0:
-        combined_max_clipped = combined_90p
-        clipping_applied = True
-        print(f"Outliers detected (ratio: {outlier_ratio:.1f}), applying 90th percentile clipping")
-    else:
-        combined_max_clipped = combined_max
-        clipping_applied = False
-        print(f"No significant outliers detected (ratio: {outlier_ratio:.1f}), using full range")
-else:
-    combined_min, combined_max_clipped = 0, 1
-    clipping_applied = False
+#     height_level=height,
 
-
-print(f"Combined color scale range: {combined_min:.1f} to {combined_max_clipped:.1f} hours/year")
-print(f"Ice load range: {np.min(valid_ice_values):.1f} to {np.max(valid_ice_values):.1f} hours/year")
-print(f"Temp-humidity range: {np.min(valid_temp_hum_values):.1f} to {np.max(valid_temp_hum_values):.1f} hours/year")
-if clipping_applied:
-    print(f"90th percentile clipping applied: {combined_90p:.1f} hours/year (original max was {combined_max:.1f})")
-
-# Now call both functions with the same color scale
-grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
-    dataset_with_ice_load=dataset_with_ice_load,
-    ice_load_variable='ICE_LOAD',
-    
-    height_level=height,
-
-    ice_load_threshold=0.01,
-    save_plots=True,
-    OffOn=OffOn,
-    BigDomain=True,
-    margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
-    zoom_level=6,  # Zoom level for terrain tiles
-    custom_vmin=combined_min,
-    custom_vmax=combined_max_clipped
-)
+#     ice_load_threshold=0.01,
+#     save_plots=True,
+#     OffOn=OffOn,
+#     BigDomain=True,
+#     margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
+#     zoom_level=6,  # Zoom level for terrain tiles
+#     custom_vmin=combined_min,
+#     custom_vmax=combined_max_clipped
+# )
 
 # print("\n=== ICING TEMPERATURE AND HUMIDITY CRITERIA ANALYSIS HOURS ===")
 
-humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_ice_load_rh,
-                                                    humidity_threshold=0.95,  # Relative Humidity threshold (%)
-                                                    temperature_threshold=263.15,  # Temperature threshold (K)
-                                                    height_level=height,
-                                                    save_plots=True,
-                                                    OffOn=OffOn,
-                                                    BigDomain=True,
-                                                    margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
-                                                    zoom_level=6,  # Zoom level for terrain tiles
-                                                    custom_vmin=combined_min,
-                                                    custom_vmax=combined_max_clipped)
+# humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_ice_load_rh,
+#                                                     humidity_threshold=0.95,  # Relative Humidity threshold (%)
+#                                                     temperature_threshold=263.15,  # Temperature threshold (K)
+#                                                     height_level=height,
+#                                                     save_plots=True,
+#                                                     OffOn=OffOn,
+#                                                     BigDomain=True,
+#                                                     margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
+#                                                     zoom_level=6,  # Zoom level for terrain tiles
+#                                                     custom_vmin=combined_min,
+#                                                     custom_vmax=combined_max_clipped)
 
 # SPATIAL GRADIENTS
 

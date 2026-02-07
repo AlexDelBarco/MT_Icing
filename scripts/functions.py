@@ -863,7 +863,7 @@ def analyze_landmask(dataset, create_plot=True, save_results=True):
 # ACCREATION
 
 def accreation_per_winter(ds, start_date, end_date, height_level=0, OffOn=None, BigDomain=False,
-                          margin_degrees=0.5, zoom_level=6):
+                          margin_degrees=0.5, zoom_level=6, custom_vmin=None, custom_vmax=None):
     """
     Analyze ice accretion per winter season at a specific height level
     
@@ -886,6 +886,10 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0, OffOn=None, 
         Margin around grid in degrees for cartopy terrain map
     zoom_level : int, default 6
         Zoom level for terrain tiles in cartopy terrain map
+    custom_vmin : float, optional
+        Custom minimum value for color scale. If None, uses automatic calculation
+    custom_vmax : float, optional
+        Custom maximum value for color scale. If None, uses 90th percentile clipping
     
     Returns:
     --------
@@ -960,6 +964,31 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0, OffOn=None, 
         # Use the specified height level instead of hardcoded height=0
         plot_data = ds1_filtered.ACCRE_CYL.isel(height=height_level).groupby('winterno').sum(dim='time')
         
+        # Calculate color scale range
+        plot_data_flat = plot_data.values.flatten()
+        valid_data = plot_data_flat[~np.isnan(plot_data_flat)]
+        
+        if len(valid_data) > 0:
+            data_min = np.min(valid_data)
+            data_max = np.max(valid_data)
+            data_90p = np.percentile(valid_data, 90)
+            
+            print(f"Ice accretion statistics:")
+            print(f"  Min: {data_min:.2f}, Max: {data_max:.2f} kg/m")
+            print(f"  90th percentile: {data_90p:.2f} kg/m")
+            
+            # Use custom color scale if provided, otherwise use 90th percentile clipping
+            if custom_vmin is not None and custom_vmax is not None:
+                vmin = custom_vmin
+                vmax = custom_vmax
+                print(f"  Using custom color scale: {vmin:.2f} - {vmax:.2f} kg/m")
+            else:
+                vmin = data_min
+                vmax = data_90p
+                print(f"  Using 90th percentile clipping for color scale: {vmin:.2f} - {vmax:.2f} kg/m")
+        else:
+            vmin, vmax = 0, 1
+        
         # Debug: Print data structure information
         print(f"Plot data dimensions: {plot_data.dims}")
         print(f"Plot data shape: {plot_data.shape}")
@@ -1008,13 +1037,20 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0, OffOn=None, 
                 x_coords = np.arange(winter_data.shape[1])
                 y_coords = np.arange(winter_data.shape[0])
             
-            # Use pcolormesh with simple grid coordinates
-            im = plt.pcolormesh(x_coords, y_coords, winter_data.values, shading='auto')
-            plt.colorbar(im, label='Ice Accretion Sum (kg/m)')
+            # Use pcolormesh with simple grid coordinates and fixed color scale
+            im = plt.pcolormesh(x_coords, y_coords, winter_data.values, shading='auto',
+                               vmin=vmin, vmax=vmax, cmap='viridis')
+            cbar = plt.colorbar(im)
+            if custom_vmin is not None and custom_vmax is not None:
+                cbar_label = f'Ice Accretion Sum (kg/m)\n[Fixed scale: {vmin:.2f} - {vmax:.2f}]'
+            else:
+                cbar_label = f'Ice Accretion Sum (kg/m)\n[Clipped at 90th percentile: {vmax:.2f}]'
+            cbar.set_label(cbar_label, fontsize=16)
+            cbar.ax.tick_params(labelsize=15)
             
             # Set custom tick labels for grid points (1-14)
-            plt.xticks(range(len(x_coords)), range(1, len(x_coords)+1))
-            plt.yticks(range(len(y_coords)), range(1, len(y_coords)+1))
+            plt.xticks(range(len(x_coords)), range(1, len(x_coords)+1), fontsize=20)
+            plt.yticks(range(len(y_coords)), range(1, len(y_coords)+1), fontsize=20)
             plt.xlabel('West-East Grid Points', fontsize=24)
             plt.ylabel('South-North Grid Points', fontsize=24)
             
@@ -1068,13 +1104,20 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0, OffOn=None, 
             x_coords = np.arange(mean_accretion.shape[1])
             y_coords = np.arange(mean_accretion.shape[0])
         
-        # Use pcolormesh with simple grid coordinates
-        im = plt.pcolormesh(x_coords, y_coords, mean_accretion.values, shading='auto')
-        plt.colorbar(im, label='Mean Ice Accretion Sum (kg/m)')
+        # Use pcolormesh with simple grid coordinates and fixed color scale
+        im = plt.pcolormesh(x_coords, y_coords, mean_accretion.values, shading='auto',
+                           vmin=vmin, vmax=vmax, cmap='viridis')
+        cbar = plt.colorbar(im)
+        if custom_vmin is not None and custom_vmax is not None:
+            cbar_label = f'Mean Ice Accretion Sum (kg/m)\n[Fixed scale: {vmin:.2f} - {vmax:.2f}]'
+        else:
+            cbar_label = f'Mean Ice Accretion Sum (kg/m)\n[Clipped at 90th percentile: {vmax:.2f}]'
+        cbar.set_label(cbar_label, fontsize=16)
+        cbar.ax.tick_params(labelsize=15)
         
         # Set custom tick labels for grid points (1-14)
-        plt.xticks(range(len(x_coords)), range(1, len(x_coords)+1))
-        plt.yticks(range(len(y_coords)), range(1, len(y_coords)+1))
+        plt.xticks(range(len(x_coords)), range(1, len(x_coords)+1), fontsize=20)
+        plt.yticks(range(len(y_coords)), range(1, len(y_coords)+1), fontsize=20)
         plt.xlabel('West-East Grid Points', fontsize=24)
         plt.ylabel('South-North Grid Points', fontsize=24)
         
@@ -1177,35 +1220,17 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0, OffOn=None, 
             # Create meshgrid for pcolormesh
             lon_mesh, lat_mesh = np.meshgrid(lon_edges, lat_edges)
             
-            # Calculate statistics for better color scaling
+            # Use the color scale calculated earlier (vmin, vmax already set)
             mean_accretion_values = mean_accretion.values
             valid_accretion = mean_accretion_values[~np.isnan(mean_accretion_values)]
             
             if len(valid_accretion) > 0:
-                data_min = np.min(valid_accretion)
-                data_max = np.max(valid_accretion)
                 data_mean = np.mean(valid_accretion)
-                data_90p = np.percentile(valid_accretion, 90)
-                
                 print(f"   Mean ice accretion statistics:")
                 print(f"     Min: {data_min:.2f}, Max: {data_max:.2f}, Mean: {data_mean:.2f} kg/m")
-                print(f"     90th percentile: {data_90p:.2f} kg/m")
-                
-                # Apply automatic scaling with outlier detection
-                outlier_ratio = data_max / data_90p if data_90p > 0 else 1
-                if outlier_ratio > 2.0:
-                    vmin = data_min
-                    vmax = data_90p
-                    outlier_clipped = True
-                    print(f"   Using 90th percentile clipping for better visualization: {vmin:.2f} - {vmax:.2f} kg/m")
-                else:
-                    vmin = data_min
-                    vmax = data_max
-                    outlier_clipped = False
-                    print(f"   Using full data range: {vmin:.2f} - {vmax:.2f} kg/m")
-            else:
-                vmin, vmax = 0, 1
-                outlier_clipped = False
+            
+            outlier_clipped = (custom_vmin is None and custom_vmax is None)
+            print(f"   Using color scale for cartopy: {vmin:.2f} - {vmax:.2f} kg/m")
             
             # Plot mean ice accretion as semi-transparent overlay
             accretion_plot = ax.pcolormesh(
@@ -1218,20 +1243,20 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0, OffOn=None, 
             
             # Add colorbar
             cbar = plt.colorbar(accretion_plot, ax=ax, shrink=0.8, pad=0.02)
-            if outlier_clipped:
-                cbar_label = f'Mean Ice Accretion Sum (kg/m)\n[Clipped at 90th percentile: {vmax:.2f}]'
+            if custom_vmin is not None and custom_vmax is not None:
+                cbar_label = f'Mean Ice Accretion Sum (kg/m)\n[Fixed scale: {vmin:.2f} - {vmax:.2f}]'
             else:
-                cbar_label = f'Mean Ice Accretion Sum (kg/m)'
-            cbar.set_label(cbar_label, fontsize=24)
-            cbar.ax.tick_params(labelsize=30)
+                cbar_label = f'Mean Ice Accretion Sum (kg/m)\n[Clipped at 90th percentile: {vmax:.2f}]'
+            cbar.set_label(cbar_label, fontsize=16)
+            cbar.ax.tick_params(labelsize=15)
             
             # Add gridlines with labels
             gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                              linewidth=1, color='gray', alpha=0.5, linestyle='--')
             gl.top_labels = False
             gl.right_labels = False
-            gl.xlabel_style = {'size': 30, 'color': 'black'}
-            gl.ylabel_style = {'size': 30, 'color': 'black'}
+            gl.xlabel_style = {'size': 20, 'color': 'black'}
+            gl.ylabel_style = {'size': 20, 'color': 'black'}
             
             # Add title
             title_text = (f'Mean Ice Accretion Across All Winters on Terrain Map\n'
@@ -1241,14 +1266,15 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0, OffOn=None, 
             
             # Add statistics information
             if len(valid_accretion) > 0:
-                if outlier_clipped:
+                if custom_vmin is not None and custom_vmax is not None:
+                    info_text = (f"Range: {data_min:.2f} - {data_max:.2f} kg/m | "
+                                f"Mean: {data_mean:.2f} kg/m\n"
+                                f"Color scale: {vmin:.2f} - {vmax:.2f} kg/m (fixed)")
+                else:
                     info_text = (f"Range: {data_min:.2f} - {data_max:.2f} kg/m | "
                                 f"Mean: {data_mean:.2f} kg/m\n"
                                 f"Color scale: {vmin:.2f} - {vmax:.2f} kg/m (90th percentile clipped)")
-                else:
-                    info_text = (f"Range: {data_min:.2f} - {data_max:.2f} kg/m | "
-                                f"Mean: {data_mean:.2f} kg/m")
-                ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=27,
+                ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=20,
                         bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
             
             plt.tight_layout()
@@ -1799,7 +1825,7 @@ def save_ice_load_data(dsiceload, start_date, end_date, height_label="h0"):
 def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD', height_level=0, 
                              ice_load_threshold=0.0, save_plots=True, 
                              months=None, show_colorbar=True, OffOn=None, BigDomain=False,
-                             margin_degrees=0.5, zoom_level=6):
+                             margin_degrees=0.5, zoom_level=6, custom_vmin=None, custom_vmax=None):
     """
     Plot annual mean total ice load for each grid cell.
     Calculates the total ice load per year for each grid cell, then computes the mean across all years.
@@ -1828,6 +1854,10 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         Margin around grid in degrees for cartopy terrain map
     zoom_level : int, default 6
         Zoom level for terrain tiles in cartopy terrain map
+    custom_vmin : float, optional
+        Custom minimum value for color scale. If None, uses automatic calculation
+    custom_vmax : float, optional
+        Custom maximum value for color scale. If None, uses 90th percentile clipping
         
     Returns:
     --------
@@ -1943,11 +1973,33 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         
         print(f"   Computed statistics for {len(results['grid_statistics'])} grid cells")
         
-        # Skip spatial grid visualization to save memory - only generate cartopy map
-        print(f"\n5. Skipping spatial grid visualization (only generating cartopy map)...")
-        
-        # Prepare plot data for cartopy
+        # Prepare plot data
         plot_data = mean_annual_totals.values
+        
+        # Calculate color scale for both plots
+        plot_data_flat = plot_data.flatten()
+        valid_data = plot_data_flat[~np.isnan(plot_data_flat)]
+        
+        if len(valid_data) > 0:
+            data_min = np.min(valid_data)
+            data_max = np.max(valid_data)
+            data_90p = np.percentile(valid_data, 90)
+            
+            print(f"\n5. Data statistics for plotting:")
+            print(f"   Min: {data_min:.1f}, Max: {data_max:.1f} kg/m")
+            print(f"   90th percentile: {data_90p:.1f} kg/m")
+            
+            # Use custom color scale if provided, otherwise use 90th percentile clipping
+            if custom_vmin is not None and custom_vmax is not None:
+                vmin = custom_vmin
+                vmax = custom_vmax
+                print(f"   Using custom color scale: {vmin:.1f} - {vmax:.1f} kg/m")
+            else:
+                vmin = data_min
+                vmax = data_90p
+                print(f"   Using 90th percentile clipping for color scale: {vmin:.1f} - {vmax:.1f} kg/m")
+        else:
+            vmin, vmax = 0, 1
         
         # Create directory structure for saving
         height_m = int(dataset_with_ice_load.height.values[height_level])
@@ -1971,8 +2023,59 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
         
         print(f"   Will save plots to: {ice_load_plots_dir}")
         
+        # Create grid cell plot (non-cartopy) with mean annual ice load
+        print(f"\n6. Creating Mean Annual Total Ice Load per Grid Cell plot...")
+        
+        plt.figure(figsize=(12, 8))
+        
+        # Create grid coordinates for plotting
+        x_coords = np.arange(n_west_east)
+        y_coords = np.arange(n_south_north)
+        
+        # Use pcolormesh with simple grid coordinates and fixed color scale
+        im = plt.pcolormesh(x_coords, y_coords, plot_data, 
+                           cmap='viridis', shading='auto',
+                           vmin=vmin, vmax=vmax)
+        
+        # Add colorbar with custom font sizes
+        cbar = plt.colorbar(im, pad=0.02)
+        if custom_vmin is not None and custom_vmax is not None:
+            cbar_label = f'Mean Annual Total Ice Load (kg/m)\n[Fixed scale: {vmin:.1f} - {vmax:.1f}]'
+        else:
+            cbar_label = f'Mean Annual Total Ice Load (kg/m)\n[Clipped at 90th percentile: {vmax:.1f}]'
+        cbar.set_label(cbar_label, fontsize=16)
+        cbar.ax.tick_params(labelsize=15)
+        
+        # Set custom tick labels for grid points (1-based indexing for display)
+        plt.xticks(range(n_west_east), range(1, n_west_east + 1), fontsize=20)
+        plt.yticks(range(n_south_north), range(1, n_south_north + 1), fontsize=20)
+        plt.xlabel('West-East Grid Points', fontsize=24)
+        plt.ylabel('South-North Grid Points', fontsize=24)
+        
+        # Add title with appropriate information
+        title_text = (f'Mean Annual Total Ice Load per Grid Cell\n'
+                     f'Threshold: {ice_load_threshold:.1f} kg/m, '
+                     f'Height: {dataset_with_ice_load.height.values[height_level]} m, '
+                     f'Years: {n_years}')
+        plt.title(title_text, fontsize=28, weight='bold')
+        plt.tight_layout()
+        
+        if save_plots:
+            # Create filename for grid cell plot
+            grid_filename_parts = ["mean_annual_total_ice_load_grid"]
+            if months is not None:
+                months_str = "_".join(map(str, sorted(months)))
+                grid_filename_parts.append(f"months_{months_str}")
+            
+            grid_plot_filename = "_".join(grid_filename_parts) + ".png"
+            grid_plot_path = os.path.join(ice_load_plots_dir, grid_plot_filename)
+            plt.savefig(grid_plot_path, dpi=300, bbox_inches='tight')
+            print(f"   Grid cell plot saved to: {grid_plot_path}")
+        
+        plt.close()
+        
         # Create cartopy terrain map with mean annual ice load
-        print(f"\n6. Creating cartopy terrain map with mean annual ice load...")
+        print(f"\n7. Creating cartopy terrain map with mean annual ice load...")
         
         try:
             import cartopy.crs as ccrs
@@ -2055,25 +2158,8 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
             # Create meshgrid for pcolormesh
             lon_mesh, lat_mesh = np.meshgrid(lon_edges, lat_edges)
             
-            # Calculate 90th percentile for color scale clipping
-            plot_data_flat = plot_data.flatten()
-            valid_data = plot_data_flat[~np.isnan(plot_data_flat)]
-            
-            if len(valid_data) > 0:
-                data_min = np.min(valid_data)
-                data_max = np.max(valid_data)
-                data_90p = np.percentile(valid_data, 90)
-                
-                print(f"   Ice load statistics:")
-                print(f"     Min: {data_min:.1f}, Max: {data_max:.1f} kg/m")
-                print(f"     90th percentile: {data_90p:.1f} kg/m")
-                
-                # Apply 90th percentile clipping
-                vmin = data_min
-                vmax = data_90p
-                print(f"   Using 90th percentile clipping for color scale: {vmin:.1f} - {vmax:.1f} kg/m")
-            else:
-                vmin, vmax = 0, 1
+            # Use the color scale calculated earlier (vmin, vmax already set)
+            print(f"   Using color scale: {vmin:.1f} - {vmax:.1f} kg/m for cartopy plot")
             
             # Plot mean annual ice load values as semi-transparent overlay
             ice_load_plot = ax.pcolormesh(
@@ -2086,7 +2172,10 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
             
             # Add colorbar
             cbar = plt.colorbar(ice_load_plot, ax=ax, shrink=0.8, pad=0.02)
-            cbar_label = f'Mean Annual Total Ice Load (kg/m)\n[Clipped at 90th percentile: {vmax:.1f}]'
+            if custom_vmin is not None and custom_vmax is not None:
+                cbar_label = f'Mean Annual Total Ice Load (kg/m)\n[Fixed scale: {vmin:.1f} - {vmax:.1f}]'
+            else:
+                cbar_label = f'Mean Annual Total Ice Load (kg/m)\n[Clipped at 90th percentile: {vmax:.1f}]'
             cbar.set_label(cbar_label, fontsize=16)
             cbar.ax.tick_params(labelsize=15)
             
@@ -2127,10 +2216,10 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
             print(f"   Error creating cartopy terrain map: {e}")
         
         # Skip time series plots to save memory
-        print(f"\n7. Skipping time series plots (only generating cartopy map as requested)...")
+        print(f"\n8. Skipping time series plots (grid plots already generated)...")
         
         # Print summary statistics
-        print(f"\n8. Summary Statistics:")
+        print(f"\n9. Summary Statistics:")
         print(f"   Processed {n_south_north * n_west_east} grid cells")
         print(f"   Years analyzed: {n_years}")
         
@@ -2242,51 +2331,48 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
         
         print(f"\n2. Threshold Exceedance Analysis:")
         print(f"   Analyzing exceedance of {ice_load_threshold:.3f} kg/m threshold...")
+        print(f"   Processing data in time chunks to avoid memory overload...")
         
-        # Initialize exceedance matrix
-        exceedance_matrix = np.zeros((n_south_north, n_west_east))
+        # Process in time chunks to avoid loading all data into memory
+        chunk_size = 10000  # Process 10k timesteps at a time
+        n_chunks = (n_time + chunk_size - 1) // chunk_size
         
-        # Calculate exceedance for each grid cell
-        total_cells = n_south_north * n_west_east
-        processed_cells = 0
+        # Initialize accumulator for exceedance counts
+        exceedance_counts = np.zeros((n_south_north, n_west_east))
         
-        for i in range(n_south_north):
-            for j in range(n_west_east):
-                # Extract time series for this grid cell
-                cell_data = ice_data_clean.isel(south_north=i, west_east=j)
-                cell_values = cell_data.values
-                
-                # Remove NaN values
-                valid_mask = ~np.isnan(cell_values)
-                cell_values_clean = cell_values[valid_mask]
-                
-                if len(cell_values_clean) > 0:
-                    # Count exceedances
-                    exceedances = np.sum(cell_values_clean >= ice_load_threshold)
-                    
-                    # Convert to the requested units
-                    if units == 'hours':
-                        # Hours per year
-                        exceedance_value = (exceedances * time_step_hours) / n_years
-                    elif units == 'days':
-                        # Days per year
-                        exceedance_value = (exceedances * time_step_hours) / (24 * n_years)
-                    elif units == 'percentage':
-                        # Percentage of time
-                        total_hours_per_year = 365.25 * 24  # Account for leap years
-                        hours_per_year = (exceedances * time_step_hours) / n_years
-                        exceedance_value = (hours_per_year / total_hours_per_year) * 100
-                    else:
-                        # Default to hours
-                        exceedance_value = (exceedances * time_step_hours) / n_years
-                    
-                    exceedance_matrix[i, j] = exceedance_value
-                else:
-                    exceedance_matrix[i, j] = np.nan
-                
-                processed_cells += 1
-                if processed_cells % 20 == 0:
-                    print(f"   Processed {processed_cells}/{total_cells} cells...")
+        print(f"   Processing {n_time} timesteps in {n_chunks} chunks of {chunk_size}...")
+        
+        for chunk_idx in range(n_chunks):
+            start_idx = chunk_idx * chunk_size
+            end_idx = min((chunk_idx + 1) * chunk_size, n_time)
+            
+            # Process this time chunk
+            chunk_data = ice_data_clean.isel(time=slice(start_idx, end_idx))
+            
+            # Count exceedances in this chunk and compute
+            chunk_exceedances = (chunk_data >= ice_load_threshold).sum(dim='time').compute()
+            exceedance_counts += chunk_exceedances.values
+            
+            if (chunk_idx + 1) % max(1, n_chunks // 10) == 0 or chunk_idx == n_chunks - 1:
+                print(f"   Processed chunk {chunk_idx + 1}/{n_chunks} (timesteps {start_idx} to {end_idx})")
+        
+        # Convert to the requested units
+        if units == 'hours':
+            # Hours per year
+            exceedance_matrix = (exceedance_counts * time_step_hours / n_years)
+        elif units == 'days':
+            # Days per year
+            exceedance_matrix = (exceedance_counts * time_step_hours / (24 * n_years))
+        elif units == 'percentage':
+            # Percentage of time
+            total_hours_per_year = 365.25 * 24  # Account for leap years
+            hours_per_year = (exceedance_counts * time_step_hours) / n_years
+            exceedance_matrix = (hours_per_year / total_hours_per_year) * 100
+        else:
+            # Default to hours
+            exceedance_matrix = (exceedance_counts * time_step_hours / n_years)
+        
+        print(f"   Chunked processing completed for {n_south_north * n_west_east} cells")
         
         # Calculate statistics
         valid_exceedances = exceedance_matrix[~np.isnan(exceedance_matrix)]
@@ -3058,46 +3144,41 @@ def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height
         
         print(f"\n3. Criteria Analysis:")
         print(f"   Analyzing when T <= {temperature_threshold:.2f} K AND relative_humidity >= {humidity_threshold:.3f}...")
+        print(f"   Processing data in time chunks to avoid memory overload...")
         
-        # Initialize criteria exceedance matrix
-        criteria_matrix = np.zeros((n_south_north, n_west_east))
+        # Process in time chunks to avoid loading all data into memory
+        chunk_size = 10000  # Process 10k timesteps at a time
+        n_chunks = (n_time + chunk_size - 1) // chunk_size
         
-        # Calculate criteria exceedance for each grid cell
-        total_cells = n_south_north * n_west_east
-        processed_cells = 0
+        # Initialize accumulator for criteria counts
+        criteria_counts = np.zeros((n_south_north, n_west_east))
         
-        for i in range(n_south_north):
-            for j in range(n_west_east):
-                # Extract time series for this grid cell
-                cell_temp = temp_data_clean.isel(south_north=i, west_east=j)
-                cell_humidity = humidity_data_clean.isel(south_north=i, west_east=j)
-                
-                temp_values = cell_temp.values
-                humidity_values = cell_humidity.values
-                
-                # Remove NaN values from both arrays
-                valid_mask = ~(np.isnan(temp_values) | np.isnan(humidity_values))
-                temp_clean = temp_values[valid_mask]
-                humidity_clean = humidity_values[valid_mask]
-                
-                if len(temp_clean) > 0 and len(humidity_clean) > 0:
-                    # Count timesteps meeting both criteria
-                    temp_criteria = temp_clean <= temperature_threshold
-                    humidity_criteria = humidity_clean >= humidity_threshold
-                    both_criteria = temp_criteria & humidity_criteria
-                    
-                    criteria_count = np.sum(both_criteria)
-                    
-                    # Convert to hours per year
-                    hours_per_year = (criteria_count * time_step_hours) / n_years
-                    
-                    criteria_matrix[i, j] = hours_per_year
-                else:
-                    criteria_matrix[i, j] = np.nan
-                
-                processed_cells += 1
-                if processed_cells % 20 == 0:
-                    print(f"   Processed {processed_cells}/{total_cells} cells...")
+        print(f"   Processing {n_time} timesteps in {n_chunks} chunks of {chunk_size}...")
+        
+        for chunk_idx in range(n_chunks):
+            start_idx = chunk_idx * chunk_size
+            end_idx = min((chunk_idx + 1) * chunk_size, n_time)
+            
+            # Process this time chunk
+            temp_chunk = temp_data_clean.isel(time=slice(start_idx, end_idx))
+            humidity_chunk = humidity_data_clean.isel(time=slice(start_idx, end_idx))
+            
+            # Calculate criteria for this chunk
+            temp_criteria = temp_chunk <= temperature_threshold
+            humidity_criteria = humidity_chunk >= humidity_threshold
+            both_criteria = temp_criteria & humidity_criteria
+            
+            # Count and accumulate
+            chunk_counts = both_criteria.sum(dim='time').compute()
+            criteria_counts += chunk_counts.values
+            
+            if (chunk_idx + 1) % max(1, n_chunks // 10) == 0 or chunk_idx == n_chunks - 1:
+                print(f"   Processed chunk {chunk_idx + 1}/{n_chunks} (timesteps {start_idx} to {end_idx})")
+        
+        # Convert to hours per year
+        criteria_matrix = (criteria_counts * time_step_hours / n_years)
+        
+        print(f"   Chunked processing completed for {n_south_north * n_west_east} cells")
         
         # Calculate statistics
         valid_criteria = criteria_matrix[~np.isnan(criteria_matrix)]
