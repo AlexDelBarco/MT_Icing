@@ -12,7 +12,7 @@ if current_dir.endswith('scripts'):
     print(f"Changed working directory from {current_dir} to {os.getcwd()}")
 
 # PARAMETERS
-height = 0  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
+height = 1  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
 ice_load_method = 51  # Method for ice load calculation
 calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
 
@@ -89,8 +89,8 @@ accretion_vmin = 0
 accretion_vmax = 1.5  # Adjust based on your expected range
 
 # Accreation for winter and time period + plot
-fn.accreation_per_winter(dataset, start_date, end_date, height_level=height,
-                         custom_vmin=accretion_vmin, custom_vmax=accretion_vmax)
+# fn.accreation_per_winter(dataset, start_date, end_date, height_level=height,
+#                          custom_vmin=accretion_vmin, custom_vmax=accretion_vmax)
 
 
 
@@ -325,28 +325,28 @@ else:
 
 # ICE LOAD RESAMPLING ANALYSIS
 
-# print("\n=== ICE LOAD RESAMPLING ANALYSIS ===")
-# resampling_results = fn.ice_load_resampling_analysis(
-#     dataset_with_ice_load=dataset_with_ice_load,
-#     ice_load_variable='ICE_LOAD',
-#     height_level=height,
-#     resampling_years=1,  # Aggregate data into X-year periods
-#     save_plots=True,
-#     months=None,  # Use all months, or specify [12,1,2,3] for winter
-#     ice_load_threshold=0  # Include all ice load values
-# )
+print("\n=== ICE LOAD RESAMPLING ANALYSIS ===")
+resampling_results = fn.ice_load_resampling_analysis(
+    dataset_with_ice_load=dataset_with_ice_load,
+    ice_load_variable='ICE_LOAD',
+    height_level=height,
+    resampling_years=1,  # Aggregate data into X-year periods
+    save_plots=True,
+    months=None,  # Use all months, or specify [12,1,2,3] for winter
+    ice_load_threshold=0  # Include all ice load values
+)
 
-# print("\n=== ICE LOAD RESAMPLING ANALYSIS EXCEEDANCE HOURS ===")
+print("\n=== ICE LOAD RESAMPLING ANALYSIS EXCEEDANCE HOURS ===")
 
-# resampling_results_hours = fn.ice_load_resampling_analysis_hours(
-#     dataset_with_ice_load=dataset_with_ice_load,
-#     ice_load_variable='ICE_LOAD',
-#     height_level=height,
-#     resampling_years=1,  # Aggregate data into X-year periods
-#     save_plots=True,
-#     months=None,  # Use all months, or specify [12,1,2,3] for winter
-#     ice_load_threshold=0.1  # Include all ice load values
-# )
+resampling_results_hours = fn.ice_load_resampling_analysis_hours(
+    dataset_with_ice_load=dataset_with_ice_load,
+    ice_load_variable='ICE_LOAD',
+    height_level=height,
+    resampling_years=1,  # Aggregate data into X-year periods
+    save_plots=True,
+    months=None,  # Use all months, or specify [12,1,2,3] for winter
+    ice_load_threshold=0.1  # Include all ice load values
+)
 
 # CORRELATION WITH METEOROLOGICAL VARIABLES
 

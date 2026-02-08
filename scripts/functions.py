@@ -9803,167 +9803,234 @@ def ice_load_resampling_analysis(
     print(f"\n4. CREATING VISUALIZATIONS")
     print("=" * 30)
     
-    # Plot 1: Yearly time series with long-term average
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    
-    # Subplot 1: Yearly mean ice load
-    axes[0, 0].plot(years_list, yearly_mean, 'b-o', linewidth=2, markersize=4, label='Yearly Mean')
-    axes[0, 0].axhline(y=long_term_stats['mean'], color='red', linestyle='--', linewidth=2, 
-                       label=f'Long-term Average ({long_term_stats["mean"]:.3f})')
-    axes[0, 0].fill_between(years_list, 
-                            [long_term_stats['mean'] - long_term_stats['std']] * len(years_list),
-                            [long_term_stats['mean'] + long_term_stats['std']] * len(years_list),
-                            alpha=0.2, color='red', label='±1 Std Dev')
-    axes[0, 0].set_xlabel('Year', fontsize=24)
-    axes[0, 0].set_ylabel('Mean Ice Load (kg/m)', fontsize=24)
-    axes[0, 0].set_title('Yearly Mean Ice Load vs Long-term Average', fontsize=28)
-    axes[0, 0].grid(True, alpha=0.3)
-    axes[0, 0].legend()
-    
-    # Subplot 2: Yearly maximum ice load
-    axes[0, 1].plot(years_list, yearly_max, 'g-s', linewidth=2, markersize=4, label='Yearly Maximum')
-    axes[0, 1].axhline(y=long_term_stats['max'], color='orange', linestyle='--', linewidth=2,
-                       label=f'Long-term Max ({long_term_stats["max"]:.3f})')
-    axes[0, 1].set_xlabel('Year', fontsize=24)
-    axes[0, 1].set_ylabel('Maximum Ice Load (kg/m)', fontsize=24)
-    axes[0, 1].set_title('Yearly Maximum Ice Load', fontsize=28)
-    axes[0, 1].grid(True, alpha=0.3)
-    axes[0, 1].legend()
-    
-    # Subplot 3: Yearly deviations from long-term average
-    colors = ['red' if x > 0 else 'blue' for x in yearly_deviations]
-    axes[1, 0].bar(years_list, yearly_deviations, color=colors, alpha=0.7, width=0.8)
-    axes[1, 0].axhline(y=0, color='black', linestyle='-', linewidth=1)
-    axes[1, 0].set_xlabel('Year', fontsize=24)
-    axes[1, 0].set_ylabel('Deviation from Long-term Mean (kg/m)', fontsize=24)
-    axes[1, 0].set_title('Yearly Deviations from Long-term Average', fontsize=28)
-    axes[1, 0].grid(True, alpha=0.3)
-    
-    # Subplot 4: Normalized deviations
-    colors_norm = ['red' if x > 0 else 'blue' for x in yearly_normalized_deviations]
-    axes[1, 1].bar(years_list, yearly_normalized_deviations, color=colors_norm, alpha=0.7, width=0.8)
-    axes[1, 1].axhline(y=0, color='black', linestyle='-', linewidth=1)
-    axes[1, 1].axhline(y=1, color='red', linestyle='--', alpha=0.7, label='+1 Std Dev')
-    axes[1, 1].axhline(y=-1, color='red', linestyle='--', alpha=0.7, label='-1 Std Dev')
-    axes[1, 1].set_xlabel('Year', fontsize=24)
-    axes[1, 1].set_ylabel('Normalized Deviation (σ)', fontsize=24)
-    axes[1, 1].set_title('Normalized Yearly Deviations', fontsize=28)
-    axes[1, 1].grid(True, alpha=0.3)
-    axes[1, 1].legend()
-    
+    # Plot 1a: Yearly mean ice load
+    fig1a = plt.figure(figsize=(10, 6))
+    plt.plot(years_list, yearly_mean, 'b-o', linewidth=2, markersize=4, label='Yearly Mean')
+    plt.axhline(y=long_term_stats['mean'], color='red', linestyle='--', linewidth=2, 
+                label=f'Long-term Average ({long_term_stats["mean"]:.3f})')
+    plt.fill_between(years_list, 
+                     [long_term_stats['mean'] - long_term_stats['std']] * len(years_list),
+                     [long_term_stats['mean'] + long_term_stats['std']] * len(years_list),
+                     alpha=0.2, color='red', label='±1 Std Dev')
+    plt.xlabel('Year', fontsize=20)
+    plt.ylabel('Mean Ice Load (kg/m)', fontsize=20)
+    plt.title('Yearly Mean Ice Load vs Long-term Average', fontsize=22)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=18)
     plt.tight_layout()
     
     if save_plots:
-        plot1_path = os.path.join(base_results_dir, "ice_load_yearly_analysis.png")
-        plt.savefig(plot1_path, dpi=300, bbox_inches='tight')
-        print(f"Yearly analysis plot saved to: {plot1_path}")
+        plot1a_path = os.path.join(base_results_dir, "yearly_mean_ice_load.png")
+        plt.savefig(plot1a_path, dpi=300, bbox_inches='tight')
+        print(f"Yearly mean ice load plot saved to: {plot1a_path}")
+    plt.close(fig1a)
     
-    plt.close()
+    # Plot 1b: Yearly maximum ice load
+    fig1b = plt.figure(figsize=(10, 6))
+    plt.plot(years_list, yearly_max, 'g-s', linewidth=2, markersize=4, label='Yearly Maximum')
+    plt.axhline(y=long_term_stats['max'], color='orange', linestyle='--', linewidth=2,
+                label=f'Long-term Max ({long_term_stats["max"]:.3f})')
+    plt.xlabel('Year', fontsize=20)
+    plt.ylabel('Maximum Ice Load (kg/m)', fontsize=20)
+    plt.title('Yearly Maximum Ice Load', fontsize=22)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=18)
+    plt.tight_layout()
+    
+    if save_plots:
+        plot1b_path = os.path.join(base_results_dir, "yearly_maximum_ice_load.png")
+        plt.savefig(plot1b_path, dpi=300, bbox_inches='tight')
+        print(f"Yearly maximum ice load plot saved to: {plot1b_path}")
+    plt.close(fig1b)
+    
+    # Plot 1c: Yearly deviations from long-term average
+    fig1c = plt.figure(figsize=(10, 6))
+    colors = ['red' if x > 0 else 'blue' for x in yearly_deviations]
+    plt.bar(years_list, yearly_deviations, color=colors, alpha=0.7, width=0.8)
+    plt.axhline(y=0, color='black', linestyle='-', linewidth=1)
+    plt.xlabel('Year', fontsize=20)
+    plt.ylabel('Deviation from Long-term Mean (kg/m)', fontsize=20)
+    plt.title('Yearly Deviations from Long-term Average', fontsize=22)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    if save_plots:
+        plot1c_path = os.path.join(base_results_dir, "yearly_deviations.png")
+        plt.savefig(plot1c_path, dpi=300, bbox_inches='tight')
+        print(f"Yearly deviations plot saved to: {plot1c_path}")
+    plt.close(fig1c)
+    
+    # Plot 1d: Normalized deviations
+    fig1d = plt.figure(figsize=(10, 6))
+    colors_norm = ['red' if x > 0 else 'blue' for x in yearly_normalized_deviations]
+    plt.bar(years_list, yearly_normalized_deviations, color=colors_norm, alpha=0.7, width=0.8)
+    plt.axhline(y=0, color='black', linestyle='-', linewidth=1)
+    plt.axhline(y=1, color='red', linestyle='--', alpha=0.7, label='+1 Std Dev')
+    plt.axhline(y=-1, color='red', linestyle='--', alpha=0.7, label='-1 Std Dev')
+    plt.xlabel('Year', fontsize=20)
+    plt.ylabel('Normalized Deviation (σ)', fontsize=20)
+    plt.title('Normalized Yearly Deviations', fontsize=22)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=18)
+    plt.tight_layout()
+    
+    if save_plots:
+        plot1d_path = os.path.join(base_results_dir, "yearly_normalized_deviations.png")
+        plt.savefig(plot1d_path, dpi=300, bbox_inches='tight')
+        print(f"Yearly normalized deviations plot saved to: {plot1d_path}")
+    plt.close(fig1d)
     
     # Plot 2: Resampling period analysis
     if len(period_means) > 1:
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        # Convert period labels from "2020-2025" to "20-25" format, or "2022-2022" to "22"
+        period_labels_short = []
+        for label in period_labels:
+            years = label.split('-')
+            short_years = [year[-2:] for year in years]
+            if len(short_years) == 2 and short_years[0] == short_years[1]:
+                period_labels_short.append(short_years[0])
+            else:
+                period_labels_short.append('-'.join(short_years))
         
-        # Subplot 1: Period means
+        # Plot 2a: Period means
+        fig2a = plt.figure(figsize=(10, 6))
         x_pos = np.arange(len(period_labels))
-        axes[0, 0].bar(x_pos, period_means, alpha=0.7, color='skyblue', edgecolor='navy')
-        axes[0, 0].axhline(y=long_term_stats['mean'], color='red', linestyle='--', linewidth=2,
-                           label=f'Overall Mean ({long_term_stats["mean"]:.3f})')
-        axes[0, 0].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[0, 0].set_ylabel('Mean Ice Load (kg/m)', fontsize=24)
-        axes[0, 0].set_title(f'{resampling_years}-Year Period Means')
-        axes[0, 0].set_xticks(x_pos)
-        axes[0, 0].set_xticklabels(period_labels, rotation=45)
-        axes[0, 0].grid(True, alpha=0.3)
-        axes[0, 0].legend()
-        
-        # Subplot 2: Period standard deviations
-        axes[0, 1].bar(x_pos, period_stds, alpha=0.7, color='lightcoral', edgecolor='darkred')
-        axes[0, 1].axhline(y=long_term_stats['std'], color='blue', linestyle='--', linewidth=2,
-                           label=f'Overall Std ({long_term_stats["std"]:.3f})')
-        axes[0, 1].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[0, 1].set_ylabel('Standard Deviation (kg/m)', fontsize=24)
-        axes[0, 1].set_title(f'{resampling_years}-Year Period Variability')
-        axes[0, 1].set_xticks(x_pos)
-        axes[0, 1].set_xticklabels(period_labels, rotation=45)
-        axes[0, 1].grid(True, alpha=0.3)
-        axes[0, 1].legend()
-        
-        # Subplot 3: Period deviations from overall mean
-        period_deviations = [mean - long_term_stats['mean'] for mean in period_means]
-        colors_period = ['red' if x > 0 else 'blue' for x in period_deviations]
-        axes[1, 0].bar(x_pos, period_deviations, color=colors_period, alpha=0.7)
-        axes[1, 0].axhline(y=0, color='black', linestyle='-', linewidth=1)
-        axes[1, 0].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[1, 0].set_ylabel('Deviation from Overall Mean (kg/m)', fontsize=24)
-        axes[1, 0].set_title(f'{resampling_years}-Year Period Deviations')
-        axes[1, 0].set_xticks(x_pos)
-        axes[1, 0].set_xticklabels(period_labels, rotation=45)
-        axes[1, 0].grid(True, alpha=0.3)
-        
-        # Subplot 4: Coefficient of variation
-        cv_values = [std/mean if mean > 0 else 0 for mean, std in zip(period_means, period_stds)]
-        overall_cv = long_term_stats['std'] / long_term_stats['mean']
-        
-        axes[1, 1].bar(x_pos, cv_values, alpha=0.7, color='gold', edgecolor='orange')
-        axes[1, 1].axhline(y=overall_cv, color='purple', linestyle='--', linewidth=2,
-                           label=f'Overall CV ({overall_cv:.3f})')
-        axes[1, 1].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[1, 1].set_ylabel('Coefficient of Variation', fontsize=24)
-        axes[1, 1].set_title(f'{resampling_years}-Year Period Relative Variability')
-        axes[1, 1].set_xticks(x_pos)
-        axes[1, 1].set_xticklabels(period_labels, rotation=45)
-        axes[1, 1].grid(True, alpha=0.3)
-        axes[1, 1].legend()
-        
+        plt.bar(x_pos, period_means, alpha=0.7, color='skyblue', edgecolor='navy')
+        plt.axhline(y=long_term_stats['mean'], color='red', linestyle='--', linewidth=2,
+                    label=f'Overall Mean ({long_term_stats["mean"]:.3f})')
+        plt.xlabel(f'{resampling_years}-Year Periods', fontsize=20)
+        plt.ylabel('Mean Ice Load (kg/m)', fontsize=20)
+        plt.title(f'{resampling_years}-Year Period Means', fontsize=22)
+        plt.xticks(x_pos, period_labels_short, rotation=45, fontsize=16)
+        plt.yticks(fontsize=18)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=18)
         plt.tight_layout()
         
         if save_plots:
-            plot2_path = os.path.join(base_results_dir, f"ice_load_{resampling_years}year_resampling_analysis.png")
-            plt.savefig(plot2_path, dpi=300, bbox_inches='tight')
-            print(f"Resampling analysis plot saved to: {plot2_path}")
+            plot2a_path = os.path.join(base_results_dir, f"{resampling_years}year_period_means.png")
+            plt.savefig(plot2a_path, dpi=300, bbox_inches='tight')
+            print(f"Period means plot saved to: {plot2a_path}")
+        plt.close(fig2a)
         
-        plt.close()
+        # Plot 2b: Period standard deviations
+        fig2b = plt.figure(figsize=(10, 6))
+        plt.bar(x_pos, period_stds, alpha=0.7, color='lightcoral', edgecolor='darkred')
+        plt.axhline(y=long_term_stats['std'], color='blue', linestyle='--', linewidth=2,
+                    label=f'Overall Std ({long_term_stats["std"]:.3f})')
+        plt.xlabel(f'{resampling_years}-Year Periods', fontsize=20)
+        plt.ylabel('Standard Deviation (kg/m)', fontsize=20)
+        plt.title(f'{resampling_years}-Year Period Variability', fontsize=22)
+        plt.xticks(x_pos, period_labels_short, rotation=45, fontsize=16)
+        plt.yticks(fontsize=18)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=18)
+        plt.tight_layout()
+        
+        if save_plots:
+            plot2b_path = os.path.join(base_results_dir, f"{resampling_years}year_period_variability.png")
+            plt.savefig(plot2b_path, dpi=300, bbox_inches='tight')
+            print(f"Period variability plot saved to: {plot2b_path}")
+        plt.close(fig2b)
+        
+        # Plot 2c: Period deviations from overall mean
+        fig2c = plt.figure(figsize=(10, 6))
+        period_deviations = [mean - long_term_stats['mean'] for mean in period_means]
+        colors_period = ['red' if x > 0 else 'blue' for x in period_deviations]
+        plt.bar(x_pos, period_deviations, color=colors_period, alpha=0.7)
+        plt.axhline(y=0, color='black', linestyle='-', linewidth=1)
+        plt.xlabel(f'{resampling_years}-Year Periods', fontsize=20)
+        plt.ylabel('Deviation from Overall Mean (kg/m)', fontsize=20)
+        plt.title(f'{resampling_years}-Year Period Deviations', fontsize=22)
+        plt.xticks(x_pos, period_labels_short, rotation=45, fontsize=16)
+        plt.yticks(fontsize=18)
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        
+        if save_plots:
+            plot2c_path = os.path.join(base_results_dir, f"{resampling_years}year_period_deviations.png")
+            plt.savefig(plot2c_path, dpi=300, bbox_inches='tight')
+            print(f"Period deviations plot saved to: {plot2c_path}")
+        plt.close(fig2c)
+        
+        # Plot 2d: Coefficient of variation
+        fig2d = plt.figure(figsize=(10, 6))
+        cv_values = [std/mean if mean > 0 else 0 for mean, std in zip(period_means, period_stds)]
+        overall_cv = long_term_stats['std'] / long_term_stats['mean']
+        
+        plt.bar(x_pos, cv_values, alpha=0.7, color='gold', edgecolor='orange')
+        plt.axhline(y=overall_cv, color='purple', linestyle='--', linewidth=2,
+                    label=f'Overall CV ({overall_cv:.3f})')
+        plt.xlabel(f'{resampling_years}-Year Periods', fontsize=20)
+        plt.ylabel('Coefficient of Variation', fontsize=20)
+        plt.title(f'{resampling_years}-Year Period Relative Variability', fontsize=22)
+        plt.xticks(x_pos, period_labels_short, rotation=45, fontsize=16)
+        plt.yticks(fontsize=18)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=18)
+        plt.tight_layout()
+        
+        if save_plots:
+            plot2d_path = os.path.join(base_results_dir, f"{resampling_years}year_period_coefficient_variation.png")
+            plt.savefig(plot2d_path, dpi=300, bbox_inches='tight')
+            print(f"Period coefficient of variation plot saved to: {plot2d_path}")
+        plt.close(fig2d)
     
-    # Plot 3: Percentiles evolution
-    fig, axes = plt.subplots(2, 1, figsize=(16, 10))
-    
-    # Subplot 1: Multiple percentiles over time
-    axes[0].plot(years_list, yearly_percentiles['p90'], 'g-o', linewidth=2, markersize=3, label='90th Percentile')
-    axes[0].plot(years_list, yearly_percentiles['p95'], 'orange', marker='s', linewidth=2, markersize=3, label='95th Percentile')
-    axes[0].plot(years_list, yearly_percentiles['p99'], 'r-^', linewidth=2, markersize=3, label='99th Percentile')
-    axes[0].plot(years_list, yearly_mean, 'b-', linewidth=2, alpha=0.7, label='Mean')
+    # Plot 3a: Percentiles evolution over time
+    fig3a = plt.figure(figsize=(12, 6))
+    plt.plot(years_list, yearly_percentiles['p90'], 'g-o', linewidth=2, markersize=3, label='90th Percentile')
+    plt.plot(years_list, yearly_percentiles['p95'], 'orange', marker='s', linewidth=2, markersize=3, label='95th Percentile')
+    plt.plot(years_list, yearly_percentiles['p99'], 'r-^', linewidth=2, markersize=3, label='99th Percentile')
+    plt.plot(years_list, yearly_mean, 'b-', linewidth=2, alpha=0.7, label='Mean')
     
     # Add long-term averages
-    axes[0].axhline(y=np.percentile(all_values_clean, 90), color='green', linestyle='--', alpha=0.7)
-    axes[0].axhline(y=np.percentile(all_values_clean, 95), color='orange', linestyle='--', alpha=0.7)
-    axes[0].axhline(y=np.percentile(all_values_clean, 99), color='red', linestyle='--', alpha=0.7)
-    axes[0].axhline(y=long_term_stats['mean'], color='blue', linestyle='--', alpha=0.7)
+    plt.axhline(y=np.percentile(all_values_clean, 90), color='green', linestyle='--', alpha=0.7)
+    plt.axhline(y=np.percentile(all_values_clean, 95), color='orange', linestyle='--', alpha=0.7)
+    plt.axhline(y=np.percentile(all_values_clean, 99), color='red', linestyle='--', alpha=0.7)
+    plt.axhline(y=long_term_stats['mean'], color='blue', linestyle='--', alpha=0.7)
     
-    axes[0].set_xlabel('Year', fontsize=24)
-    axes[0].set_ylabel('Ice Load (kg/m)', fontsize=24)
-    axes[0].set_title('Ice Load Percentiles Evolution Over Time', fontsize=28)
-    axes[0].grid(True, alpha=0.3)
-    axes[0].legend()
-    
-    # Subplot 2: Yearly statistics distribution
-    axes[1].boxplot([yearly_mean, yearly_percentiles['p90'], yearly_percentiles['p95'], yearly_percentiles['p99']], 
-                    labels=['Mean', 'P90', 'P95', 'P99'],
-                    patch_artist=True,
-                    boxprops=dict(facecolor='lightblue', alpha=0.7),
-                    medianprops=dict(color='red', linewidth=2))
-    axes[1].set_ylabel('Ice Load (kg/m)', fontsize=24)
-    axes[1].set_title('Distribution of Yearly Statistics', fontsize=28)
-    axes[1].grid(True, alpha=0.3)
-    
+    plt.xlabel('Year', fontsize=20)
+    plt.ylabel('Ice Load (kg/m)', fontsize=20)
+    plt.title('Ice Load Percentiles Evolution Over Time', fontsize=22)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=18)
     plt.tight_layout()
     
     if save_plots:
-        plot3_path = os.path.join(base_results_dir, "ice_load_percentiles_evolution.png")
-        plt.savefig(plot3_path, dpi=300, bbox_inches='tight')
-        print(f"Percentiles evolution plot saved to: {plot3_path}")
+        plot3a_path = os.path.join(base_results_dir, "percentiles_evolution.png")
+        plt.savefig(plot3a_path, dpi=300, bbox_inches='tight')
+        print(f"Percentiles evolution plot saved to: {plot3a_path}")
+    plt.close(fig3a)
     
-    plt.close()
+    # Plot 3b: Distribution of yearly statistics
+    fig3b = plt.figure(figsize=(10, 6))
+    bp = plt.boxplot([yearly_mean, yearly_percentiles['p90'], yearly_percentiles['p95'], yearly_percentiles['p99']], 
+                      labels=['Mean', 'P90', 'P95', 'P99'],
+                      patch_artist=True,
+                      boxprops=dict(facecolor='lightblue', alpha=0.7),
+                      medianprops=dict(color='red', linewidth=2))
+    plt.ylabel('Ice Load (kg/m)', fontsize=20)
+    plt.title('Distribution of Yearly Statistics', fontsize=22)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    if save_plots:
+        plot3b_path = os.path.join(base_results_dir, "yearly_statistics_distribution.png")
+        plt.savefig(plot3b_path, dpi=300, bbox_inches='tight')
+        print(f"Yearly statistics distribution plot saved to: {plot3b_path}")
+    plt.close(fig3b)
     
     # 5. SAVE SUMMARY REPORT
     if save_plots:
@@ -10003,10 +10070,17 @@ def ice_load_resampling_analysis(
             
             f.write(f"\nFILES GENERATED:\n")
             f.write("-" * 20 + "\n")
-            f.write("- ice_load_yearly_analysis.png\n")
+            f.write("- yearly_mean_ice_load.png\n")
+            f.write("- yearly_maximum_ice_load.png\n")
+            f.write("- yearly_deviations.png\n")
+            f.write("- yearly_normalized_deviations.png\n")
             if len(period_means) > 1:
-                f.write(f"- ice_load_{resampling_years}year_resampling_analysis.png\n")
-            f.write("- ice_load_percentiles_evolution.png\n")
+                f.write(f"- {resampling_years}year_period_means.png\n")
+                f.write(f"- {resampling_years}year_period_variability.png\n")
+                f.write(f"- {resampling_years}year_period_deviations.png\n")
+                f.write(f"- {resampling_years}year_period_coefficient_variation.png\n")
+            f.write("- percentiles_evolution.png\n")
+            f.write("- yearly_statistics_distribution.png\n")
             f.write("- resampling_analysis_summary.txt (this file)\n")
         
         print(f"Summary report saved to: {summary_path}")
@@ -10351,116 +10425,156 @@ def ice_load_resampling_analysis_hours(
     print(f"\n4. CREATING VISUALIZATIONS")
     print("=" * 30)
     
-    # Plot 2: Resampling period analysis
+    # Plot 2: Resampling period analysis (separated into 4 individual plots)
     if len(period_total_hours) > 1:
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        # Convert period labels from "2020-2025" to "20-25" format, or "2022-2022" to "22"
+        period_labels_short = []
+        for label in period_labels:
+            years = label.split('-')
+            short_years = [year[-2:] for year in years]
+            if len(short_years) == 2 and short_years[0] == short_years[1]:
+                period_labels_short.append(short_years[0])
+            else:
+                period_labels_short.append('-'.join(short_years))
         
-        # Subplot 1: Period grid mean total hours
         x_pos = np.arange(len(period_labels))
-        axes[0, 0].bar(x_pos, period_total_hours, alpha=0.7, color='skyblue', edgecolor='navy')
-        period_avg = long_term_stats['grid_mean_total_hours'] / total_winter_years * resampling_years
-        axes[0, 0].axhline(y=period_avg, color='red', linestyle='--', linewidth=2,
-                           label=f'Expected Total ({period_avg:.1f})')
-        axes[0, 0].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[0, 0].set_ylabel('Grid Mean Total Exceedance Hours', fontsize=24)
-        axes[0, 0].set_title(f'{resampling_years}-Year Period Grid Mean Total Hours')
-        axes[0, 0].set_xticks(x_pos)
-        axes[0, 0].set_xticklabels(period_labels, rotation=45)
-        axes[0, 0].grid(True, alpha=0.3)
-        axes[0, 0].legend()
         
-        # Subplot 2: Period mean hours per cell
-        axes[0, 1].bar(x_pos, period_mean_hours, alpha=0.7, color='lightcoral', edgecolor='darkred')
+        # Plot 2a: Period grid mean total hours
+        fig2a = plt.figure(figsize=(10, 6))
+        plt.bar(x_pos, period_total_hours, alpha=0.7, color='skyblue', edgecolor='navy')
+        period_avg = long_term_stats['grid_mean_total_hours'] / total_winter_years * resampling_years
+        plt.axhline(y=period_avg, color='red', linestyle='--', linewidth=2,
+                    label=f'Expected Total ({period_avg:.1f})')
+        plt.xlabel(f'{resampling_years}-Year Periods', fontsize=20)
+        plt.ylabel('Grid Mean Total Exceedance Hours', fontsize=20)
+        plt.title(f'{resampling_years}-Year Period Grid Mean Total Hours', fontsize=22)
+        plt.xticks(x_pos, period_labels_short, rotation=45, fontsize=16)
+        plt.yticks(fontsize=18)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=18)
+        plt.tight_layout()
+        
+        if save_plots:
+            plot2a_path = os.path.join(base_results_dir, f"{resampling_years}year_period_grid_mean_total_hours.png")
+            plt.savefig(plot2a_path, dpi=300, bbox_inches='tight')
+            print(f"Period grid mean total hours plot saved to: {plot2a_path}")
+        plt.close(fig2a)
+        
+        # Plot 2b: Period mean hours per cell
+        fig2b = plt.figure(figsize=(10, 6))
+        plt.bar(x_pos, period_mean_hours, alpha=0.7, color='lightcoral', edgecolor='darkred')
         # Calculate mean of all period means (average of the bars)
         mean_of_period_means = np.mean(period_mean_hours)
-        axes[0, 1].axhline(y=mean_of_period_means, color='blue', linestyle='--', linewidth=2,
-                           label=f'Mean of Period Means ({mean_of_period_means:.1f})')
-        axes[0, 1].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[0, 1].set_ylabel('Mean Hours per Cell', fontsize=24)
-        axes[0, 1].set_title(f'{resampling_years}-Year Period Mean Hours per Cell')
-        axes[0, 1].set_xticks(x_pos)
-        axes[0, 1].set_xticklabels(period_labels, rotation=45)
-        axes[0, 1].grid(True, alpha=0.3)
-        axes[0, 1].legend()
+        plt.axhline(y=mean_of_period_means, color='blue', linestyle='--', linewidth=2,
+                    label=f'Mean of Period Means ({mean_of_period_means:.1f})')
+        plt.xlabel(f'{resampling_years}-Year Periods', fontsize=20)
+        plt.ylabel('Mean Hours per Cell', fontsize=20)
+        plt.title(f'{resampling_years}-Year Period Mean Hours per Cell', fontsize=22)
+        plt.xticks(x_pos, period_labels_short, rotation=45, fontsize=16)
+        plt.yticks(fontsize=18)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=18)
+        plt.tight_layout()
         
-        # Subplot 3: Period deviations from mean of period means
+        if save_plots:
+            plot2b_path = os.path.join(base_results_dir, f"{resampling_years}year_period_mean_hours_per_cell.png")
+            plt.savefig(plot2b_path, dpi=300, bbox_inches='tight')
+            print(f"Period mean hours per cell plot saved to: {plot2b_path}")
+        plt.close(fig2b)
+        
+        # Plot 2c: Period deviations from mean of period means
+        fig2c = plt.figure(figsize=(10, 6))
         period_deviations = [mean - mean_of_period_means for mean in period_mean_hours]
         colors_period = ['red' if x > 0 else 'blue' for x in period_deviations]
-        axes[1, 0].bar(x_pos, period_deviations, color=colors_period, alpha=0.7)
-        axes[1, 0].axhline(y=0, color='black', linestyle='-', linewidth=1)
-        axes[1, 0].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[1, 0].set_ylabel('Deviation from Period Means Average (hours)', fontsize=24)
-        axes[1, 0].set_title(f'{resampling_years}-Year Period Deviations')
-        axes[1, 0].set_xticks(x_pos)
-        axes[1, 0].set_xticklabels(period_labels, rotation=45)
-        axes[1, 0].grid(True, alpha=0.3)
+        plt.bar(x_pos, period_deviations, color=colors_period, alpha=0.7)
+        plt.axhline(y=0, color='black', linestyle='-', linewidth=1)
+        plt.xlabel(f'{resampling_years}-Year Periods', fontsize=20)
+        plt.ylabel('Deviation from Period Means Average\n(hours)', fontsize=20)
+        plt.title(f'{resampling_years}-Year Period Deviations', fontsize=22)
+        plt.xticks(x_pos, period_labels_short, rotation=45, fontsize=16)
+        plt.yticks(fontsize=18)
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
         
-        # Subplot 4: Cells with exceedance percentage
+        if save_plots:
+            plot2c_path = os.path.join(base_results_dir, f"{resampling_years}year_period_deviations.png")
+            plt.savefig(plot2c_path, dpi=300, bbox_inches='tight')
+            print(f"Period deviations plot saved to: {plot2c_path}")
+        plt.close(fig2c)
+        
+        # Plot 2d: Cells with exceedance percentage
+        fig2d = plt.figure(figsize=(10, 6))
         cells_with_exceedance_pct = [(period_stats[label]['cells_with_exceedance'] / 
                                      period_stats[label]['n_grid_cells'] * 100) 
                                     for label in period_labels]
         overall_pct = (long_term_stats['cells_with_exceedance'] / 
                       long_term_stats['total_grid_cells'] * 100)
         
-        axes[1, 1].bar(x_pos, cells_with_exceedance_pct, alpha=0.7, color='gold', edgecolor='orange')
-        axes[1, 1].axhline(y=overall_pct, color='purple', linestyle='--', linewidth=2,
-                           label=f'Overall ({overall_pct:.1f}%)')
-        axes[1, 1].set_xlabel(f'{resampling_years}-Year Periods')
-        axes[1, 1].set_ylabel('Cells with Exceedance (%)', fontsize=24)
-        axes[1, 1].set_title(f'{resampling_years}-Year Period Spatial Coverage')
-        axes[1, 1].set_xticks(x_pos)
-        axes[1, 1].set_xticklabels(period_labels, rotation=45)
-        axes[1, 1].grid(True, alpha=0.3)
-        axes[1, 1].legend()
-        
+        plt.bar(x_pos, cells_with_exceedance_pct, alpha=0.7, color='gold', edgecolor='orange')
+        plt.axhline(y=overall_pct, color='purple', linestyle='--', linewidth=2,
+                    label=f'Overall ({overall_pct:.1f}%)')
+        plt.xlabel(f'{resampling_years}-Year Periods', fontsize=20)
+        plt.ylabel('Cells with Exceedance (%)', fontsize=20)
+        plt.title(f'{resampling_years}-Year Period Spatial Coverage', fontsize=22)
+        plt.xticks(x_pos, period_labels_short, rotation=45, fontsize=16)
+        plt.yticks(fontsize=18)
+        plt.grid(True, alpha=0.3)
+        plt.legend(fontsize=18)
         plt.tight_layout()
         
         if save_plots:
-            plot2_path = os.path.join(base_results_dir, f"exceedance_hours_{resampling_years}year_resampling_analysis.png")
-            plt.savefig(plot2_path, dpi=300, bbox_inches='tight')
-            print(f"Resampling analysis plot saved to: {plot2_path}")
-        
-        plt.close()
+            plot2d_path = os.path.join(base_results_dir, f"{resampling_years}year_period_spatial_coverage.png")
+            plt.savefig(plot2d_path, dpi=300, bbox_inches='tight')
+            print(f"Period spatial coverage plot saved to: {plot2d_path}")
+        plt.close(fig2d)
     
-    # Plot 3: Percentiles and distribution evolution
-    fig, axes = plt.subplots(2, 1, figsize=(16, 10))
-    
-    # Subplot 1: Multiple percentiles over time
-    axes[0].plot(years_list, yearly_percentiles['p75'], 'g-o', linewidth=2, markersize=3, label='75th Percentile')
-    axes[0].plot(years_list, yearly_percentiles['p90'], 'orange', marker='s', linewidth=2, markersize=3, label='90th Percentile')
-    axes[0].plot(years_list, yearly_percentiles['p95'], 'r-^', linewidth=2, markersize=3, label='95th Percentile')
-    axes[0].plot(years_list, yearly_mean_hours, 'b-', linewidth=2, alpha=0.7, label='Mean')
+    # Plot 3a: Percentiles evolution over time
+    fig3a = plt.figure(figsize=(12, 6))
+    plt.plot(years_list, yearly_percentiles['p75'], 'g-o', linewidth=2, markersize=3, label='75th Percentile')
+    plt.plot(years_list, yearly_percentiles['p90'], 'orange', marker='s', linewidth=2, markersize=3, label='90th Percentile')
+    plt.plot(years_list, yearly_percentiles['p95'], 'r-^', linewidth=2, markersize=3, label='95th Percentile')
+    plt.plot(years_list, yearly_mean_hours, 'b-', linewidth=2, alpha=0.7, label='Mean')
     
     # Add long-term averages (average of yearly percentiles and yearly means)
-    axes[0].axhline(y=np.mean(yearly_percentiles['p75']), color='green', linestyle='--', alpha=0.7)
-    axes[0].axhline(y=np.mean(yearly_percentiles['p90']), color='orange', linestyle='--', alpha=0.7)
-    axes[0].axhline(y=np.mean(yearly_percentiles['p95']), color='red', linestyle='--', alpha=0.7)
-    axes[0].axhline(y=np.mean(yearly_mean_hours), color='blue', linestyle='--', alpha=0.7)
+    plt.axhline(y=np.mean(yearly_percentiles['p75']), color='green', linestyle='--', alpha=0.7)
+    plt.axhline(y=np.mean(yearly_percentiles['p90']), color='orange', linestyle='--', alpha=0.7)
+    plt.axhline(y=np.mean(yearly_percentiles['p95']), color='red', linestyle='--', alpha=0.7)
+    plt.axhline(y=np.mean(yearly_mean_hours), color='blue', linestyle='--', alpha=0.7)
     
-    axes[0].set_xlabel('Year', fontsize=24)
-    axes[0].set_ylabel('Exceedance Hours per Cell', fontsize=24)
-    axes[0].set_title('Exceedance Hours Percentiles Evolution Over Time', fontsize=28)
-    axes[0].grid(True, alpha=0.3)
-    axes[0].legend()
-    
-    # Subplot 2: Yearly statistics distribution
-    axes[1].boxplot([yearly_mean_hours, yearly_percentiles['p75'], yearly_percentiles['p90'], yearly_percentiles['p95']], 
-                    labels=['Mean', 'P75', 'P90', 'P95'],
-                    patch_artist=True,
-                    boxprops=dict(facecolor='lightblue', alpha=0.7),
-                    medianprops=dict(color='red', linewidth=2))
-    axes[1].set_ylabel('Exceedance Hours per Cell', fontsize=24)
-    axes[1].set_title('Distribution of Yearly Exceedance Hours Statistics', fontsize=28)
-    axes[1].grid(True, alpha=0.3)
-    
+    plt.xlabel('Year', fontsize=20)
+    plt.ylabel('Exceedance Hours per Cell', fontsize=20)
+    plt.title('Exceedance Hours Percentiles Evolution Over Time', fontsize=22)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=18)
     plt.tight_layout()
     
     if save_plots:
-        plot3_path = os.path.join(base_results_dir, "exceedance_hours_percentiles_evolution.png")
-        plt.savefig(plot3_path, dpi=300, bbox_inches='tight')
-        print(f"Percentiles evolution plot saved to: {plot3_path}")
+        plot3a_path = os.path.join(base_results_dir, "exceedance_hours_percentiles_evolution.png")
+        plt.savefig(plot3a_path, dpi=300, bbox_inches='tight')
+        print(f"Percentiles evolution plot saved to: {plot3a_path}")
+    plt.close(fig3a)
     
-    plt.close()
+    # Plot 3b: Distribution of yearly statistics
+    fig3b = plt.figure(figsize=(10, 6))
+    bp = plt.boxplot([yearly_mean_hours, yearly_percentiles['p75'], yearly_percentiles['p90'], yearly_percentiles['p95']], 
+                      labels=['Mean', 'P75', 'P90', 'P95'],
+                      patch_artist=True,
+                      boxprops=dict(facecolor='lightblue', alpha=0.7),
+                      medianprops=dict(color='red', linewidth=2))
+    plt.ylabel('Exceedance Hours per Cell', fontsize=20)
+    plt.title('Distribution of Yearly Exceedance Hours Statistics', fontsize=22)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    if save_plots:
+        plot3b_path = os.path.join(base_results_dir, "yearly_exceedance_hours_distribution.png")
+        plt.savefig(plot3b_path, dpi=300, bbox_inches='tight')
+        print(f"Yearly exceedance hours distribution plot saved to: {plot3b_path}")
+    plt.close(fig3b)
     
     # 5. SAVE SUMMARY REPORT
     if save_plots:
@@ -10511,8 +10625,12 @@ def ice_load_resampling_analysis_hours(
             f.write(f"\nFILES GENERATED:\n")
             f.write("-" * 20 + "\n")
             if len(period_total_hours) > 1:
-                f.write(f"- exceedance_hours_{resampling_years}year_resampling_analysis.png\n")
+                f.write(f"- {resampling_years}year_period_grid_mean_total_hours.png\n")
+                f.write(f"- {resampling_years}year_period_mean_hours_per_cell.png\n")
+                f.write(f"- {resampling_years}year_period_deviations.png\n")
+                f.write(f"- {resampling_years}year_period_spatial_coverage.png\n")
             f.write("- exceedance_hours_percentiles_evolution.png\n")
+            f.write("- yearly_exceedance_hours_distribution.png\n")
             f.write("- exceedance_hours_analysis_summary.txt (this file)\n")
         
         print(f"Summary report saved to: {summary_path}")
