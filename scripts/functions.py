@@ -2590,14 +2590,14 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
                 zorder=7
             )
             
-            # Add colorbar
-            cbar = plt.colorbar(exceedance_plot, ax=ax, shrink=0.8, pad=0.02)
+            # Add colorbar positioned to the right with better spacing
+            cbar = plt.colorbar(exceedance_plot, ax=ax, shrink=0.7, pad=0.1, aspect=15)
             if outlier_clipped:
                 cbar_label = f'Threshold Exceedance ({unit_label}/Year)\\n[Clipped at 90th percentile: {vmax:.1f}]'
             else:
                 cbar_label = f'Threshold Exceedance ({unit_label}/Year)'
-            cbar.set_label(cbar_label, fontsize=24)
-            cbar.ax.tick_params(labelsize=30)
+            cbar.set_label(cbar_label, fontsize=20)
+            cbar.ax.tick_params(labelsize=26)
             
             # Add gridlines with labels
             gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
@@ -2608,22 +2608,22 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
             gl.ylabel_style = {'size': 30, 'color': 'black'}
             
             # Add title
-            title_text = (f'Ice Load Threshold Exceedance on Terrain Map\\\\n'
-                         f'Threshold: {ice_load_threshold:.3f} kg/m, '
-                         f'Height: {dataset_with_ice_load.height.values[height_level]} m')
-            ax.set_title(title_text, fontsize=28, weight='bold', pad=20)
+            title_text = (f'Ice Load Threshold Exceedance\n'
+                         f'on Terrain Map\n'
+                         f'Threshold: {ice_load_threshold:.3f} kg/m, Height: {dataset_with_ice_load.height.values[height_level]} m')
+            ax.set_title(title_text, fontsize=22, weight='bold', pad=25)
             
             # Add statistics information
-            if len(valid_exceedances) > 0:
-                if outlier_clipped:
-                    info_text = (f"Range: {data_min:.1f} - {data_max:.1f} {unit_label.lower()}/year | "
-                                f"Mean: {data_mean:.1f} {unit_label.lower()}/year\\n"
-                                f"Color scale: {vmin:.1f} - {vmax:.1f} {unit_label.lower()}/year (90th percentile clipped)")
-                else:
-                    info_text = (f"Range: {data_min:.1f} - {data_max:.1f} {unit_label.lower()}/year | "
-                                f"Mean: {data_mean:.1f} {unit_label.lower()}/year")
-                ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=27,
-                        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
+            # if len(valid_exceedances) > 0:
+            #     if outlier_clipped:
+            #         info_text = (f"Range: {data_min:.1f} - {data_max:.1f} {unit_label.lower()}/year | "
+            #                     f"Mean: {data_mean:.1f} {unit_label.lower()}/year\\n"
+            #                     f"Color scale: {vmin:.1f} - {vmax:.1f} {unit_label.lower()}/year (90th percentile clipped)")
+            #     else:
+            #         info_text = (f"Range: {data_min:.1f} - {data_max:.1f} {unit_label.lower()}/year | "
+            #                     f"Mean: {data_mean:.1f} {unit_label.lower()}/year")
+            #     ax.text(0.02, 0.95, info_text, transform=ax.transAxes, fontsize=27,
+            #             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
             
             plt.tight_layout()
             
@@ -3388,14 +3388,14 @@ def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height
                 zorder=7
             )
             
-            # Add colorbar
-            cbar = plt.colorbar(criteria_plot, ax=ax, shrink=0.8, pad=0.02)
+            # Add colorbar positioned to the right with better spacing
+            cbar = plt.colorbar(criteria_plot, ax=ax, shrink=0.7, pad=0.1, aspect=15)
             if outlier_clipped:
                 cbar_label = f'Hours/Year Meeting Criteria\\n[Clipped at 90th percentile: {vmax:.1f}]'
             else:
                 cbar_label = 'Hours/Year Meeting Criteria'
-            cbar.set_label(cbar_label, fontsize=24)
-            cbar.ax.tick_params(labelsize=30)
+            cbar.set_label(cbar_label, fontsize=20)
+            cbar.ax.tick_params(labelsize=26)
             
             # Add gridlines with labels
             gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
@@ -3406,22 +3406,22 @@ def temp_hum_criteria(dataset, humidity_threshold, temperature_threshold, height
             gl.ylabel_style = {'size': 30, 'color': 'black'}
             
             # Add title
-            title_text = (f'Temperature-Humidity Criteria Exceedance on Terrain Map\\n'
-                         f'T ≤ {temperature_threshold:.2f} K AND RH ≥ {humidity_threshold:.3f}, '
-                         f'Height: {dataset.height.values[height_level]} m')
-            ax.set_title(title_text, fontsize=28, weight='bold', pad=20)
+            title_text = (f'Temperature-Humidity Criteria Exceedance\n'
+                         f'on Terrain Map\n'
+                         f'T ≤ {temperature_threshold:.2f} K AND RH ≥ {humidity_threshold:.3f}, Height: {dataset.height.values[height_level]} m')
+            ax.set_title(title_text, fontsize=22, weight='bold', pad=25)
             
             # Add statistics information
-            if len(valid_criteria_values) > 0:
-                if outlier_clipped:
-                    info_text = (f"Range: {data_min:.1f} - {data_max:.1f} hours/year | "
-                                f"Mean: {data_mean:.1f} hours/year\\n"
-                                f"Color scale: {vmin:.1f} - {vmax:.1f} hours/year (90th percentile clipped)")
-                else:
-                    info_text = (f"Range: {data_min:.1f} - {data_max:.1f} hours/year | "
-                                f"Mean: {data_mean:.1f} hours/year")
-                ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=27,
-                        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
+            # if len(valid_criteria_values) > 0:
+            #     if outlier_clipped:
+            #         info_text = (f"Range: {data_min:.1f} - {data_max:.1f} hours/year | "
+            #                     f"Mean: {data_mean:.1f} hours/year\\n"
+            #                     f"Color scale: {vmin:.1f} - {vmax:.1f} hours/year (90th percentile clipped)")
+            #     else:
+            #         info_text = (f"Range: {data_min:.1f} - {data_max:.1f} hours/year | "
+            #                     f"Mean: {data_mean:.1f} hours/year")
+            #     ax.text(0.02, 0.95, info_text, transform=ax.transAxes, fontsize=27,
+            #             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
             
             plt.tight_layout()
             
