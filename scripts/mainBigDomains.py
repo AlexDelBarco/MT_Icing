@@ -29,7 +29,7 @@ if site == "Offshore":
     offshore = True
     OffOn = "Offshore"
 
-height = 0  # Height level index to use (0-based): 0=100m; 1=150m
+height = 1  # Height level index to use (0-based): 0=100m; 1=150m
 ice_load_method = 51  # Method for ice load calculation
 calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
 
@@ -136,9 +136,9 @@ else:
 
 #Plot ice load values for each grid cell
 
-# print("\n=== ICE LOAD GRID VALUES ANALYSIS ===")
+print("\n=== ICE LOAD GRID VALUES ANALYSIS ===")
 
-# # Fixed color scale range (adjust these values as needed)
+# Fixed color scale range (adjust these values as needed)
 # fixed_vmin = 0
 # fixed_vmax = 150  # Adjust based on your expected range
 
@@ -162,82 +162,82 @@ else:
 # The rh is calculated using surface P, T and mixing ratio at height 
 # scale-height ~8km, from Ch.2 of 46100's book\notes, then consider d(ln p)/d(ln z)
 
-dataset_ice_load_rh = fn.add_rh(dataset_with_ice_load=dataset_with_ice_load, height_l=height,
-                                phase= 'auto') #'liquid', 'solid', 'auto' 
-                                                #– to make calculation valid in 'liquid' water 
-                                                #(default) or 'solid' ice regimes. 'auto' will 
-                                                # change regime based on determination of phase 
-                                                # boundaries
+# dataset_ice_load_rh = fn.add_rh(dataset_with_ice_load=dataset_with_ice_load, height_l=height,
+#                                 phase= 'auto') #'liquid', 'solid', 'auto' 
+#                                                 #– to make calculation valid in 'liquid' water 
+#                                                 #(default) or 'solid' ice regimes. 'auto' will 
+#                                                 # change regime based on determination of phase 
+#                                                 # boundaries
 
-# Plot ice load exceedance hours both th criteria and ice load criteria with same color scale
+# # Plot ice load exceedance hours both th criteria and ice load criteria with same color scale
 
-print("\n=== USING FIXED COLOR SCALE TO AVOID MEMORY ISSUES ===")
+# print("\n=== USING FIXED COLOR SCALE TO AVOID MEMORY ISSUES ===")
 
-# Use fixed color scale values to avoid loading entire dataset into memory
-combined_min = 0
-combined_max_clipped = 3000  # Adjust this value based on your expected range
+# # Use fixed color scale values to avoid loading entire dataset into memory
+# combined_min = 0
+# combined_max_clipped = 1000  # Adjust this value based on your expected range
 
-print(f"Using fixed color scale range: {combined_min:.1f} to {combined_max_clipped:.1f} hours/year")
-print("(If plots show all one color, increase combined_max_clipped value)")
+# print(f"Using fixed color scale range: {combined_min:.1f} to {combined_max_clipped:.1f} hours/year")
+# print("(If plots show all one color, increase combined_max_clipped value)")
 
-# Call both functions with the same color scale
-grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
-    dataset_with_ice_load=dataset_with_ice_load,
-    ice_load_variable='ICE_LOAD',
+# # Call both functions with the same color scale
+# grid_results_hours = fn.plot_ice_load_threshold_exceedance_map(
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     ice_load_variable='ICE_LOAD',
     
-    height_level=height,
+#     height_level=height,
 
-    ice_load_threshold=0.1,
-    save_plots=True,
-    OffOn=OffOn,
-    BigDomain=True,
-    margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
-    zoom_level=6,  # Zoom level for terrain tiles
-    custom_vmin=combined_min,
-    custom_vmax=combined_max_clipped
-)
+#     ice_load_threshold=0.1,
+#     save_plots=True,
+#     OffOn=OffOn,
+#     BigDomain=True,
+#     margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
+#     zoom_level=6,  # Zoom level for terrain tiles
+#     custom_vmin=combined_min,
+#     custom_vmax=combined_max_clipped
+# )
 
-print("\n=== ICING TEMPERATURE AND HUMIDITY CRITERIA ANALYSIS HOURS ===")
+# print("\n=== ICING TEMPERATURE AND HUMIDITY CRITERIA ANALYSIS HOURS ===")
 
-humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_ice_load_rh,
-                                                    humidity_threshold=0.95,  # Relative Humidity threshold (%)
-                                                    temperature_threshold=263.15,  # Temperature threshold (K)
-                                                    height_level=height,
-                                                    save_plots=True,
-                                                    OffOn=OffOn,
-                                                    BigDomain=True,
-                                                    margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
-                                                    zoom_level=6,  # Zoom level for terrain tiles
-                                                    custom_vmin=combined_min,
-                                                    custom_vmax=combined_max_clipped)
+# humidity_temperature_results = fn.temp_hum_criteria(dataset=dataset_ice_load_rh,
+#                                                     humidity_threshold=0.95,  # Relative Humidity threshold (%)
+#                                                     temperature_threshold=263.15,  # Temperature threshold (K)
+#                                                     height_level=height,
+#                                                     save_plots=True,
+#                                                     OffOn=OffOn,
+#                                                     BigDomain=True,
+#                                                     margin_degrees=0.5,  # Margin around grid in degrees for cartopy map
+#                                                     zoom_level=6,  # Zoom level for terrain tiles
+#                                                     custom_vmin=combined_min,
+#                                                     custom_vmax=combined_max_clipped)
 
 # SPATIAL GRADIENTS
 
-# print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ; SYSTEMATIC + WEIGHTED NEIGHBOUR CELLS ===")
+print("\n=== METEOROLOGICAL FILTERING + AUTOMATIC CDF ANALYSIS ; SYSTEMATIC + WEIGHTED NEIGHBOUR CELLS ===")
 
-# results_w_weights = fn.analyze_ice_load_with_weighted_neighborhood_cdf(
-#     dataset_with_ice_load=dataset_with_ice_load,  # Changed from 'dataset' to 'dataset_with_ice_load'
-#     height_level=height,
-#     neighborhood_type='24-neighbors', # '4-neighbors', '8-neighbors', '24-neighbors'
-#     weight_scheme='distance',  # 'uniform', 'distance', 'custom'
-#     # Filtering parameters (min, max for each variable)
-#     WD_range=None,        # (min, max) for Wind Direction
-#     WS_range=None,        # (min, max) for Wind Speed
-#     T_range=None,         # (min, max) for Temperature
-#     PBLH_range=None,      # (min, max) for Boundary Layer Height
-#     PRECIP_range=None,    # (min, max) for Precipitation
-#     QVAPOR_range=None,    # (min, max) for Water Vapor
-#     RMOL_range=None,      # (min, max) for Monin-Obukhov Length
-#     # CDF analysis parameters
-#     ice_load_threshold=0,
-#     ice_load_bins=None,
-#     months=None,
-#     percentile=None,
-#     OffOn=OffOn,
-#     BigDomain=True,
-#     margin_degrees=0.5,
-#     zoom_level=6,
-# )
+results_w_weights = fn.analyze_ice_load_with_weighted_neighborhood_cdf(
+    dataset_with_ice_load=dataset_with_ice_load,  # Changed from 'dataset' to 'dataset_with_ice_load'
+    height_level=height,
+    neighborhood_type='24-neighbors', # '4-neighbors', '8-neighbors', '24-neighbors'
+    weight_scheme='distance',  # 'uniform', 'distance', 'custom'
+    # Filtering parameters (min, max for each variable)
+    WD_range=None,        # (min, max) for Wind Direction
+    WS_range=None,        # (min, max) for Wind Speed
+    T_range=None,         # (min, max) for Temperature
+    PBLH_range=None,      # (min, max) for Boundary Layer Height
+    PRECIP_range=None,    # (min, max) for Precipitation
+    QVAPOR_range=None,    # (min, max) for Water Vapor
+    RMOL_range=None,      # (min, max) for Monin-Obukhov Length
+    # CDF analysis parameters
+    ice_load_threshold=0,
+    ice_load_bins=None,
+    months=None,
+    percentile=None,
+    OffOn=OffOn,
+    BigDomain=True,
+    margin_degrees=0.5,
+    zoom_level=6,
+)
 
 # ICE LOAD RESAMPLING ANALYSIS
 

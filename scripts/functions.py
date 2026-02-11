@@ -1,6 +1,9 @@
 
 
 
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to avoid tkinter crashes
+
 import pandas as pd
 import xarray as xr
 import numpy as np
@@ -1264,18 +1267,7 @@ def accreation_per_winter(ds, start_date, end_date, height_level=0, OffOn=None, 
                          f'Height: {height_value} {height_units}, Number of winters: {num_winters}')
             ax.set_title(title_text, fontsize=28, weight='bold', pad=20)
             
-            # Add statistics information
-            if len(valid_accretion) > 0:
-                if custom_vmin is not None and custom_vmax is not None:
-                    info_text = (f"Range: {data_min:.2f} - {data_max:.2f} kg/m | "
-                                f"Mean: {data_mean:.2f} kg/m\n"
-                                f"Color scale: {vmin:.2f} - {vmax:.2f} kg/m (fixed)")
-                else:
-                    info_text = (f"Range: {data_min:.2f} - {data_max:.2f} kg/m | "
-                                f"Mean: {data_mean:.2f} kg/m\n"
-                                f"Color scale: {vmin:.2f} - {vmax:.2f} kg/m (90th percentile clipped)")
-                ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=20,
-                        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
+
             
             plt.tight_layout()
             
@@ -2239,6 +2231,13 @@ def plot_grid_ice_load_values(dataset_with_ice_load, ice_load_variable='ICE_LOAD
             print(f"     Min CV: {np.min(all_cvs):.3f}")
             print(f"     Max CV: {np.max(all_cvs):.3f}")
         
+        # Print domain-wide mean and range of mean annual ice load across all grid cells
+        print(f"\n10. Domain-wide summary of mean annual total ice load:")
+        print(f"   Mean across all cells: {np.mean(all_means):.3f} kg/m")
+        print(f"   Min cell value:        {np.min(all_means):.3f} kg/m")
+        print(f"   Max cell value:        {np.max(all_means):.3f} kg/m")
+        print(f"   Range (max - min):     {np.max(all_means) - np.min(all_means):.3f} kg/m")
+        
         return results
     
     except Exception as e:
@@ -2596,22 +2595,22 @@ def plot_ice_load_threshold_exceedance_map(dataset_with_ice_load, ice_load_varia
                 cbar_label = f'Threshold Exceedance ({unit_label}/Year)\\n[Clipped at 90th percentile: {vmax:.1f}]'
             else:
                 cbar_label = f'Threshold Exceedance ({unit_label}/Year)'
-            cbar.set_label(cbar_label, fontsize=20)
-            cbar.ax.tick_params(labelsize=26)
+            cbar.set_label(cbar_label, fontsize=16)
+            cbar.ax.tick_params(labelsize=15)
             
             # Add gridlines with labels
             gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                              linewidth=1, color='gray', alpha=0.5, linestyle='--')
             gl.top_labels = False
             gl.right_labels = False
-            gl.xlabel_style = {'size': 30, 'color': 'black'}
-            gl.ylabel_style = {'size': 30, 'color': 'black'}
+            gl.xlabel_style = {'size': 20, 'color': 'black'}
+            gl.ylabel_style = {'size': 20, 'color': 'black'}
             
             # Add title
             title_text = (f'Ice Load Threshold Exceedance\n'
                          f'on Terrain Map\n'
                          f'Threshold: {ice_load_threshold:.3f} kg/m, Height: {dataset_with_ice_load.height.values[height_level]} m')
-            ax.set_title(title_text, fontsize=22, weight='bold', pad=25)
+            ax.set_title(title_text, fontsize=28, weight='bold', pad=25)
             
             # Add statistics information
             # if len(valid_exceedances) > 0:
@@ -8848,28 +8847,22 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
             
             # Add colorbar
             cbar = plt.colorbar(gradient_plot, ax=ax, shrink=0.8, pad=0.02)
-            cbar.set_label('Normalized Weighted Spatial Gradient\n(Relative to Domain Mean)', fontsize=48)
-            cbar.ax.tick_params(labelsize=30)
+            cbar.set_label('Normalized Weighted Spatial Gradient\n(Relative to Domain Mean)', fontsize=16)
+            cbar.ax.tick_params(labelsize=15)
             
             # Add gridlines with labels
             gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                              linewidth=1, color='gray', alpha=0.5, linestyle='--')
             gl.top_labels = False
             gl.right_labels = False
-            gl.xlabel_style = {'size': 30, 'color': 'black'}
-            gl.ylabel_style = {'size': 30, 'color': 'black'}
+            gl.xlabel_style = {'size': 20, 'color': 'black'}
+            gl.ylabel_style = {'size': 20, 'color': 'black'}
             
             # Add title with comprehensive information
             title_text = (f'Normalized Weighted Spatial Gradient on Terrain Map\n'
                          f'{neighborhood_type}, {weight_scheme} weighting, '
                          f'Height: {dataset_with_ice_load.height.values[height_level]} m')
-            ax.set_title(title_text, fontsize=56, weight='bold', pad=20)
-            
-            # Add margin and method information
-            info_text = (f"Margin: {margin_degrees}° | Zoom: {zoom_level} | "
-                        f"Normalization: {gradient_mean:.3f} kg/m")
-            ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=60,
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+            ax.set_title(title_text, fontsize=28, weight='bold', pad=20)
             
             plt.tight_layout()
             
@@ -9069,16 +9062,16 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
                 cbar_label = f'Mean Annual Total Ice Load (kg/m)\n[Clipped at 90th percentile: {vmax:.1f}]'
             else:
                 cbar_label = 'Mean Annual Total Ice Load (kg/m)'
-            cbar.set_label(cbar_label, fontsize=24)
-            cbar.ax.tick_params(labelsize=30)
+            cbar.set_label(cbar_label, fontsize=16)
+            cbar.ax.tick_params(labelsize=15)
             
             # Add gridlines with labels
             gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                              linewidth=1, color='gray', alpha=0.5, linestyle='--')
             gl.top_labels = False
             gl.right_labels = False
-            gl.xlabel_style = {'size': 30, 'color': 'black'}
-            gl.ylabel_style = {'size': 30, 'color': 'black'}
+            gl.xlabel_style = {'size': 20, 'color': 'black'}
+            gl.ylabel_style = {'size': 20, 'color': 'black'}
             
             # Add title with comprehensive information
             months_str = f", months {months}" if months else ""
@@ -9086,17 +9079,6 @@ def analyze_ice_load_with_weighted_neighborhood_cdf(
                          f'Height: {dataset_with_ice_load.height.values[height_level]} m, '
                          f'Threshold: {ice_load_threshold:.1f} kg/m{months_str}')
             ax.set_title(title_text, fontsize=28, weight='bold', pad=20)
-            
-            # Add statistics information with outlier information
-            if outlier_clipped:
-                info_text = (f"Range: {np.min(mean_annual_totals):.1f} - {np.max(mean_annual_totals):.1f} kg/m | "
-                            f"Mean: {np.mean(mean_annual_totals):.1f} kg/m\n"
-                            f"Color scale: {vmin:.1f} - {vmax:.1f} kg/m (90th percentile clipped)")
-            else:
-                info_text = (f"Range: {np.min(mean_annual_totals):.1f} - {np.max(mean_annual_totals):.1f} kg/m | "
-                            f"Mean: {np.mean(mean_annual_totals):.1f} kg/m")
-            ax.text(0.02, 0.02, info_text, transform=ax.transAxes, fontsize=27,
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
             
             plt.tight_layout()
             
@@ -9815,7 +9797,7 @@ def ice_load_resampling_analysis(
     plt.xlabel('Year', fontsize=20)
     plt.ylabel('Mean Ice Load (kg/m)', fontsize=20)
     plt.title('Yearly Mean Ice Load vs Long-term Average', fontsize=22)
-    plt.xticks(fontsize=18)
+    plt.xticks(fontsize=17)
     plt.yticks(fontsize=18)
     plt.grid(True, alpha=0.3)
     plt.legend(fontsize=18)
@@ -9835,7 +9817,7 @@ def ice_load_resampling_analysis(
     plt.xlabel('Year', fontsize=20)
     plt.ylabel('Maximum Ice Load (kg/m)', fontsize=20)
     plt.title('Yearly Maximum Ice Load', fontsize=22)
-    plt.xticks(fontsize=18)
+    plt.xticks(fontsize=17)
     plt.yticks(fontsize=18)
     plt.grid(True, alpha=0.3)
     plt.legend(fontsize=18)
@@ -9855,7 +9837,7 @@ def ice_load_resampling_analysis(
     plt.xlabel('Year', fontsize=20)
     plt.ylabel('Deviation from Long-term Mean (kg/m)', fontsize=20)
     plt.title('Yearly Deviations from Long-term Average', fontsize=22)
-    plt.xticks(fontsize=18)
+    plt.xticks(fontsize=17)
     plt.yticks(fontsize=18)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -9876,7 +9858,7 @@ def ice_load_resampling_analysis(
     plt.xlabel('Year', fontsize=20)
     plt.ylabel('Normalized Deviation (σ)', fontsize=20)
     plt.title('Normalized Yearly Deviations', fontsize=22)
-    plt.xticks(fontsize=18)
+    plt.xticks(fontsize=17)
     plt.yticks(fontsize=18)
     plt.grid(True, alpha=0.3)
     plt.legend(fontsize=18)
@@ -9905,7 +9887,7 @@ def ice_load_resampling_analysis(
         x_pos = np.arange(len(period_labels))
         plt.bar(x_pos, period_means, alpha=0.7, color='skyblue', edgecolor='navy')
         plt.axhline(y=long_term_stats['mean'], color='red', linestyle='--', linewidth=2,
-                    label=f'Overall Mean ({long_term_stats["mean"]:.3f})')
+                    label=f'Overall Mean ({long_term_stats["mean"]:.5f})')
         plt.xlabel(f'{resampling_years}-Year Periods', fontsize=20)
         plt.ylabel('Mean Ice Load (kg/m)', fontsize=20)
         plt.title(f'{resampling_years}-Year Period Means', fontsize=22)
@@ -10000,7 +9982,7 @@ def ice_load_resampling_analysis(
     plt.xlabel('Year', fontsize=20)
     plt.ylabel('Ice Load (kg/m)', fontsize=20)
     plt.title('Ice Load Percentiles Evolution Over Time', fontsize=22)
-    plt.xticks(fontsize=18)
+    plt.xticks(fontsize=17)
     plt.yticks(fontsize=18)
     plt.grid(True, alpha=0.3)
     plt.legend(fontsize=18)
@@ -10544,7 +10526,7 @@ def ice_load_resampling_analysis_hours(
     plt.xlabel('Year', fontsize=20)
     plt.ylabel('Exceedance Hours per Cell', fontsize=20)
     plt.title('Exceedance Hours Percentiles Evolution Over Time', fontsize=22)
-    plt.xticks(fontsize=18)
+    plt.xticks(fontsize=17)
     plt.yticks(fontsize=18)
     plt.grid(True, alpha=0.3)
     plt.legend(fontsize=18)
