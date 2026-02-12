@@ -12,7 +12,7 @@ if current_dir.endswith('scripts'):
     print(f"Changed working directory from {current_dir} to {os.getcwd()}")
 
 # IMPORT NEWA DATA
-height = 0  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
+height = 1  # Height level index to use (0-based): 0=50m; 1=100m; 2=150m
 ice_load_method = 51  # Method for ice load calculation
 calculate_new_ice_load = False  # Whether to calculate ice load or load existing data
 
@@ -87,6 +87,8 @@ emd_coords = (19.960, 59.600)  # EMD's data coordinates
 #                                                 plot_title="NEWA Grid with EMD Location"
 # )
 
+
+
 # EMD_NEWA_results = fn.compare_ice_load_emd_newa(
 #     emd_data=emd_data,
 #     dataset_with_ice_load=dataset_with_ice_load,
@@ -112,6 +114,8 @@ EMD_NEWA_pdf = fn.pdf_emd_newa(
     non_zero_percentage=0 #Filtered by percentage of hours with ice accretion > 0 in a day, taking only valid days
 )
 
+
+
 # EMD_NEWA_acc1 = fn.compare_accretion_emd_newa(
 #     emd_data=emd_data,
 #     dataset_with_ice_load=dataset_with_ice_load,
@@ -126,8 +130,8 @@ EMD_NEWA_pdf = fn.pdf_emd_newa(
 #     dataset_with_ice_load=dataset_with_ice_load,
 #     height=height_level,
 #     emd_coordinates=emd_coords,
-#     ice_accretion_threshold=0.1,  # in g/h
-#     non_zero_percentage=25
+#     ice_accretion_threshold=0,  # in g/h
+#     non_zero_percentage=0
 #  )
 
 # EMD_NEWA_acc3 = fn.pdf_emd_newa_accretion(
@@ -138,6 +142,10 @@ EMD_NEWA_pdf = fn.pdf_emd_newa(
 #      ice_accretion_threshold=0.1,  # in g/h
 #      non_zero_percentage=0 #Filtered by percentage of hours with ice accretion > 0 in a day, taking only valid days
 #  )
+
+
+
+
 
 # EMD_NEWA_temp = fn.compare_temperature_emd_newa(
 #     emd_data=emd_data,

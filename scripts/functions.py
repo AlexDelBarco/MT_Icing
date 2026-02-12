@@ -11091,11 +11091,11 @@ def plot_grid_with_extra_point(dataset, extra_point_coords, extra_point_label='E
                    marker='*', label=extra_point_label)
         
         # Customize the plot
-        plt.xlabel('Longitude (°)', fontsize=24)
-        plt.ylabel('Latitude (°)', fontsize=24)
-        plt.title(plot_title)
+        plt.xlabel('Longitude (°)', fontsize=20)
+        plt.ylabel('Latitude (°)', fontsize=20)
+        plt.title(plot_title, fontsize=28)
         plt.grid(True, alpha=0.3, linestyle='--')
-        plt.legend(fontsize=24)
+        plt.legend(fontsize=15)
         
         # Add coordinate labels for grid points (if not too many)
         if lats.size <= 25:  # Only for small grids
@@ -11103,13 +11103,13 @@ def plot_grid_with_extra_point(dataset, extra_point_coords, extra_point_label='E
                 for j in range(lats.shape[1]):
                     plt.annotate(f'({j},{i})', (lons[i,j], lats[i,j]), 
                                xytext=(5, 5), textcoords='offset points', 
-                               fontsize=24, alpha=0.7)
+                               fontsize=16, alpha=0.7)
         
         # Add coordinate annotation for extra point
         plt.annotate(f'{extra_point_label}\n({extra_lon:.4f}°, {extra_lat:.4f}°)', 
                     (extra_lon, extra_lat), 
                     xytext=(10, 10), textcoords='offset points', 
-                    fontsize=30, fontweight='bold',
+                    fontsize=16, fontweight='bold',
                     bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.7))
         
         # Set equal aspect ratio to maintain grid proportions
@@ -11436,8 +11436,8 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                     label=f'EMD Hourly ({emd_column})')
             ax1.plot(newa_clean.index, newa_clean.values, 'r-', alpha=0.7, linewidth=0.5, 
                     label=f'NEWA Hourly (ICE_LOAD)')
-            ax1.set_ylabel('Ice Load (kg/m)', fontsize=24)
-            ax1.set_title(f'Hourly Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
+            ax1.set_ylabel('Ice Load (kg/m)', fontsize=20)
+            ax1.set_title(f'Hourly Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines', fontsize=28)
             ax1.legend()
             ax1.grid(True, alpha=0.3)
             
@@ -11450,8 +11450,8 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                     label=f'EMD Daily Mean ({emd_column})')
             ax2.plot(newa_daily_avg.index, newa_daily_avg.values, 'r-', alpha=0.8, linewidth=1.0, 
                     label=f'NEWA Daily Mean (ICE_LOAD)')
-            ax2.set_ylabel('Ice Load (kg/m)', fontsize=24)
-            ax2.set_title(f'Daily Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
+            ax2.set_ylabel('Ice Load (kg/m)', fontsize=20)
+            ax2.set_title(f'Daily Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines', fontsize=28)
             ax2.legend()
             ax2.grid(True, alpha=0.3)
             
@@ -11464,15 +11464,14 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                     label=f'EMD Weekly Mean ({emd_column})')
             ax3.plot(newa_weekly_avg.index, newa_weekly_avg.values, 'r-', alpha=0.9, linewidth=1.5, 
                     label=f'NEWA Weekly Mean (ICE_LOAD)')
-            ax3.set_xlabel('Time', fontsize=24)
-            ax3.set_ylabel('Ice Load (kg/m)', fontsize=24)
-            ax3.set_title(f'Weekly Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
+            ax3.set_xlabel('Time', fontsize=20)
+            ax3.set_ylabel('Ice Load (kg/m)', fontsize=20)
+            ax3.set_title(f'Weekly Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines', fontsize=28)
             ax3.legend()
             ax3.grid(True, alpha=0.3)
             
-            plt.suptitle(f'Multi-Scale Ice Load Comparison: EMD vs NEWA at {height}m (Lines Only)\n'
-                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=32, y=0.98)
+            plt.suptitle(f'Multi-Scale Ice Load Comparison: EMD vs NEWA at {height}m (Lines Only)',
+                        fontsize=28, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
@@ -11488,31 +11487,30 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             # Subplot 1: Original hourly data (scatter only)
             ax1.scatter(emd_clean.index, emd_clean.values, c='blue', s=0.5, alpha=0.6, label=f'EMD Hourly ({emd_column})')
             ax1.scatter(newa_clean.index, newa_clean.values, c='red', s=0.5, alpha=0.6, label=f'NEWA Hourly (ICE_LOAD)')
-            ax1.set_ylabel('Ice Load (kg/m)', fontsize=24)
-            ax1.set_title(f'Hourly Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
+            ax1.set_ylabel('Ice Load (kg/m)', fontsize=20)
+            ax1.set_title(f'Hourly Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter', fontsize=28)
             ax1.legend()
             ax1.grid(True, alpha=0.3)
             
             # Subplot 2: Daily averages (scatter only)
             ax2.scatter(emd_daily_avg.index, emd_daily_avg.values, c='blue', s=3, alpha=0.7, label=f'EMD Daily Mean ({emd_column})')
             ax2.scatter(newa_daily_avg.index, newa_daily_avg.values, c='red', s=3, alpha=0.7, label=f'NEWA Daily Mean (ICE_LOAD)')
-            ax2.set_ylabel('Ice Load (kg/m)', fontsize=24)
-            ax2.set_title(f'Daily Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
+            ax2.set_ylabel('Ice Load (kg/m)', fontsize=20)
+            ax2.set_title(f'Daily Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter', fontsize=28)
             ax2.legend()
             ax2.grid(True, alpha=0.3)
             
             # Subplot 3: Weekly averages (scatter only)
             ax3.scatter(emd_weekly_avg.index, emd_weekly_avg.values, c='blue', s=10, alpha=0.8, label=f'EMD Weekly Mean ({emd_column})')
             ax3.scatter(newa_weekly_avg.index, newa_weekly_avg.values, c='red', s=10, alpha=0.8, label=f'NEWA Weekly Mean (ICE_LOAD)')
-            ax3.set_xlabel('Time', fontsize=24)
-            ax3.set_ylabel('Ice Load (kg/m)', fontsize=24)
-            ax3.set_title(f'Weekly Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
+            ax3.set_xlabel('Time', fontsize=20)
+            ax3.set_ylabel('Ice Load (kg/m)', fontsize=20)
+            ax3.set_title(f'Weekly Mean Ice Load Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter', fontsize=28)
             ax3.legend()
             ax3.grid(True, alpha=0.3)
             
-            plt.suptitle(f'Multi-Scale Ice Load Comparison: EMD vs NEWA at {height}m (Scatter Only)\n'
-                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=32, y=0.98)
+            plt.suptitle(f'Multi-Scale Ice Load Comparison: EMD vs NEWA at {height}m (Scatter Only)',
+                        fontsize=28, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
@@ -11531,8 +11529,8 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             ax1.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax1.axhline(y=bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Mean Bias: {bias:.3f} kg/m')
-            ax1.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=24)
-            ax1.set_title(f'Hourly Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
+            ax1.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=20)
+            ax1.set_title(f'Hourly Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines', fontsize=28)
             ax1.legend()
             ax1.grid(True, alpha=0.3)
             
@@ -11543,8 +11541,8 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax2.axhline(y=daily_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Daily Mean Bias: {daily_bias:.3f} kg/m')
-            ax2.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=24)
-            ax2.set_title(f'Daily Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
+            ax2.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=20)
+            ax2.set_title(f'Daily Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines', fontsize=28)
             ax2.legend()
             ax2.grid(True, alpha=0.3)
             
@@ -11555,15 +11553,14 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             ax3.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax3.axhline(y=weekly_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Weekly Mean Bias: {weekly_bias:.3f} kg/m')
-            ax3.set_xlabel('Time', fontsize=24)
-            ax3.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=24)
-            ax3.set_title(f'Weekly Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
+            ax3.set_xlabel('Time', fontsize=20)
+            ax3.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=20)
+            ax3.set_title(f'Weekly Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines', fontsize=28)
             ax3.legend()
             ax3.grid(True, alpha=0.3)
             
-            plt.suptitle(f'Multi-Scale Ice Load Differences: NEWA - EMD at {height}m (Lines Only)\n'
-                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=32, y=0.98)
+            plt.suptitle(f'Multi-Scale Ice Load Differences: NEWA - EMD at {height}m (Lines Only)',
+                        fontsize=28, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
@@ -11581,8 +11578,8 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             ax1.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax1.axhline(y=bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Mean Bias: {bias:.3f} kg/m')
-            ax1.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=24)
-            ax1.set_title(f'Hourly Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
+            ax1.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=20)
+            ax1.set_title(f'Hourly Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter', fontsize=28)
             ax1.legend()
             ax1.grid(True, alpha=0.3)
             
@@ -11591,8 +11588,8 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax2.axhline(y=daily_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Daily Mean Bias: {daily_bias:.3f} kg/m')
-            ax2.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=24)
-            ax2.set_title(f'Daily Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
+            ax2.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=20)
+            ax2.set_title(f'Daily Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter', fontsize=28)
             ax2.legend()
             ax2.grid(True, alpha=0.3)
             
@@ -11601,15 +11598,14 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             ax3.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax3.axhline(y=weekly_bias, color='red', linestyle='-', alpha=0.8, linewidth=2,
                        label=f'Weekly Mean Bias: {weekly_bias:.3f} kg/m')
-            ax3.set_xlabel('Time', fontsize=24)
-            ax3.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=24)
-            ax3.set_title(f'Weekly Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
+            ax3.set_xlabel('Time', fontsize=20)
+            ax3.set_ylabel('Difference (NEWA - EMD) [kg/m]', fontsize=20)
+            ax3.set_title(f'Weekly Mean Ice Load Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter', fontsize=28)
             ax3.legend()
             ax3.grid(True, alpha=0.3)
             
-            plt.suptitle(f'Multi-Scale Ice Load Differences: NEWA - EMD at {height}m (Scatter Only)\n'
-                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=32, y=0.98)
+            plt.suptitle(f'Multi-Scale Ice Load Differences: NEWA - EMD at {height}m (Scatter Only)',
+                        fontsize=28, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             
@@ -11660,20 +11656,19 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                          f'Intercept = {intercept:.3f}')
             
             # Position text box in upper left corner
-            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=22,
+            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=16,
                    verticalalignment='top', horizontalalignment='left',
                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
             
             # Set labels and title
-            ax.set_xlabel(f'NEWA Ice Load (kg/m) at {height}m', fontsize=24)
-            ax.set_ylabel(f'EMD Ice Load (kg/m) at {height}m', fontsize=24)
-            ax.set_title(f'EMD vs NEWA Ice Load Scatter Plot at {height}m (Icing Season Only)\n'
-                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+            ax.set_xlabel(f'NEWA Ice Load (kg/m) at {height}m', fontsize=20)
+            ax.set_ylabel(f'EMD Ice Load (kg/m) at {height}m', fontsize=20)
+            ax.set_title(f'EMD vs NEWA Ice Load Scatter Plot at {height}m (Icing Season Only)',
                         fontsize=28, pad=15)
             
             # Add grid and legend
             ax.grid(True, alpha=0.3)
-            ax.legend(loc='lower right', fontsize=30)
+            ax.legend(loc='lower right', fontsize=15)
             
             # Make axes equal for better visualization of agreement
             ax.set_aspect('equal', adjustable='box')
@@ -11730,15 +11725,14 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                 ax.plot(regression_x, regression_y, 'r-', linewidth=2, alpha=0.8,
                        label=f'Linear regression (y = {slope:.3f}x + {intercept:.3f})')
                 
-                ax.set_xlabel(f'NEWA Ice Load (kg/m) at {height}m', fontsize=24)
-                ax.set_ylabel(f'EMD Ice Load (kg/m) at {height}m', fontsize=24)
-                ax.set_title(f'EMD vs NEWA Ice Load Scatter Plot at {height}m (Non-Zero Values Only)\n'
-                            f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                ax.set_xlabel(f'NEWA Ice Load (kg/m) at {height}m', fontsize=20)
+                ax.set_ylabel(f'EMD Ice Load (kg/m) at {height}m', fontsize=20)
+                ax.set_title(f'EMD vs NEWA Ice Load Scatter Plot at {height}m (Non-Zero Values Only)',
                             fontsize=28, pad=15)
                 
                 # Add grid and legend
                 ax.grid(True, alpha=0.3)
-                ax.legend(loc='lower right', fontsize=30)
+                ax.legend(loc='lower right', fontsize=15)
                 
                 # Make axes equal for better visualization of agreement
                 ax.set_aspect('equal', adjustable='box')
@@ -11754,7 +11748,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                              f'Intercept = {intercept:.3f}')
                 
                 # Position text box in upper left corner (same as normal scatter plot)
-                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=22,
+                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=16,
                        verticalalignment='top', horizontalalignment='left',
                        bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
                 
@@ -11802,12 +11796,11 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                 height_b = bar.get_height()
                 ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5,
                        f'{percentage:.1f}%\n({count:,} hours)',
-                       ha='center', va='bottom', fontweight='bold', fontsize=22)
+                       ha='center', va='bottom', fontweight='bold', fontsize=16)
             
-            ax.set_ylabel('Percentage of Zero Values (%)', fontsize=24, fontweight='bold')
+            ax.set_ylabel('Percentage of Zero Values (%)', fontsize=20, fontweight='bold')
             ax.set_title(f'Zero Value Analysis at {height:.0f}m\n'
-                        f'Total timestamps: {total_timestamps:,} hours\n'
-                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                        f'Total timestamps: {total_timestamps:,} hours',
                         fontsize=28, fontweight='bold')
             ax.grid(True, alpha=0.3, axis='y')
             ax.set_ylim(0, max(zero_percentages) * 1.15)
@@ -11821,7 +11814,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             
             ax.text(0.02, 0.05, stats_text, transform=ax.transAxes,
                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.9),
-                   verticalalignment='bottom', horizontalalignment='left', fontsize=30)
+                   verticalalignment='bottom', horizontalalignment='left', fontsize=16)
             
             plt.tight_layout()
             
@@ -11864,11 +11857,11 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                 for patch, color in zip(box_plot['boxes'], colors):
                     patch.set_facecolor(color)
                 
-                ax.set_ylabel('Ice Load [kg/m]', fontsize=24, fontweight='bold')
+                ax.set_ylabel('Ice Load [kg/m]', fontsize=40, fontweight='bold')
                 ax.set_title(f'Distribution of Positive Ice Load Values at {height}m\n'
-                            f'Positive values: EMD={len(emd_positive):,}, NEWA={len(newa_positive):,}\n'
-                            f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                            f'Positive values: EMD={len(emd_positive):,}, NEWA={len(newa_positive):,}',
                             fontsize=28, fontweight='bold')
+                ax.tick_params(axis='both', labelsize=40)
                 ax.grid(True, alpha=0.3)
                 
                 # Calculate and display statistics
@@ -11916,7 +11909,7 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                 
                 ax.text(1.02, 1.0, stats_text, transform=ax.transAxes,
                        bbox=dict(boxstyle='round', facecolor='white', alpha=0.9),
-                       verticalalignment='top', fontsize=27, family='monospace')
+                       verticalalignment='top', fontsize=16, family='monospace')
                 
                 # Add legend explaining box plot elements
                 legend_text = 'Box Plot Elements:\n'
@@ -11926,9 +11919,9 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
                 legend_text += '┬ Whiskers: 1.5×IQR\n'
                 legend_text += '○ Outliers'
                 
-                ax.text(0.02, 0.98, legend_text, transform=ax.transAxes,
+                ax.text(0.98, 0.98, legend_text, transform=ax.transAxes,
                        bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8),
-                       verticalalignment='top', fontsize=27)
+                       verticalalignment='top', horizontalalignment='right', fontsize=16)
                 
                 plt.tight_layout()
                 
@@ -12006,33 +11999,32 @@ def compare_ice_load_emd_newa(emd_data, dataset_with_ice_load, height, emd_coord
             
             # Add colorbar with better formatting
             cbar = plt.colorbar(im, shrink=0.6, pad=0.02)
-            cbar.set_label('Hourly Mean Ice Load Difference (NEWA - EMD) [kg/m]', fontsize=28)
-            cbar.ax.tick_params(labelsize=30)
+            cbar.set_label('Hourly Mean Ice Load Difference (NEWA - EMD) [kg/m]', fontsize=16)
+            cbar.ax.tick_params(labelsize=15)
             
             # Set labels and ticks with better formatting for all months
-            plt.xlabel('Day of Year', fontsize=28)
-            plt.ylabel('Year', fontsize=28)
+            plt.xlabel('Day of Year', fontsize=20)
+            plt.ylabel('Year', fontsize=20)
             plt.title(f'Daily Mean Ice Load Differences Grid: NEWA - EMD at {height}m (All Months)\n'
-                     f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km\n'
-                     f'Each cell = daily mean difference for that specific year and day', fontsize=32, pad=20)
+                     f'Each cell = daily mean difference for that specific year and day', fontsize=28, pad=20)
             
             # Set year labels
             year_indices = np.arange(0, len(pivot_grid.index))
             year_step = max(1, len(pivot_grid.index)//15)
             year_ticks = year_indices[::year_step]
-            plt.yticks(year_ticks, [pivot_grid.index[i] for i in year_ticks], fontsize=24)
+            plt.yticks(year_ticks, [pivot_grid.index[i] for i in year_ticks], fontsize=20)
             
             # Set day of year labels (all months)
             month_starts = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
             month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            plt.xticks(month_starts, month_labels, rotation=0, fontsize=24)
+            plt.xticks(month_starts, month_labels, rotation=0, fontsize=20)
             
             # Add secondary x-axis with day numbers
             ax2 = plt.gca().secondary_xaxis('top')
             day_ticks = np.arange(0, 366, 30)
             ax2.set_xticks(day_ticks)
-            ax2.set_xlabel('Day of Year', fontsize=24)
+            ax2.set_xlabel('Day of Year', fontsize=20)
             ax2.tick_params(labelsize=20)
             
             # Improve layout
@@ -12500,9 +12492,8 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
             for patch, color in zip(box_plot_daily['boxes'], colors):
                 patch.set_facecolor(color)
             
-            ax1.set_ylabel('Mean Daily Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=24, fontweight='bold')
-            ax1.set_title(f'Typical Day Comparison at {height}m\n'
-                         f'Distribution of Daily Means of Hourly Ice Load (n={len(emd_daily_aligned)})', fontsize=22, fontweight='bold')
+            ax1.set_ylabel('Mean Daily Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=20, fontweight='bold')
+            ax1.set_title(f'Distribution of Daily Means of Hourly Ice Load (n={len(emd_daily_aligned)})', fontsize=28, fontweight='bold')
             ax1.grid(True, alpha=0.3)
             
             # Plot 2: Weekly means box plot
@@ -12519,9 +12510,8 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
             for patch, color in zip(box_plot_weekly['boxes'], colors):
                 patch.set_facecolor(color)
             
-            ax2.set_ylabel('Mean Weekly Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=24, fontweight='bold')
-            ax2.set_title(f'Typical Week Comparison at {height}m\n'
-                         f'Distribution of Weekly Means of Hourly Ice Load (n={len(emd_weekly_aligned)})', fontsize=22, fontweight='bold')
+            ax2.set_ylabel('Mean Weekly Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=20, fontweight='bold')
+            ax2.set_title(f'Distribution of Weekly Means of Hourly Ice Load (n={len(emd_weekly_aligned)})', fontsize=28, fontweight='bold')
             ax2.grid(True, alpha=0.3)
             
             # Plot 3: Yearly means box plot
@@ -12538,9 +12528,8 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
             for patch, color in zip(box_plot_yearly['boxes'], colors):
                 patch.set_facecolor(color)
             
-            ax3.set_ylabel('Mean Yearly Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=24, fontweight='bold')
-            ax3.set_title(f'Typical Year Comparison at {height}m\n'
-                         f'Distribution of Yearly Means of Hourly Ice Load (n={len(emd_yearly_aligned)})', fontsize=22, fontweight='bold')
+            ax3.set_ylabel('Mean Yearly Ice Load [kg/m]\n(Mean of Hourly Values)', fontsize=20, fontweight='bold')
+            ax3.set_title(f'Distribution of Yearly Means of Hourly Ice Load (n={len(emd_yearly_aligned)})', fontsize=28, fontweight='bold')
             ax3.grid(True, alpha=0.3)
             
             # Add overall title with filtering information
@@ -12548,14 +12537,12 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
             nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
             
             fig.suptitle(f'Typical Patterns Analysis: EMD vs NEWA at {height}m (Icing Season Only)\n'
-                        f'Temporal Means of Hourly Ice Load Values\n'
-                        f'{threshold_text} | {nonzero_text}\n'
-                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
+                        f'{threshold_text} | {nonzero_text}',
                         fontsize=28, fontweight='bold', y=0.96)
             
             # Add legend explaining box plot elements
             legend_text = 'Box Plot Elements:\n━ Red line: Median\n┅ Black line: Mean\n□ Box: Q25-Q75 (IQR)\n┬ Whiskers: 1.5×IQR\n○ Outliers'
-            fig.text(0.02, 0.02, legend_text, fontsize=27, 
+            fig.text(0.02, 0.02, legend_text, fontsize=16, 
                     bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8),
                     verticalalignment='bottom')
             
@@ -12609,7 +12596,7 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
             table = ax.table(cellText=stats_table_data[1:], colLabels=stats_table_data[0], 
                            cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
             table.auto_set_font_size(False)
-            table.set_fontsize(30)
+            table.set_fontsize(16)
             table.scale(1, 2)
             
             # Style the table
@@ -12628,7 +12615,6 @@ def emd_newa_typical(emd_data, dataset_with_ice_load, height, emd_coordinates, s
             nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
             
             ax.set_title(f'Typical Patterns Statistics Summary at {height}m\n'
-                        f'Temporal Means of Hourly Ice Load Values in kg/m (Icing Season Only)\n'
                         f'{threshold_text} | {nonzero_text}',
                         fontsize=28, fontweight='bold', pad=20)
             
@@ -12905,18 +12891,29 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
             data_max = max(np.max(emd_final), np.max(newa_final))
             x_range = np.linspace(data_min, data_max, 1000)
 
-            fig, axes = plt.subplots(2, 3, figsize=(24, 12))
-            ax1 = axes[0, 0]
+            threshold_text = f"Ice Load Threshold: >={ice_load_threshold} kg/m" if ice_load_threshold > 0 else "No Ice Load Threshold"
+            nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
+            common_subtitle = f'{threshold_text} | {nonzero_text}'
+            
+            # Plot 1: Histogram PDF comparison
+            fig, ax1 = plt.subplots(1, 1, figsize=(12, 8))
             bins = np.linspace(data_min, data_max, 50)
             ax1.hist(emd_final, bins=bins, alpha=0.6, density=True, color='steelblue', edgecolor='darkblue', linewidth=1, label=f'EMD (n={len(emd_final)})')
             ax1.hist(newa_final, bins=bins, alpha=0.6, density=True, color='orange', edgecolor='darkorange', linewidth=1, label=f'NEWA (n={len(newa_final)})')
-            ax1.set_xlabel('Ice Load [kg/m]', fontweight='bold')
-            ax1.set_ylabel('Probability Density', fontweight='bold')
-            ax1.set_title('Probability Density Functions - Histograms', fontweight='bold')
-            ax1.legend()
+            ax1.set_xlabel('Ice Load [kg/m]', fontweight='bold', fontsize=20)
+            ax1.set_ylabel('Probability Density', fontweight='bold', fontsize=20)
+            ax1.set_title(f'Probability Density Functions\n{common_subtitle}', fontsize=26)
+            ax1.legend(fontsize=20)
+            ax1.tick_params(labelsize=20)
             ax1.grid(True, alpha=0.3)
+            plt.tight_layout()
+            hist_path = os.path.join(base_dir, f'pdf_histogram_{height:.0f}m.png')
+            plt.savefig(hist_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {hist_path}")
 
-            ax2 = axes[0, 1]
+            # Plot 2: KDE comparison
+            fig, ax2 = plt.subplots(1, 1, figsize=(12, 8))
             if len(emd_final) > 10:
                 kde_emd = stats.gaussian_kde(emd_final)
                 ax2.plot(x_range, kde_emd(x_range), 'steelblue', linewidth=3, label=f'EMD (μ={emd_stats["mean"]:.3f}, σ={emd_stats["std"]:.3f})')
@@ -12925,37 +12922,37 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
                 ax2.plot(x_range, kde_newa(x_range), 'orange', linewidth=3, label=f'NEWA (μ={newa_stats["mean"]:.3f}, σ={newa_stats["std"]:.3f})')
             ax2.axvline(emd_stats['mean'], color='steelblue', linestyle='--', alpha=0.8, label='EMD Mean')
             ax2.axvline(newa_stats['mean'], color='orange', linestyle='--', alpha=0.8, label='NEWA Mean')
-            ax2.set_xlabel('Ice Load [kg/m]', fontweight='bold')
-            ax2.set_ylabel('Probability Density', fontweight='bold')
-            ax2.set_title('Kernel Density Estimation (KDE) Comparison', fontweight='bold')
-            ax2.legend()
+            ax2.set_xlabel('Ice Load [kg/m]', fontweight='bold', fontsize=20)
+            ax2.set_ylabel('Probability Density', fontweight='bold', fontsize=20)
+            ax2.set_title(f'Kernel Density Estimation (KDE) Comparison\n{common_subtitle}', fontsize=26)
+            ax2.legend(fontsize=20)
+            ax2.tick_params(labelsize=20)
             ax2.grid(True, alpha=0.3)
+            plt.tight_layout()
+            kde_path = os.path.join(base_dir, f'pdf_kde_{height:.0f}m.png')
+            plt.savefig(kde_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {kde_path}")
 
-            # New log-log PDF comparison plot
-            ax3 = axes[0, 2]
-            # Filter out zero values for log-log plot
+            # Plot 3: Log-log PDF comparison
+            fig, ax3 = plt.subplots(1, 1, figsize=(12, 8))
             emd_nonzero = emd_final[emd_final > 0]
             newa_nonzero = newa_final[newa_final > 0]
             
             if len(emd_nonzero) > 10 and len(newa_nonzero) > 10:
-                # Create log-spaced bins for PDF calculation
                 log_min = max(1e-6, min(np.min(emd_nonzero), np.min(newa_nonzero)))
                 log_max = max(np.max(emd_nonzero), np.max(newa_nonzero))
                 bins = np.logspace(np.log10(log_min), np.log10(log_max), 50)
                 
-                # Calculate PDF (normalized histogram)
                 emd_counts, _ = np.histogram(emd_nonzero, bins=bins)
                 newa_counts, _ = np.histogram(newa_nonzero, bins=bins)
                 
-                # Normalize to get PDF
                 bin_widths = np.diff(bins)
                 emd_pdf = emd_counts / (len(emd_nonzero) * bin_widths)
                 newa_pdf = newa_counts / (len(newa_nonzero) * bin_widths)
                 
-                # Plot centers
                 bin_centers = (bins[:-1] + bins[1:]) / 2
                 
-                # Remove zeros for log-log plot
                 emd_nonzero_pdf = emd_pdf > 0
                 newa_nonzero_pdf = newa_pdf > 0
                 
@@ -12969,15 +12966,22 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
                 ax3.axvline(np.mean(newa_nonzero), color='orange', linestyle='--', alpha=0.8, label='NEWA Mean')
             else:
                 ax3.text(0.5, 0.5, 'Insufficient non-zero data\nfor log-log PDF', 
-                        ha='center', va='center', transform=ax3.transAxes, fontsize=24)
+                        ha='center', va='center', transform=ax3.transAxes, fontsize=16)
             
-            ax3.set_xlabel('Ice Load [kg/m]', fontweight='bold')
-            ax3.set_ylabel('Probability Density', fontweight='bold')
-            ax3.set_title('PDF Comparison (Log-Log Scale)', fontweight='bold')
-            ax3.legend()
+            ax3.set_xlabel('Ice Load [kg/m]', fontweight='bold', fontsize=20)
+            ax3.set_ylabel('Probability Density', fontweight='bold', fontsize=20)
+            ax3.set_title(f'PDF Comparison (Log-Log Scale)\n{common_subtitle}', fontsize=26)
+            ax3.legend(fontsize=20)
+            ax3.tick_params(labelsize=20)
             ax3.grid(True, alpha=0.3, which="both")
+            plt.tight_layout()
+            loglog_path = os.path.join(base_dir, f'pdf_loglog_{height:.0f}m.png')
+            plt.savefig(loglog_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {loglog_path}")
 
-            ax4 = axes[1, 0]
+            # Plot 4: Q-Q plot
+            fig, ax4 = plt.subplots(1, 1, figsize=(12, 8))
             n_quantiles = min(len(emd_final), len(newa_final), 1000)
             quantiles = np.linspace(0.01, 0.99, n_quantiles)
             emd_quantiles = np.quantile(emd_final, quantiles)
@@ -12987,28 +12991,40 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
             max_val = max(np.max(emd_quantiles), np.max(newa_quantiles))
             ax4.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, label='Perfect Agreement')
             qq_correlation = np.corrcoef(emd_quantiles, newa_quantiles)[0, 1]
-            ax4.set_xlabel('EMD Quantiles [kg/m]', fontweight='bold')
-            ax4.set_ylabel('NEWA Quantiles [kg/m]', fontweight='bold')
-            ax4.set_title(f'Q-Q Plot (r = {qq_correlation:.3f})', fontweight='bold')
-            ax4.legend()
+            ax4.set_xlabel('EMD Quantiles [kg/m]', fontweight='bold', fontsize=20)
+            ax4.set_ylabel('NEWA Quantiles [kg/m]', fontweight='bold', fontsize=20)
+            ax4.set_title(f'Q-Q Plot (r = {qq_correlation:.3f})\n{common_subtitle}', fontsize=26)
+            ax4.legend(fontsize=20)
+            ax4.tick_params(labelsize=20)
             ax4.grid(True, alpha=0.3)
+            plt.tight_layout()
+            qq_path = os.path.join(base_dir, f'pdf_qqplot_{height:.0f}m.png')
+            plt.savefig(qq_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {qq_path}")
 
-            ax5 = axes[1, 1]
+            # Plot 5: Box plots
+            fig, ax5 = plt.subplots(1, 1, figsize=(12, 8))
             box_data = [emd_final, newa_final]
             labels = ['EMD', 'NEWA']
             colors = ['steelblue', 'orange']
             box_plot = ax5.boxplot(box_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
             for patch, color in zip(box_plot['boxes'], colors):
                 patch.set_facecolor(color)
-            ax5.set_ylabel('Ice Load [kg/m]', fontweight='bold')
-            ax5.set_title('Distribution Comparison (Box Plots)', fontweight='bold')
+            ax5.set_ylabel('Ice Load [kg/m]', fontweight='bold', fontsize=20)
+            ax5.set_title(f'Distribution Comparison (Box Plots) at {height}m\n{common_subtitle}', fontweight='bold', fontsize=28)
+            ax5.tick_params(labelsize=20)
             ax5.grid(True, alpha=0.3)
+            plt.tight_layout()
+            boxplot_path = os.path.join(base_dir, f'pdf_boxplot_{height:.0f}m.png')
+            plt.savefig(boxplot_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {boxplot_path}")
 
-            # Add statistical summary table to the last subplot (axes[1, 2])
-            ax6 = axes[1, 2]
+            # Plot 6: Statistical summary table
+            fig, ax6 = plt.subplots(1, 1, figsize=(12, 8))
             ax6.axis('off')
             
-            # Create statistical summary table
             stats_data = [
                 ['Statistic', 'EMD', 'NEWA'],
                 ['Count', f"{emd_stats['count']}", f"{newa_stats['count']}"],
@@ -13027,10 +13043,9 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
             table = ax6.table(cellText=stats_data[1:], colLabels=stats_data[0], 
                              cellLoc='center', loc='center', bbox=[0.05, 0.1, 0.9, 0.8])
             table.auto_set_font_size(False)
-            table.set_fontsize(27)
+            table.set_fontsize(16)
             table.scale(1, 1.5)
             
-            # Style the table
             for i in range(len(stats_data)):
                 for j in range(len(stats_data[0])):
                     cell = table[(i, j)]
@@ -13042,27 +13057,21 @@ def pdf_emd_newa(emd_data, dataset_with_ice_load, height, emd_coordinates, save_
                     elif j == 1:  # NEWA column
                         cell.set_facecolor('#FFF3E0')
 
-            ax6.set_title('Statistical Summary', fontweight='bold', pad=20)
-
-            threshold_text = f"Ice Load Threshold: >={ice_load_threshold} kg/m" if ice_load_threshold > 0 else "No Ice Load Threshold"
-            nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
-            
-            fig.suptitle(f'PDF Analysis: EMD vs NEWA Ice Load at {height}m - 6 Comprehensive Plots\n'
-                        f'Distribution Comparison (Icing Season Only) | {threshold_text} | {nonzero_text}\n'
-                        f'NEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km',
-                        fontsize=32, fontweight='bold', y=0.96)
-            
+            ax6.set_title(f'Statistical Summary at {height}m\n{common_subtitle}', fontweight='bold', pad=20, fontsize=28)
             plt.tight_layout()
-            plt.subplots_adjust(top=0.88)
-            
-            pdf_plot_path = os.path.join(base_dir, f'pdf_comparison_{height:.0f}m.png')
-            plt.savefig(pdf_plot_path, dpi=150, facecolor='white', bbox_inches='tight')
+            stats_table_path = os.path.join(base_dir, f'pdf_stats_table_{height:.0f}m.png')
+            plt.savefig(stats_table_path, dpi=150, facecolor='white', bbox_inches='tight')
             plt.close()
-            print(f"Saved: {pdf_plot_path}")
+            print(f"Saved: {stats_table_path}")
             
             print(f"\n=== PLOT SUMMARY ===")
-            print(f"Created 1 comprehensive plot with 6 subplots:")
-            print(f"  1. PDF comparison plot: {pdf_plot_path}")
+            print(f"Created 6 individual plots:")
+            print(f"  1. Histogram PDF: {hist_path}")
+            print(f"  2. KDE comparison: {kde_path}")
+            print(f"  3. Log-log PDF: {loglog_path}")
+            print(f"  4. Q-Q plot: {qq_path}")
+            print(f"  5. Box plots: {boxplot_path}")
+            print(f"  6. Statistics table: {stats_table_path}")
         
         # Perform statistical tests
         print(f"\n=== STATISTICAL TESTS ===")
@@ -13395,28 +13404,28 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
             ax1.plot(emd_clean.index, emd_clean.values, 'b-', alpha=0.7, linewidth=0.5, label=f'EMD Hourly ({emd_column})')
             ax1.plot(newa_clean.index, newa_clean.values, 'r-', alpha=0.7, linewidth=0.5, label=f'NEWA Hourly (ACCRE_CYL)')
-            ax1.set_ylabel('Ice Accretion (g/h)', fontsize=24)
-            ax1.set_title(f'Hourly Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
+            ax1.set_ylabel('Ice Accretion (g/h)', fontsize=20)
+            ax1.set_title(f'Hourly Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines', fontsize=28)
             ax1.legend()
             ax1.grid(True, alpha=0.3)
             emd_daily_avg = emd_clean.resample('D').mean()
             newa_daily_avg = newa_clean.resample('D').mean()
             ax2.plot(emd_daily_avg.index, emd_daily_avg.values, 'b-', alpha=0.8, linewidth=1.0, label=f'EMD Daily Mean ({emd_column})')
             ax2.plot(newa_daily_avg.index, newa_daily_avg.values, 'r-', alpha=0.8, linewidth=1.0, label=f'NEWA Daily Mean (ACCRE_CYL)')
-            ax2.set_ylabel('Ice Accretion (g/h)', fontsize=24)
-            ax2.set_title(f'Daily Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
+            ax2.set_ylabel('Ice Accretion (g/h)', fontsize=20)
+            ax2.set_title(f'Daily Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines', fontsize=28)
             ax2.legend()
             ax2.grid(True, alpha=0.3)
             emd_weekly_avg = emd_clean.resample('W').mean()
             newa_weekly_avg = newa_clean.resample('W').mean()
             ax3.plot(emd_weekly_avg.index, emd_weekly_avg.values, 'b-', alpha=0.9, linewidth=1.5, label=f'EMD Weekly Mean ({emd_column})')
             ax3.plot(newa_weekly_avg.index, newa_weekly_avg.values, 'r-', alpha=0.9, linewidth=1.5, label=f'NEWA Weekly Mean (ACCRE_CYL)')
-            ax3.set_xlabel('Time', fontsize=24)
-            ax3.set_ylabel('Ice Accretion (g/h)', fontsize=24)
-            ax3.set_title(f'Weekly Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines')
+            ax3.set_xlabel('Time', fontsize=20)
+            ax3.set_ylabel('Ice Accretion (g/h)', fontsize=20)
+            ax3.set_title(f'Weekly Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Lines', fontsize=28)
             ax3.legend()
             ax3.grid(True, alpha=0.3)
-            plt.suptitle(f'Multi-Scale Ice Accretion Comparison: EMD vs NEWA at {height}m (Lines Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=32, y=0.98)
+            plt.suptitle(f'Multi-Scale Ice Accretion Comparison: EMD vs NEWA at {height}m (Lines Only)', fontsize=28, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             timeseries_lines_path = os.path.join(base_dir, f'multi_scale_timeseries_lines_{height:.0f}m.png')
@@ -13427,26 +13436,29 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             # Plot 1B: Time series comparison with scatter only
             print("1B. Creating full time series comparison (scatter only)...")
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(20, 16))
-            ax1.scatter(emd_clean.index, emd_clean.values, c='blue', s=0.5, alpha=0.6, label=f'EMD Hourly ({emd_column})')
-            ax1.scatter(newa_clean.index, newa_clean.values, c='red', s=0.5, alpha=0.6, label=f'NEWA Hourly (ACCRE_CYL)')
-            ax1.set_ylabel('Ice Accretion (g/h)', fontsize=24)
-            ax1.set_title(f'Hourly Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
-            ax1.legend()
+            ax1.scatter(emd_clean.index, emd_clean.values, c='blue', s=0.5, alpha=0.6, label=f'EMD Hourly')
+            ax1.scatter(newa_clean.index, newa_clean.values, c='red', s=0.5, alpha=0.6, label=f'NEWA Hourly')
+            ax1.set_ylabel('Ice Accretion (g/h)', fontsize=23)
+            ax1.set_title(f'Hourly Ice Accretion Time Series', fontsize=26)
+            ax1.legend(fontsize=18)
+            ax1.tick_params(axis='both', labelsize=21)
             ax1.grid(True, alpha=0.3)
-            ax2.scatter(emd_daily_avg.index, emd_daily_avg.values, c='blue', s=3, alpha=0.7, label=f'EMD Daily Mean ({emd_column})')
-            ax2.scatter(newa_daily_avg.index, newa_daily_avg.values, c='red', s=3, alpha=0.7, label=f'NEWA Daily Mean (ACCRE_CYL)')
-            ax2.set_ylabel('Ice Accretion (g/h)', fontsize=24)
-            ax2.set_title(f'Daily Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
-            ax2.legend()
+            ax2.scatter(emd_daily_avg.index, emd_daily_avg.values, c='blue', s=3, alpha=0.7, label=f'EMD Daily Mean')
+            ax2.scatter(newa_daily_avg.index, newa_daily_avg.values, c='red', s=3, alpha=0.7, label=f'NEWA Daily Mean')
+            ax2.set_ylabel('Ice Accretion (g/h)', fontsize=23)
+            ax2.set_title(f'Daily Mean Ice Accretion Time Series', fontsize=26)
+            ax2.legend(fontsize=18)
+            ax2.tick_params(axis='both', labelsize=21)
             ax2.grid(True, alpha=0.3)
-            ax3.scatter(emd_weekly_avg.index, emd_weekly_avg.values, c='blue', s=10, alpha=0.8, label=f'EMD Weekly Mean ({emd_column})')
-            ax3.scatter(newa_weekly_avg.index, newa_weekly_avg.values, c='red', s=10, alpha=0.8, label=f'NEWA Weekly Mean (ACCRE_CYL)')
-            ax3.set_xlabel('Time', fontsize=24)
-            ax3.set_ylabel('Ice Accretion (g/h)', fontsize=24)
-            ax3.set_title(f'Weekly Mean Ice Accretion Time Series: EMD vs NEWA at {height}m (Icing Season Only) - Scatter')
-            ax3.legend()
+            ax3.scatter(emd_weekly_avg.index, emd_weekly_avg.values, c='blue', s=10, alpha=0.8, label=f'EMD Weekly Mean')
+            ax3.scatter(newa_weekly_avg.index, newa_weekly_avg.values, c='red', s=10, alpha=0.8, label=f'NEWA Weekly Mean')
+            ax3.set_xlabel('Time', fontsize=23)
+            ax3.set_ylabel('Ice Accretion (g/h)', fontsize=23)
+            ax3.set_title(f'Weekly Mean Ice Accretion Time Series', fontsize=26)
+            ax3.legend(fontsize=18)
+            ax3.tick_params(axis='both', labelsize=21)
             ax3.grid(True, alpha=0.3)
-            plt.suptitle(f'Multi-Scale Ice Accretion Comparison: EMD vs NEWA at {height}m (Scatter Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=32, y=0.98)
+            plt.suptitle(f'Multi-Scale Ice Accretion Comparison: EMD vs NEWA', fontsize=28, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             timeseries_scatter_path = os.path.join(base_dir, f'multi_scale_timeseries_scatter_{height:.0f}m.png')
@@ -13461,8 +13473,8 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             ax1.plot(differences.index, differences.values, 'g-', alpha=0.7, linewidth=0.5)
             ax1.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax1.axhline(y=bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Mean Bias: {bias:.3f} g/h')
-            ax1.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=24)
-            ax1.set_title(f'Hourly Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
+            ax1.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=20)
+            ax1.set_title(f'Hourly Ice Accretion Differences', fontsize=26)
             ax1.legend()
             ax1.grid(True, alpha=0.3)
             daily_differences_ts = newa_daily_avg - emd_daily_avg
@@ -13470,8 +13482,8 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             ax2.plot(daily_differences_ts.index, daily_differences_ts.values, 'g-', alpha=0.8, linewidth=1.0)
             ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax2.axhline(y=daily_bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Daily Mean Bias: {daily_bias:.3f} g/h')
-            ax2.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=24)
-            ax2.set_title(f'Daily Mean Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
+            ax2.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=20)
+            ax2.set_title(f'Daily Mean Ice Accretion Differences', fontsize=25)
             ax2.legend()
             ax2.grid(True, alpha=0.3)
             weekly_differences_ts = newa_weekly_avg - emd_weekly_avg
@@ -13479,12 +13491,12 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             ax3.plot(weekly_differences_ts.index, weekly_differences_ts.values, 'g-', alpha=0.9, linewidth=1.5)
             ax3.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax3.axhline(y=weekly_bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Weekly Mean Bias: {weekly_bias:.3f} g/h')
-            ax3.set_xlabel('Time', fontsize=24)
-            ax3.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=24)
-            ax3.set_title(f'Weekly Mean Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Lines')
+            ax3.set_xlabel('Time', fontsize=20)
+            ax3.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=20)
+            ax3.set_title(f'Weekly Mean Ice Accretion Differences', fontsize=25)
             ax3.legend()
             ax3.grid(True, alpha=0.3)
-            plt.suptitle(f'Multi-Scale Ice Accretion Differences: NEWA - EMD at {height}m (Lines Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=32, y=0.98)
+            plt.suptitle(f'Multi-Scale Ice Accretion Differences: NEWA - EMD at {height}m (Lines Only)', fontsize=28, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             differences_lines_path = os.path.join(base_dir, f'multi_scale_differences_lines_{height:.0f}m.png')
@@ -13498,26 +13510,26 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             ax1.scatter(differences.index, differences.values, c='green', s=0.5, alpha=0.6)
             ax1.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax1.axhline(y=bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Mean Bias: {bias:.3f} g/h')
-            ax1.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=24)
-            ax1.set_title(f'Hourly Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
+            ax1.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=20)
+            ax1.set_title(f'Hourly Ice Accretion Differences', fontsize=28)
             ax1.legend()
             ax1.grid(True, alpha=0.3)
             ax2.scatter(daily_differences_ts.index, daily_differences_ts.values, c='green', s=3, alpha=0.7)
             ax2.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax2.axhline(y=daily_bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Daily Mean Bias: {daily_bias:.3f} g/h')
-            ax2.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=24)
-            ax2.set_title(f'Daily Mean Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
+            ax2.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=20)
+            ax2.set_title(f'Daily Mean Ice Accretion Differences', fontsize=28)
             ax2.legend()
             ax2.grid(True, alpha=0.3)
             ax3.scatter(weekly_differences_ts.index, weekly_differences_ts.values, c='green', s=10, alpha=0.8)
             ax3.axhline(y=0, color='black', linestyle='--', alpha=0.8, linewidth=1)
             ax3.axhline(y=weekly_bias, color='red', linestyle='-', alpha=0.8, linewidth=2, label=f'Weekly Mean Bias: {weekly_bias:.3f} g/h')
-            ax3.set_xlabel('Time', fontsize=24)
-            ax3.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=24)
-            ax3.set_title(f'Weekly Mean Ice Accretion Differences: NEWA - EMD at {height}m (Icing Season Only) - Scatter')
+            ax3.set_xlabel('Time', fontsize=20)
+            ax3.set_ylabel('Difference (NEWA - EMD) [g/h]', fontsize=20)
+            ax3.set_title(f'Weekly Mean Ice Accretion Differences', fontsize=28)
             ax3.legend()
             ax3.grid(True, alpha=0.3)
-            plt.suptitle(f'Multi-Scale Ice Accretion Differences: NEWA - EMD at {height}m (Scatter Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=32, y=0.98)
+            plt.suptitle(f'Multi-Scale Ice Accretion Differences', fontsize=28, y=0.98)
             plt.tight_layout()
             plt.subplots_adjust(top=0.92)
             differences_scatter_path = os.path.join(base_dir, f'multi_scale_differences_scatter_{height:.0f}m.png')
@@ -13544,12 +13556,12 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             regression_y = slope * regression_x + intercept
             ax.plot(regression_x, regression_y, 'r-', linewidth=2, alpha=0.8, label=f'Linear regression (y = {slope:.3f}x + {intercept:.3f})')
             stats_text = (f'N = {len(emd_clean)}\nR² = {r2:.3f}\nCorrelation = {correlation:.3f}\nRMSE = {rmse:.3f} g/h\nMAE = {mae:.3f} g/h\nBias = {bias:.3f} g/h\nSlope = {slope:.3f}\nIntercept = {intercept:.3f}')
-            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=22, verticalalignment='top', horizontalalignment='left', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
-            ax.set_xlabel(f'NEWA Ice Accretion (g/h) at {height}m', fontsize=24)
-            ax.set_ylabel(f'EMD Ice Accretion (g/h) at {height}m', fontsize=24)
-            ax.set_title(f'EMD vs NEWA Ice Accretion Scatter Plot at {height}m (Icing Season Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, pad=15)
+            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=16, verticalalignment='top', horizontalalignment='left', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
+            ax.set_xlabel(f'NEWA Ice Accretion (g/h) at {height}m', fontsize=20)
+            ax.set_ylabel(f'EMD Ice Accretion (g/h) at {height}m', fontsize=20)
+            ax.set_title(f'EMD vs NEWA Ice Accretion Scatter Plot at {height}m (Icing Season Only)', fontsize=28, pad=15)
             ax.grid(True, alpha=0.3)
-            ax.legend(loc='lower right', fontsize=30)
+            ax.legend(loc='lower right', fontsize=15)
             ax.set_aspect('equal', adjustable='box')
             plt.tight_layout()
             scatter_regression_path = os.path.join(base_dir, f'emd_vs_newa_scatter_{height:.0f}m.png')
@@ -13579,14 +13591,14 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
                 regression_x = np.array(xlim)
                 regression_y = slope * regression_x + intercept
                 ax.plot(regression_x, regression_y, 'r-', linewidth=2, alpha=0.8, label=f'Linear regression (y = {slope:.3f}x + {intercept:.3f})')
-                ax.set_xlabel(f'NEWA Ice Accretion (g/h) at {height}m', fontsize=24)
-                ax.set_ylabel(f'EMD Ice Accretion (g/h) at {height}m', fontsize=24)
-                ax.set_title(f'EMD vs NEWA Ice Accretion Scatter Plot at {height}m (Non-Zero Values Only)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, pad=15)
+                ax.set_xlabel(f'NEWA Ice Accretion (g/h) at {height}m', fontsize=20)
+                ax.set_ylabel(f'EMD Ice Accretion (g/h) at {height}m', fontsize=20)
+                ax.set_title(f'EMD vs NEWA Ice Accretion Scatter Plot at {height}m (Non-Zero Values Only)', fontsize=28, pad=15)
                 ax.grid(True, alpha=0.3)
-                ax.legend(loc='lower right', fontsize=30)
+                ax.legend(loc='lower right', fontsize=15)
                 ax.set_aspect('equal', adjustable='box')
                 stats_text = (f'N = {len(emd_nonzero)}\nR² = {r_value**2:.3f}\nCorrelation = {np.corrcoef(emd_nonzero, newa_nonzero)[0,1]:.3f}\nRMSE = {np.sqrt(np.mean((newa_nonzero - emd_nonzero)**2)):.3f} g/h\nMAE = {np.mean(np.abs(newa_nonzero - emd_nonzero)):.3f} g/h\nBias = {np.mean(newa_nonzero - emd_nonzero):.3f} g/h\nSlope = {slope:.3f}\nIntercept = {intercept:.3f}')
-                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=22, verticalalignment='top', horizontalalignment='left', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
+                ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=16, verticalalignment='top', horizontalalignment='left', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='gray'))
                 plt.tight_layout()
                 nonzero_scatter_path = os.path.join(base_dir, f'emd_vs_newa_scatter_nonzero_{height:.0f}m.png')
                 plt.savefig(nonzero_scatter_path, dpi=150, facecolor='white')
@@ -13619,9 +13631,9 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             bars = ax.bar(datasets, zero_percentages, color=colors, alpha=0.7, edgecolor='black', linewidth=1)
             for i, (bar, count, percentage) in enumerate(zip(bars, zero_counts, zero_percentages)):
                 height_b = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=22)
-            ax.set_ylabel('Percentage of Zero Values (%)', fontsize=24, fontweight='bold')
-            ax.set_title(f'Zero Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, fontweight='bold')
+                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=16)
+            ax.set_ylabel('Percentage of Zero Values (%)', fontsize=20, fontweight='bold')
+            ax.set_title(f'Zero Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours', fontsize=28, fontweight='bold')
             ax.grid(True, alpha=0.3, axis='y')
             ax.set_ylim(0, max(zero_percentages) * 1.15)
             stats_text = f'Summary:\n'
@@ -13629,7 +13641,7 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             stats_text += f'NEWA zeros: {newa_zero_count:,} ({newa_zero_percentage:.1f}%)\n'
             stats_text += f'Both zero: {((emd_clean == 0) & (newa_clean == 0)).sum():,}\n'
             stats_text += f'Either zero: {((emd_clean == 0) | (newa_clean == 0)).sum():,}'
-            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=30)
+            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=16)
             plt.tight_layout()
 
             # Ensure saving directory exists
@@ -13651,9 +13663,9 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             bars = ax.bar(datasets, neg_percentages, color=colors, alpha=0.7, edgecolor='black', linewidth=1)
             for i, (bar, count, percentage) in enumerate(zip(bars, neg_counts, neg_percentages)):
                 height_b = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=22)
-            ax.set_ylabel('Percentage of Negative Values (%)', fontsize=24, fontweight='bold')
-            ax.set_title(f'Negative Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, fontweight='bold')
+                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=16)
+            ax.set_ylabel('Percentage of Negative Values (%)', fontsize=20, fontweight='bold')
+            ax.set_title(f'Negative Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours', fontsize=28, fontweight='bold')
             ax.grid(True, alpha=0.3, axis='y')
             ax.set_ylim(0, max(neg_percentages) * 1.15)
             stats_text = f'Summary:\n'
@@ -13661,7 +13673,7 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             stats_text += f'NEWA negatives: {newa_neg_count:,} ({newa_neg_percentage:.1f}%)\n'
             stats_text += f'Both negative: {((emd_clean < 0) & (newa_clean < 0)).sum():,}\n'
             stats_text += f'Either negative: {((emd_clean < 0) | (newa_clean < 0)).sum():,}'
-            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=30)
+            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=16)
             plt.tight_layout()
             neg_analysis_path = os.path.join(base_dir, f'negative_values_analysis_{height:.0f}m.png')
             plt.savefig(neg_analysis_path, dpi=150, facecolor='white')
@@ -13680,9 +13692,9 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             bars = ax.bar(datasets, pos_percentages, color=colors, alpha=0.7, edgecolor='black', linewidth=1)
             for i, (bar, count, percentage) in enumerate(zip(bars, pos_counts, pos_percentages)):
                 height_b = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=22)
-            ax.set_ylabel('Percentage of Positive Values (%)', fontsize=24, fontweight='bold')
-            ax.set_title(f'Positive Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, fontweight='bold')
+                ax.text(bar.get_x() + bar.get_width()/2., height_b + 0.5, f'{percentage:.1f}%\n({count:,} hours)', ha='center', va='bottom', fontweight='bold', fontsize=16)
+            ax.set_ylabel('Percentage of Positive Values (%)', fontsize=20, fontweight='bold')
+            ax.set_title(f'Positive Value Analysis at {height:.0f}m\nTotal timestamps: {total_timestamps:,} hours', fontsize=28, fontweight='bold')
             ax.grid(True, alpha=0.3, axis='y')
             ax.set_ylim(0, max(pos_percentages) * 1.15)
             stats_text = f'Summary:\n'
@@ -13690,7 +13702,7 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             stats_text += f'NEWA positives: {newa_pos_count:,} ({newa_pos_percentage:.1f}%)\n'
             stats_text += f'Both positive: {((emd_clean > 0) & (newa_clean > 0)).sum():,}\n'
             stats_text += f'Either positive: {((emd_clean > 0) | (newa_clean > 0)).sum():,}'
-            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=30)
+            ax.text(0.02, 0.05, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='bottom', horizontalalignment='left', fontsize=16)
             plt.tight_layout()
             pos_analysis_path = os.path.join(base_dir, f'positive_values_analysis_{height:.0f}m.png')
             plt.savefig(pos_analysis_path, dpi=150, facecolor='white')
@@ -13710,8 +13722,9 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
                 box_plot = ax.boxplot(box_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
                 for patch, color in zip(box_plot['boxes'], colors):
                     patch.set_facecolor(color)
-                ax.set_ylabel('Ice Accretion [g/h]', fontsize=24, fontweight='bold')
-                ax.set_title(f'Distribution of Positive Ice Accretion Values at {height}m\nPositive values: EMD={len(emd_positive):,}, NEWA={len(newa_positive):,}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, fontweight='bold')
+                ax.set_ylabel('Ice Accretion [g/h]', fontsize=40, fontweight='bold')
+                ax.set_title(f'Distribution of Positive Ice Accretion Values at {height}m\nPositive values: EMD={len(emd_positive):,}, NEWA={len(newa_positive):,}', fontsize=28, fontweight='bold')
+                ax.tick_params(axis='both', labelsize=40)
                 ax.grid(True, alpha=0.3)
                 emd_stats = {
                     'count': len(emd_positive),
@@ -13750,14 +13763,14 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
                 stats_text += f'  Med:  {newa_stats["median"]:.4f} g/h\n'
                 stats_text += f'  Q75:  {newa_stats["q75"]:.4f} g/h\n'
                 stats_text += f'  Max:  {newa_stats["max"]:.4f} g/h'
-                ax.text(1.02, 1.0, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='top', fontsize=27, family='monospace')
+                ax.text(1.02, 1.0, stats_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white', alpha=0.9), verticalalignment='top', fontsize=16, family='monospace')
                 legend_text = 'Box Plot Elements:\n'
                 legend_text += '━ Red line: Median\n'
                 legend_text += '┅ Black line: Mean\n'
                 legend_text += '□ Box: Q25-Q75 (IQR)\n'
                 legend_text += '┬ Whiskers: 1.5×IQR\n'
                 legend_text += '○ Outliers'
-                ax.text(0.02, 0.98, legend_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8), verticalalignment='top', fontsize=27)
+                ax.text(0.98, 0.98, legend_text, transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8), verticalalignment='top', horizontalalignment='right', fontsize=16)
                 plt.tight_layout()
                 positive_boxplot_path = os.path.join(base_dir, f'positive_values_boxplot_{height:.0f}m.png')
                 plt.savefig(positive_boxplot_path, dpi=150, facecolor='white', bbox_inches='tight')
@@ -13801,23 +13814,23 @@ def compare_accretion_emd_newa(emd_data, dataset_with_ice_load, height, emd_coor
             plt.gca().set_yticks(np.arange(-0.5, grid_array.shape[0], 1), minor=True)
             plt.grid(which="minor", color="black", linestyle='-', linewidth=0.1, alpha=0.2)
             cbar = plt.colorbar(im, shrink=0.6, pad=0.02)
-            cbar.set_label('Hourly Mean Ice Accretion Difference (NEWA - EMD) [g/h]', fontsize=28)
-            cbar.ax.tick_params(labelsize=30)
-            plt.xlabel('Day of Year', fontsize=28)
-            plt.ylabel('Year', fontsize=28)
-            plt.title(f'Daily Mean Ice Accretion Differences Grid: NEWA - EMD at {height}m (All Months)\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km\nEach cell = daily mean difference for that specific year and day', fontsize=32, pad=20)
+            cbar.set_label('Hourly Mean Ice Accretion Difference (NEWA - EMD) [g/h]', fontsize=23)
+            cbar.ax.tick_params(labelsize=25)
+            plt.xlabel('Day of Year', fontsize=23)
+            plt.ylabel('Year', fontsize=23)
+            plt.title(f'Daily Mean Ice Accretion Differences Grid: NEWA - EMD\nEach cell = daily mean difference for that specific year and day', fontsize=28, pad=20)
             year_indices = np.arange(0, len(pivot_grid.index))
             year_step = max(1, len(pivot_grid.index)//15)
             year_ticks = year_indices[::year_step]
-            plt.yticks(year_ticks, [pivot_grid.index[i] for i in year_ticks], fontsize=24)
+            plt.yticks(year_ticks, [pivot_grid.index[i] for i in year_ticks], fontsize=23)
             month_starts = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
             month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            plt.xticks(month_starts, month_labels, rotation=0, fontsize=24)
+            plt.xticks(month_starts, month_labels, rotation=0, fontsize=23)
             ax2 = plt.gca().secondary_xaxis('top')
             day_ticks = np.arange(0, 366, 30)
             ax2.set_xticks(day_ticks)
-            ax2.set_xlabel('Day of Year', fontsize=24)
-            ax2.tick_params(labelsize=20)
+            ax2.set_xlabel('Day of Year', fontsize=23)
+            ax2.tick_params(labelsize=25)
             plt.tight_layout()
             plt.subplots_adjust(top=0.85)
             daily_grid_path = os.path.join(base_dir, f'hourly_mean_grid_all_months_{height:.0f}m.png')
@@ -14156,30 +14169,33 @@ def emd_newa_accretion_typical(emd_data, dataset_with_ice_load, height, emd_coor
             box_plot_daily = ax1.boxplot(daily_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
             for patch, color in zip(box_plot_daily['boxes'], colors):
                 patch.set_facecolor(color)
-            ax1.set_ylabel('Mean Daily Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=24, fontweight='bold')
-            ax1.set_title(f'Typical Day Comparison at {height}m\nDistribution of Daily Means of Hourly Ice Accretion (n={len(emd_daily_aligned)})', fontsize=22, fontweight='bold')
+            ax1.set_ylabel('Mean Daily Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=15, fontweight='bold')
+            ax1.set_title(f'Daily Means(n={len(emd_daily_aligned)})', fontsize=16, fontweight='bold')
+            ax1.tick_params(axis='both', labelsize=20)
             ax1.grid(True, alpha=0.3)
             ax2 = axes[1]
             weekly_data = [emd_weekly_aligned.values, newa_weekly_aligned.values]
             box_plot_weekly = ax2.boxplot(weekly_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
             for patch, color in zip(box_plot_weekly['boxes'], colors):
                 patch.set_facecolor(color)
-            ax2.set_ylabel('Mean Weekly Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=24, fontweight='bold')
-            ax2.set_title(f'Typical Week Comparison at {height}m\nDistribution of Weekly Means of Hourly Ice Accretion (n={len(emd_weekly_aligned)})', fontsize=22, fontweight='bold')
+            ax2.set_ylabel('Mean Weekly Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=15, fontweight='bold')
+            ax2.set_title(f'Weekly Means(n={len(emd_weekly_aligned)})', fontsize=16, fontweight='bold')
+            ax2.tick_params(axis='both', labelsize=20)
             ax2.grid(True, alpha=0.3)
             ax3 = axes[2]
             yearly_data = [emd_yearly_aligned.values, newa_yearly_aligned.values]
             box_plot_yearly = ax3.boxplot(yearly_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
             for patch, color in zip(box_plot_yearly['boxes'], colors):
                 patch.set_facecolor(color)
-            ax3.set_ylabel('Mean Yearly Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=24, fontweight='bold')
-            ax3.set_title(f'Typical Year Comparison at {height}m\nDistribution of Yearly Means of Hourly Ice Accretion (n={len(emd_yearly_aligned)})', fontsize=22, fontweight='bold')
+            ax3.set_ylabel('Mean Yearly Ice Accretion [g/h]\n(Mean of Hourly Values)', fontsize=15, fontweight='bold')
+            ax3.set_title(f'Yearly Means(n={len(emd_yearly_aligned)})', fontsize=16, fontweight='bold')
+            ax3.tick_params(axis='both', labelsize=20)
             ax3.grid(True, alpha=0.3)
             threshold_text = f"Ice Accretion Threshold: >={ice_accretion_threshold} g/h" if ice_accretion_threshold > 0 else "No Ice Accretion Threshold"
             nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
-            fig.suptitle(f'Typical Accretion Patterns Analysis: EMD vs NEWA at {height}m (Icing Season Only)\nTemporal Means of Hourly Ice Accretion Values\n{threshold_text} | {nonzero_text}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, fontweight='bold', y=0.96)
-            legend_text = 'Box Plot Elements:\n━ Red line: Median\n┅ Black line: Mean\n□ Box: Q25-Q75 (IQR)\n┬ Whiskers: 1.5×IQR\n○ Outliers'
-            fig.text(0.02, 0.02, legend_text, fontsize=27, bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8), verticalalignment='bottom')
+            fig.suptitle(f'Patterns Analysis: EMD vs NEWA\nTemporal Means of Hourly Ice Accretion Values\n{threshold_text} | {nonzero_text}', fontsize=20, fontweight='bold', y=0.96)
+            legend_text = '━ Red line: Median\n┅ Black line: Mean\n□ Box: Q25-Q75 (IQR)\n┬ Whiskers: 1.5×IQR\n○ Outliers'
+            fig.text(0.98, 0.98, legend_text, fontsize=15, bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8), horizontalalignment='right', verticalalignment='top')
             plt.tight_layout()
             plt.subplots_adjust(top=0.80, bottom=0.15)
             typical_patterns_path = os.path.join(base_dir, f'typical_accretion_patterns_comparison_{height:.0f}m.png')
@@ -14198,7 +14214,7 @@ def emd_newa_accretion_typical(emd_data, dataset_with_ice_load, height, emd_coor
             stats_table_data.append(['', 'NEWA', f"{newa_yearly_stats['count']}", f"{newa_yearly_stats['mean']:.4f}", f"{newa_yearly_stats['std']:.4f}", f"{newa_yearly_stats['min']:.4f}", f"{newa_yearly_stats['q25']:.4f}", f"{newa_yearly_stats['median']:.4f}", f"{newa_yearly_stats['q75']:.4f}", f"{newa_yearly_stats['max']:.4f}"])
             table = ax.table(cellText=stats_table_data[1:], colLabels=stats_table_data[0], cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
             table.auto_set_font_size(False)
-            table.set_fontsize(30)
+            table.set_fontsize(16)
             table.scale(1, 2)
             for i in range(len(stats_table_data)):
                 for j in range(len(stats_table_data[0])):
@@ -14212,7 +14228,7 @@ def emd_newa_accretion_typical(emd_data, dataset_with_ice_load, height, emd_coor
                         cell.set_facecolor('#FFF3E0')
             threshold_text = f"Ice Accretion Threshold: >={ice_accretion_threshold} g/h" if ice_accretion_threshold > 0 else "No Ice Accretion Threshold"
             nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
-            ax.set_title(f'Typical Accretion Patterns Statistics Summary at {height}m\nTemporal Means of Hourly Ice Accretion Values in g/h (Icing Season Only)\n{threshold_text} | {nonzero_text}', fontsize=28, fontweight='bold', pad=20)
+            ax.set_title(f'Patterns Statistics Summary\nTemporal Means of Hourly Ice Accretion Values in g/h\n{threshold_text} | {nonzero_text}', fontsize=28, fontweight='bold', pad=20)
             plt.tight_layout()
             stats_table_path = os.path.join(base_dir, f'typical_accretion_patterns_statistics_{height:.0f}m.png')
             plt.savefig(stats_table_path, dpi=150, facecolor='white', bbox_inches='tight')
@@ -14513,18 +14529,29 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
             data_max = max(np.max(emd_final), np.max(newa_final))
             x_range = np.linspace(data_min, data_max, 1000)
 
-            fig, axes = plt.subplots(2, 3, figsize=(24, 12))
-            ax1 = axes[0, 0]
+            threshold_text = f"Ice Accretion Threshold: >={ice_accretion_threshold} g/h" if ice_accretion_threshold > 0 else "No Ice Accretion Threshold"
+            nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
+            common_subtitle = f'{threshold_text} | {nonzero_text}'
+
+            # Plot 1: Histogram PDF comparison
+            fig, ax1 = plt.subplots(1, 1, figsize=(12, 8))
             bins = np.linspace(data_min, data_max, 50)
             ax1.hist(emd_final, bins=bins, alpha=0.6, density=True, color='steelblue', edgecolor='darkblue', linewidth=1, label=f'EMD (n={len(emd_final)})')
             ax1.hist(newa_final, bins=bins, alpha=0.6, density=True, color='orange', edgecolor='darkorange', linewidth=1, label=f'NEWA (n={len(newa_final)})')
-            ax1.set_xlabel('Ice Accretion [g/h]', fontweight='bold')
-            ax1.set_ylabel('Probability Density', fontweight='bold')
-            ax1.set_title('Probability Density Functions - Histograms', fontweight='bold')
-            ax1.legend()
+            ax1.set_xlabel('Ice Accretion [g/h]', fontweight='bold', fontsize=20)
+            ax1.set_ylabel('Probability Density', fontweight='bold', fontsize=20)
+            ax1.set_title(f'Probability Density Functions\n{common_subtitle}', fontsize=26)
+            ax1.legend(fontsize=20)
+            ax1.tick_params(labelsize=20)
             ax1.grid(True, alpha=0.3)
+            plt.tight_layout()
+            hist_path = os.path.join(base_dir, f'pdf_histogram_{height:.0f}m.png')
+            plt.savefig(hist_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {hist_path}")
 
-            ax2 = axes[0, 1]
+            # Plot 2: KDE comparison
+            fig, ax2 = plt.subplots(1, 1, figsize=(12, 8))
             if len(emd_final) > 10:
                 kde_emd = stats.gaussian_kde(emd_final)
                 ax2.plot(x_range, kde_emd(x_range), 'steelblue', linewidth=3, label=f'EMD (μ={emd_stats["mean"]:.3f}, σ={emd_stats["std"]:.3f})')
@@ -14533,37 +14560,37 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
                 ax2.plot(x_range, kde_newa(x_range), 'orange', linewidth=3, label=f'NEWA (μ={newa_stats["mean"]:.3f}, σ={newa_stats["std"]:.3f})')
             ax2.axvline(emd_stats['mean'], color='steelblue', linestyle='--', alpha=0.8, label='EMD Mean')
             ax2.axvline(newa_stats['mean'], color='orange', linestyle='--', alpha=0.8, label='NEWA Mean')
-            ax2.set_xlabel('Ice Accretion [g/h]', fontweight='bold')
-            ax2.set_ylabel('Probability Density', fontweight='bold')
-            ax2.set_title('Kernel Density Estimation (KDE) Comparison', fontweight='bold')
-            ax2.legend()
+            ax2.set_xlabel('Ice Accretion [g/h]', fontweight='bold', fontsize=20)
+            ax2.set_ylabel('Probability Density', fontweight='bold', fontsize=20)
+            ax2.set_title(f'Kernel Density Estimation (KDE) Comparison\n{common_subtitle}', fontsize=26)
+            ax2.legend(fontsize=20)
+            ax2.tick_params(labelsize=20)
             ax2.grid(True, alpha=0.3)
+            plt.tight_layout()
+            kde_path = os.path.join(base_dir, f'pdf_kde_{height:.0f}m.png')
+            plt.savefig(kde_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {kde_path}")
 
-            # New log-log PDF comparison plot
-            ax3 = axes[0, 2]
-            # Filter out zero values for log-log plot
+            # Plot 3: Log-log PDF comparison
+            fig, ax3 = plt.subplots(1, 1, figsize=(12, 8))
             emd_nonzero = emd_final[emd_final > 0]
             newa_nonzero = newa_final[newa_final > 0]
             
             if len(emd_nonzero) > 10 and len(newa_nonzero) > 10:
-                # Create log-spaced bins for PDF calculation
                 log_min = max(1e-6, min(np.min(emd_nonzero), np.min(newa_nonzero)))
                 log_max = max(np.max(emd_nonzero), np.max(newa_nonzero))
                 bins = np.logspace(np.log10(log_min), np.log10(log_max), 50)
                 
-                # Calculate PDF (normalized histogram)
                 emd_counts, _ = np.histogram(emd_nonzero, bins=bins)
                 newa_counts, _ = np.histogram(newa_nonzero, bins=bins)
                 
-                # Normalize to get PDF
                 bin_widths = np.diff(bins)
                 emd_pdf = emd_counts / (len(emd_nonzero) * bin_widths)
                 newa_pdf = newa_counts / (len(newa_nonzero) * bin_widths)
                 
-                # Plot centers
                 bin_centers = (bins[:-1] + bins[1:]) / 2
                 
-                # Remove zeros for log-log plot
                 emd_nonzero_pdf = emd_pdf > 0
                 newa_nonzero_pdf = newa_pdf > 0
                 
@@ -14577,15 +14604,22 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
                 ax3.axvline(np.mean(newa_nonzero), color='orange', linestyle='--', alpha=0.8, label='NEWA Mean')
             else:
                 ax3.text(0.5, 0.5, 'Insufficient non-zero data\nfor log-log PDF', 
-                        ha='center', va='center', transform=ax3.transAxes, fontsize=24)
+                        ha='center', va='center', transform=ax3.transAxes, fontsize=16)
             
-            ax3.set_xlabel('Ice Accretion [g/h]', fontweight='bold')
-            ax3.set_ylabel('Probability Density', fontweight='bold')
-            ax3.set_title('PDF Comparison (Log-Log Scale)', fontweight='bold')
-            ax3.legend()
+            ax3.set_xlabel('Ice Accretion [g/h]', fontweight='bold', fontsize=20)
+            ax3.set_ylabel('Probability Density', fontweight='bold', fontsize=20)
+            ax3.set_title(f'PDF Comparison (Log-Log Scale)\n{common_subtitle}', fontsize=26)
+            ax3.legend(fontsize=20)
+            ax3.tick_params(labelsize=20)
             ax3.grid(True, alpha=0.3, which="both")
+            plt.tight_layout()
+            loglog_path = os.path.join(base_dir, f'pdf_loglog_{height:.0f}m.png')
+            plt.savefig(loglog_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {loglog_path}")
 
-            ax4 = axes[1, 0]
+            # Plot 4: Q-Q plot
+            fig, ax4 = plt.subplots(1, 1, figsize=(12, 8))
             n_quantiles = min(len(emd_final), len(newa_final), 1000)
             quantiles = np.linspace(0.01, 0.99, n_quantiles)
             emd_quantiles = np.quantile(emd_final, quantiles)
@@ -14595,28 +14629,40 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
             max_val = max(np.max(emd_quantiles), np.max(newa_quantiles))
             ax4.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, label='Perfect Agreement')
             qq_correlation = np.corrcoef(emd_quantiles, newa_quantiles)[0, 1]
-            ax4.set_xlabel('EMD Quantiles [g/h]', fontweight='bold')
-            ax4.set_ylabel('NEWA Quantiles [g/h]', fontweight='bold')
-            ax4.set_title(f'Q-Q Plot (r = {qq_correlation:.3f})', fontweight='bold')
-            ax4.legend()
+            ax4.set_xlabel('EMD Quantiles [g/h]', fontweight='bold', fontsize=20)
+            ax4.set_ylabel('NEWA Quantiles [g/h]', fontweight='bold', fontsize=20)
+            ax4.set_title(f'Q-Q Plot (r = {qq_correlation:.3f})\n{common_subtitle}', fontsize=26)
+            ax4.legend(fontsize=20)
+            ax4.tick_params(labelsize=20)
             ax4.grid(True, alpha=0.3)
+            plt.tight_layout()
+            qq_path = os.path.join(base_dir, f'pdf_qqplot_{height:.0f}m.png')
+            plt.savefig(qq_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {qq_path}")
 
-            ax5 = axes[1, 1]
+            # Plot 5: Box plots
+            fig, ax5 = plt.subplots(1, 1, figsize=(12, 8))
             box_data = [emd_final, newa_final]
             labels = ['EMD', 'NEWA']
             colors = ['steelblue', 'orange']
             box_plot = ax5.boxplot(box_data, labels=labels, patch_artist=True, showmeans=True, meanline=True, boxprops=dict(alpha=0.7), medianprops=dict(color='red', linewidth=2), meanprops=dict(color='black', linewidth=2, linestyle='--'))
             for patch, color in zip(box_plot['boxes'], colors):
                 patch.set_facecolor(color)
-            ax5.set_ylabel('Ice Accretion [g/h]', fontweight='bold')
-            ax5.set_title('Distribution Comparison (Box Plots)', fontweight='bold')
+            ax5.set_ylabel('Ice Accretion [g/h]', fontweight='bold', fontsize=20)
+            ax5.set_title(f'Distribution Comparison (Box Plots) at {height}m\n{common_subtitle}', fontweight='bold', fontsize=28)
+            ax5.tick_params(labelsize=20)
             ax5.grid(True, alpha=0.3)
+            plt.tight_layout()
+            boxplot_path = os.path.join(base_dir, f'pdf_boxplot_{height:.0f}m.png')
+            plt.savefig(boxplot_path, dpi=150, facecolor='white', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {boxplot_path}")
 
-            # Add statistical summary table to the last subplot (axes[1, 2])
-            ax6 = axes[1, 2]
+            # Plot 6: Statistical summary table (inline in subplot grid)
+            fig, ax6 = plt.subplots(1, 1, figsize=(12, 8))
             ax6.axis('off')
             
-            # Create statistical summary table
             stats_data = [
                 ['Statistic', 'EMD', 'NEWA'],
                 ['Count', f"{emd_stats['count']}", f"{newa_stats['count']}"],
@@ -14633,36 +14679,31 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
             ]
             
             table = ax6.table(cellText=stats_data[1:], colLabels=stats_data[0], 
-                             cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
+                             cellLoc='center', loc='center', bbox=[0.05, 0.1, 0.9, 0.8])
             table.auto_set_font_size(False)
-            table.set_fontsize(30)
+            table.set_fontsize(16)
             table.scale(1, 1.5)
             
-            # Style the table
             for i in range(len(stats_data)):
                 for j in range(len(stats_data[0])):
                     cell = table[(i, j)]
-                    if i == 0:  # Header row
+                    if i == 0:
                         cell.set_facecolor('#4CAF50')
                         cell.set_text_props(weight='bold', color='white')
-                    elif j == 1:  # EMD column
+                    elif j == 1:
                         cell.set_facecolor('#E3F2FD')
-                    elif j == 2:  # NEWA column
+                    elif j == 2:
                         cell.set_facecolor('#FFF3E0')
                         
-            ax6.set_title('Statistical Summary', fontweight='bold', pad=10)
-
-            threshold_text = f"Ice Accretion Threshold: >={ice_accretion_threshold} g/h" if ice_accretion_threshold > 0 else "No Ice Accretion Threshold"
-            nonzero_text = f"Non-Zero Filter: >={non_zero_percentage}% hours > 0" if non_zero_percentage > 0 else "No Non-Zero Filter"
-            fig.suptitle(f'Probability Density Function Analysis: EMD vs NEWA at {height}m\nIce Accretion Distribution Comparison (Icing Season Only) - 6 Analysis Views\n{threshold_text} | {nonzero_text}\nNEWA Grid Cell: ({closest_sn}, {closest_we}) - Distance: {closest_distance_km:.2f} km', fontsize=28, fontweight='bold', y=0.95)
+            ax6.set_title(f'Statistical Summary at {height}m\n{common_subtitle}', fontweight='bold', pad=10, fontsize=28)
             plt.tight_layout()
-            plt.subplots_adjust(top=0.85)
-            pdf_plot_path = os.path.join(base_dir, f'pdf_comparison_{height:.0f}m.png')
-            plt.savefig(pdf_plot_path, dpi=150, facecolor='white', bbox_inches='tight')
+            stats_inline_path = os.path.join(base_dir, f'pdf_stats_table_inline_{height:.0f}m.png')
+            plt.savefig(stats_inline_path, dpi=150, facecolor='white', bbox_inches='tight')
             plt.close()
-            print(f"Saved: {pdf_plot_path}")
+            print(f"Saved: {stats_inline_path}")
 
-            fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+            # Plot 7: Detailed statistics table
+            fig, ax = plt.subplots(1, 1, figsize=(14, 10))
             ax.axis('off')
             stats_data = [
                 ['Statistic', 'EMD', 'NEWA', 'Difference (NEWA - EMD)'],
@@ -14680,7 +14721,7 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
             ]
             table = ax.table(cellText=stats_data[1:], colLabels=stats_data[0], cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
             table.auto_set_font_size(False)
-            table.set_fontsize(22)
+            table.set_fontsize(16)
             table.scale(1, 2)
             for i in range(len(stats_data)):
                 for j in range(len(stats_data[0])):
@@ -14703,14 +14744,14 @@ def pdf_emd_newa_accretion(emd_data, dataset_with_ice_load, height, emd_coordina
             plt.close()
             print(f"Saved: {stats_table_path}")
             print(f"\n=== PLOT SUMMARY ===")
-            print(f"Created 2 plots:")
-            print(f"  1. PDF comparison plot (5 subplots): {pdf_plot_path}")
-            print(f"     - Histograms")
-            print(f"     - Linear KDE comparison") 
-            print(f"     - Log-log KDE comparison")
-            print(f"     - Q-Q plot")
-            print(f"     - Box plots")
-            print(f"  2. Statistical summary table: {stats_table_path}")
+            print(f"Created 8 individual plots:")
+            print(f"  1. Histogram PDF: {hist_path}")
+            print(f"  2. KDE comparison: {kde_path}")
+            print(f"  3. Log-log PDF: {loglog_path}")
+            print(f"  4. Q-Q plot: {qq_path}")
+            print(f"  5. Box plots: {boxplot_path}")
+            print(f"  6. Statistics table (summary): {stats_inline_path}")
+            print(f"  7. Statistics table (detailed): {stats_table_path}")
 
         print(f"\n=== STATISTICAL TESTS ===")
         ks_statistic, ks_p_value = stats.ks_2samp(emd_final, newa_final)
@@ -15357,9 +15398,9 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
                            max(newa_final.max(), emd_final.max())], 
                           [min(newa_final.min(), emd_final.min()), 
                            max(newa_final.max(), emd_final.max())], 'r--', alpha=0.8)
-            axes[0,0].set_xlabel('NEWA Temperature (K)', fontsize=24)
-            axes[0,0].set_ylabel('EMD Temperature (K)', fontsize=24)
-            axes[0,0].set_title(f'Temperature Scatter Plot\nCorr = {stats["correlation"]:.3f}, N = {stats["n_points"]}')
+            axes[0,0].set_xlabel('NEWA Temperature (K)', fontsize=20)
+            axes[0,0].set_ylabel('EMD Temperature (K)', fontsize=20)
+            axes[0,0].set_title(f'Temperature Scatter Plot\nCorr = {stats["correlation"]:.3f}, N = {stats["n_points"]}', fontsize=28)
             axes[0,0].grid(True, alpha=0.3)
             
             # 2. Difference scatter plot  
@@ -15367,9 +15408,9 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
             axes[0,1].axhline(y=0, color='r', linestyle='--', alpha=0.8)
             axes[0,1].axhline(y=differences.mean(), color='g', linestyle='-', alpha=0.8, 
                              label=f'Mean bias = {differences.mean():.3f} K')
-            axes[0,1].set_xlabel('NEWA Temperature (K)', fontsize=24)
-            axes[0,1].set_ylabel('Difference (EMD - NEWA) (K)', fontsize=24)
-            axes[0,1].set_title(f'Temperature Differences vs NEWA\nRMSE = {stats["rmse"]:.3f} K')
+            axes[0,1].set_xlabel('NEWA Temperature (K)', fontsize=20)
+            axes[0,1].set_ylabel('Difference (EMD - NEWA) (K)', fontsize=20)
+            axes[0,1].set_title(f'Temperature Differences vs NEWA\nRMSE = {stats["rmse"]:.3f} K', fontsize=28)
             axes[0,1].legend()
             axes[0,1].grid(True, alpha=0.3)
             
@@ -15381,9 +15422,9 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
             axes[1,0].plot(sample_times.index, sample_times.values, alpha=0.7)
             axes[1,0].axhline(y=0, color='r', linestyle='--', alpha=0.8)
             axes[1,0].axhline(y=differences.mean(), color='g', linestyle='-', alpha=0.8)
-            axes[1,0].set_xlabel('Time', fontsize=24)
-            axes[1,0].set_ylabel('Difference (EMD - NEWA) (K)', fontsize=24)
-            axes[1,0].set_title(f'Time Series of Differences (Random Sample: {sample_size} points)')
+            axes[1,0].set_xlabel('Time', fontsize=20)
+            axes[1,0].set_ylabel('Difference (EMD - NEWA) (K)', fontsize=20)
+            axes[1,0].set_title(f'Time Series of Differences (Random Sample: {sample_size} points)', fontsize=28)
             axes[1,0].grid(True, alpha=0.3)
             axes[1,0].tick_params(axis='x', rotation=45)
             
@@ -15392,9 +15433,9 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
             axes[1,1].axvline(x=0, color='r', linestyle='--', alpha=0.8, label='Zero bias')
             axes[1,1].axvline(x=differences.mean(), color='g', linestyle='-', alpha=0.8, 
                              label=f'Mean bias = {differences.mean():.3f} K')
-            axes[1,1].set_xlabel('Difference (EMD - NEWA) (K)', fontsize=24)
-            axes[1,1].set_ylabel('Probability Density', fontsize=24)
-            axes[1,1].set_title(f'Distribution of Differences\nStd = {differences.std():.3f} K')
+            axes[1,1].set_xlabel('Difference (EMD - NEWA) (K)', fontsize=20)
+            axes[1,1].set_ylabel('Probability Density', fontsize=20)
+            axes[1,1].set_title(f'Distribution of Differences\nStd = {differences.std():.3f} K', fontsize=28)
             axes[1,1].legend()
             axes[1,1].grid(True, alpha=0.3)
             
@@ -15418,7 +15459,7 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
             axes[0,0].set_xticks(range(1, 13))
             axes[0,0].set_xticklabels(month_names)
             axes[0,0].axhline(y=0, color='r', linestyle='--', alpha=0.8)
-            axes[0,0].set_ylabel('Mean Bias (EMD - NEWA) (K)', fontsize=24)
+            axes[0,0].set_ylabel('Mean Bias (EMD - NEWA) (K)', fontsize=20)
             axes[0,0].set_title('Monthly Temperature Bias Pattern', fontsize=28)
             axes[0,0].grid(True, alpha=0.3)
             
@@ -15427,8 +15468,8 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
                 hourly_bias = differences.groupby(differences.index.hour).mean()
                 axes[0,1].plot(hourly_bias.index, hourly_bias.values, 'o-')
                 axes[0,1].axhline(y=0, color='r', linestyle='--', alpha=0.8)
-                axes[0,1].set_xlabel('Hour of Day', fontsize=24)
-                axes[0,1].set_ylabel('Mean Bias (EMD - NEWA) (K)', fontsize=24)
+                axes[0,1].set_xlabel('Hour of Day', fontsize=20)
+                axes[0,1].set_ylabel('Mean Bias (EMD - NEWA) (K)', fontsize=20)
                 axes[0,1].set_title('Hourly Temperature Bias Pattern', fontsize=28)
                 axes[0,1].grid(True, alpha=0.3)
                 axes[0,1].set_xticks(range(0, 24, 3))
@@ -15447,8 +15488,8 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
             
             axes[1,0].plot(bin_centers, binned_bias, 'o-')
             axes[1,0].axhline(y=0, color='r', linestyle='--', alpha=0.8)
-            axes[1,0].set_xlabel('NEWA Temperature (K)', fontsize=24)
-            axes[1,0].set_ylabel('Mean Bias (EMD - NEWA) (K)', fontsize=24)
+            axes[1,0].set_xlabel('NEWA Temperature (K)', fontsize=20)
+            axes[1,0].set_ylabel('Mean Bias (EMD - NEWA) (K)', fontsize=20)
             axes[1,0].set_title('Temperature Bias vs Temperature Range', fontsize=28)
             axes[1,0].grid(True, alpha=0.3)
             
@@ -15458,8 +15499,8 @@ def compare_temperature_emd_newa(emd_data, newa_data, height, emd_coordinates=No
                 if len(annual_bias) > 1:
                     axes[1,1].plot(annual_bias.index, annual_bias.values, 'o-')
                     axes[1,1].axhline(y=0, color='r', linestyle='--', alpha=0.8)
-                    axes[1,1].set_xlabel('Year', fontsize=24)
-                    axes[1,1].set_ylabel('Mean Bias (EMD - NEWA) (K)', fontsize=24)
+                    axes[1,1].set_xlabel('Year', fontsize=20)
+                    axes[1,1].set_ylabel('Mean Bias (EMD - NEWA) (K)', fontsize=20)
                     axes[1,1].set_title('Annual Temperature Bias Trend', fontsize=28)
                     axes[1,1].grid(True, alpha=0.3)
                 else:
