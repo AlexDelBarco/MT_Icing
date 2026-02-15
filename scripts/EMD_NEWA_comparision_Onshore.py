@@ -168,11 +168,11 @@ emd_coords = (22.489, 62.630)  # EMD's data coordinates Onshore
 #     non_zero_percentage=0
 # )
 
-EMD_NEWA_pdf = fn.pdf_emd_newa(
-    emd_data=emd_data,
-    dataset_with_ice_load=dataset_with_ice_load,
-    height=height_level,
-    emd_coordinates=emd_coords,
-    ice_load_threshold=0.001, # in kg/h
-    non_zero_percentage=0 #Filtered by percentage of hours with ice accretion > 0 in a day, taking only valid days
-)
+# EMD_NEWA_pdf = fn.pdf_emd_newa(
+#     emd_data=emd_data,
+#     dataset_with_ice_load=dataset_with_ice_load,
+#     height=height_level,
+#     emd_coordinates=emd_coords,
+#     ice_load_threshold=0.001, # in kg/h
+#     non_zero_percentage=0 #Filtered by percentage of hours with ice accretion > 0 in a day, taking only valid days
+# )
